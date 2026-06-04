@@ -51,6 +51,10 @@ import {
   extractCornerRadius,
   extractFontToken,
   extractNavigationTitle,
+  parseSwiftArrayConstant,
+  resolveNavigationExpression,
+  extractForEachLoopVar,
+  extractForEachSourceName,
   type ModifierInfo,
 } from "./astUtils.js";
 import { tryInlineSwiftView } from "./inliner.js";
@@ -368,11 +372,47 @@ function mapText(node: SyntaxNode, ctx: MapContext, mock: MockProvider | undefin
     if (positional) {
       textValue = extractStringLiteral(positional);
       if (!textValue) {
-        // 동적 값: argBindings에서 literal 값 조회 (인라이닝 시 생성자 인자 바인딩)
-        const refName = positional.type === "simple_identifier" ? positional.text : undefined;
-        if (refName && ctx.argBindings && typeof ctx.argBindings[refName] === "string") {
-          textValue = ctx.argBindings[refName] as string;
-        } else {
+        // simple_identifier → argBindings에서 literal 값 조회 (인라이닝 시 생성자 인자 바인딩)
+        if (positional.type === "simple_identifier" && ctx.argBindings) {
+          const refName = positional.text;
+          const bound = ctx.argBindings[refName];
+          if (typeof bound === "string") {
+            textValue = bound;
+          } else if (typeof bound === "number") {
+            textValue = String(bound);
+          }
+        }
+
+        // navigation_expression (product.title) → argBindings에서 해석
+        if (!textValue && positional.type === "navigation_expression" && ctx.argBindings) {
+          const resolved = resolveNavigationExpression(positional, ctx.argBindings);
+          if (resolved !== null && resolved !== undefined) {
+            textValue = typeof resolved === "string" ? resolved : String(resolved);
+          }
+        }
+
+        // call_expression (예: formatPrice(originalPrice)) — 첫 번째 simple_identifier 인자에서 숫자 추출
+        if (!textValue && positional.type === "call_expression" && ctx.argBindings) {
+          const innerArgs = findChild(positional, "call_suffix");
+          const innerValueArgs = innerArgs ? findChild(innerArgs, "value_arguments") : undefined;
+          if (innerValueArgs) {
+            const firstArgNode = getPositionalArg(innerValueArgs);
+            if (firstArgNode) {
+              if (firstArgNode.type === "simple_identifier") {
+                const bound = ctx.argBindings[firstArgNode.text];
+                if (typeof bound === "number") textValue = String(bound);
+                else if (typeof bound === "string") textValue = bound;
+              } else if (firstArgNode.type === "navigation_expression") {
+                const resolved = resolveNavigationExpression(firstArgNode, ctx.argBindings);
+                if (resolved !== null && resolved !== undefined) {
+                  textValue = typeof resolved === "string" ? resolved : String(resolved);
+                }
+              }
+            }
+          }
+        }
+
+        if (!textValue) {
           // 보간 또는 resolve 불가 동적 값 → mock
           textValue = mock?.text() ?? "";
           wasMocked = true;
@@ -619,19 +659,71 @@ async function mapForEach(
   mock: MockProvider | undefined
 ): Promise<IRNode | null> {
   // ForEach(items) { item in ViewBody() }
-  const children = await parseTrailingClosure(node, ctx);
   const count = mock?.listCount() ?? 3;
 
-  if (children.length === 0) return null;
+  // 1. 배열 소스 이름 추출: ForEach(products) → "products"
+  const sourceName = extractForEachSourceName(node);
 
-  const representative = children[0]!;
-  const repeated: IRNode[] = Array.from({ length: count }, () => ({ ...representative }));
+  // 2. lambda_literal 직접 추출 (루프 변수 이름 파싱 위해)
+  const callSuffix = findChild(node, "call_suffix");
+  const lambda = callSuffix ? findChild(callSuffix, "lambda_literal") : undefined;
+  const loopVar = lambda ? extractForEachLoopVar(lambda) : undefined;
+
+  // 3. 같은 파일에서 배열 상수 파싱
+  let elemBindingsList: Record<string, unknown>[] = [];
+  if (sourceName && loopVar && ctx.symbolTable && ctx.currentFile) {
+    const parsedFile = ctx.symbolTable.files.get(ctx.currentFile)
+      ?? Array.from(ctx.symbolTable.files.values()).find(f => f.filePath === ctx.currentFile);
+    if (parsedFile) {
+      const elems = parseSwiftArrayConstant(parsedFile.root, sourceName);
+      if (elems.length > 0) {
+        // 각 요소를 { [loopVar]: elem, ...parentBindings } 형태의 바인딩으로 변환
+        elemBindingsList = elems.map(elem => ({
+          ...(ctx.argBindings ?? {}),
+          [loopVar]: elem,
+        }));
+      }
+    }
+  }
+
+  // 4. 각 요소(또는 대표 요소) 렌더링
+  const items: IRNode[] = [];
+  if (elemBindingsList.length > 0) {
+    // 실제 배열 요소 수와 count 중 min; 나머지는 마지막 요소 반복
+    for (let i = 0; i < count; i++) {
+      const elemIdx = Math.min(i, elemBindingsList.length - 1);
+      const elemCtx: MapContext = { ...ctx, argBindings: elemBindingsList[elemIdx] };
+      const stmtsNode = lambda ? findChild(lambda, "statements") : undefined;
+      if (!stmtsNode) break;
+      const children = await parseStatements(stmtsNode, elemCtx);
+      if (children.length > 0) {
+        items.push(children.length === 1 ? children[0]! : {
+          type: "Column",
+          layout: { direction: "column" },
+          confidence: NODE_CONFIDENCE.standard,
+          children,
+        });
+      }
+    }
+  }
+
+  // 5. 배열 소스를 찾지 못하면 기존 방식(대표 1개 복제)
+  if (items.length === 0) {
+    const children = await parseTrailingClosure(node, ctx);
+    if (children.length === 0) return null;
+    const representative = children[0]!;
+    for (let i = 0; i < count; i++) {
+      items.push({ ...representative });
+    }
+  }
+
+  if (items.length === 0) return null;
 
   return {
     type: "List",
     confidence: NODE_CONFIDENCE.mocked,
     sourceRef: makeSourceRef(node, ctx),
-    children: repeated,
+    children: items,
   };
 }
 
@@ -782,16 +874,93 @@ async function mapSwitchStatement(
   };
 }
 
+// ── if-let 지역 바인딩 추출 ────────────────────────────────────────────────────
+
+/**
+ * if let x = expr 패턴에서 x → argBindings[expr] 매핑을 추출한다.
+ *
+ * tree-sitter Swift에서 `if let discounted = discountedPrice` 의 AST:
+ *   if_statement
+ *     [if] "if"
+ *     [value_binding_pattern]  (= "let" 키워드를 포함하는 노드)
+ *       [let] "let"
+ *     [simple_identifier] "discounted"   ← LHS 변수명 (value_binding_pattern 다음 sibling)
+ *     [=] "="
+ *     [simple_identifier] "discountedPrice"  ← RHS
+ *     [{] ... [}]
+ *
+ * 파싱 전략: if_statement 직계 children에서 statements/{} 이전까지 순회.
+ * value_binding_pattern 직후 simple_identifier = LHS, "=" 이후 첫 비공백 노드 = RHS.
+ */
+function extractIfLetBindings(
+  ifNode: SyntaxNode,
+  argBindings: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  if (!argBindings) return {};
+
+  const extra: Record<string, unknown> = {};
+  const children = ifNode.children.filter(c => c !== null) as SyntaxNode[];
+
+  // statements({ 이전 인덱스까지만 탐색
+  const stopIdx = children.findIndex(c => c.type === "statements" || c.type === "{");
+  const condChildren = stopIdx >= 0 ? children.slice(0, stopIdx) : children;
+
+  // value_binding_pattern이 나타나면 if-let 패턴으로 처리
+  let i = 0;
+  while (i < condChildren.length) {
+    const c = condChildren[i]!;
+    if (c.type === "value_binding_pattern") {
+      // 다음 simple_identifier = LHS
+      const lhsNode = condChildren[i + 1];
+      const eqNode = condChildren[i + 2];
+      const rhsNode = condChildren[i + 3];
+
+      if (
+        lhsNode?.type === "simple_identifier" &&
+        eqNode?.text === "=" &&
+        rhsNode
+      ) {
+        const bindingName = lhsNode.text;
+
+        if (rhsNode.type === "simple_identifier") {
+          const val = argBindings[rhsNode.text];
+          if (val !== undefined && val !== null) {
+            extra[bindingName] = val;
+          }
+        } else if (rhsNode.type === "navigation_expression") {
+          const resolved = resolveNavigationExpression(rhsNode, argBindings);
+          if (resolved !== undefined && resolved !== null) {
+            extra[bindingName] = resolved;
+          }
+        }
+
+        i += 4; // value_binding_pattern + LHS + "=" + RHS 건너뜀
+        continue;
+      }
+    }
+    i++;
+  }
+
+  return extra;
+}
+
 // ── if 조건부 ──────────────────────────────────────────────────────────────────
 
 async function mapIfStatement(
   node: SyntaxNode,
   ctx: MapContext
 ): Promise<IRNode | null> {
+  // if-let 바인딩을 ctx에 추가하여 내부 statements에서 지역 바인딩을 resolve할 수 있게 한다.
+  // 예: if let discounted = discountedPrice → argBindings["discounted"] = argBindings["discountedPrice"]
+  const letBindings = extractIfLetBindings(node, ctx.argBindings);
+  const innerCtx: MapContext = Object.keys(letBindings).length > 0
+    ? { ...ctx, argBindings: { ...(ctx.argBindings ?? {}), ...letBindings } }
+    : ctx;
+
   // if 조건 분기: 첫 분기만 채택
   const stmts = findChild(node, "statements");
   if (stmts) {
-    const children = await parseStatements(stmts, ctx);
+    const children = await parseStatements(stmts, innerCtx);
     if (children.length === 1) return children[0]!;
     if (children.length > 1) return {
       type: "Column",
@@ -804,7 +973,7 @@ async function mapIfStatement(
   // if let 패턴 — code_block 내 statements 탐색
   const blocks = findAllNodes(node, "statements");
   for (const block of blocks) {
-    const children = await parseStatements(block, ctx);
+    const children = await parseStatements(block, innerCtx);
     if (children.length > 0) {
       return children.length === 1 ? children[0]! : {
         type: "Column",
@@ -977,6 +1146,16 @@ function extractCallArgsMap(
       const varName = valueNode.text;
       if (Object.prototype.hasOwnProperty.call(currentArgBindings, varName)) {
         result[label] = currentArgBindings[varName];
+        continue;
+      }
+    }
+
+    // navigation_expression 해석: product.title → argBindings["product"]["title"]
+    // ForEach 루프 변수 바인딩이 있을 때 실제 값을 전달
+    if (valueNode.type === "navigation_expression" && currentArgBindings) {
+      const resolved = resolveNavigationExpression(valueNode, currentArgBindings);
+      if (resolved !== undefined) {
+        result[label] = resolved;
         continue;
       }
     }

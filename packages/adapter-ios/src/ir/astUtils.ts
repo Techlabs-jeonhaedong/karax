@@ -540,3 +540,142 @@ export function extractNavigationTitle(modifiers: ModifierInfo[]): string | unde
   }
   return undefined;
 }
+
+// ── 컬렉션 리터럴 정적 평가 ──────────────────────────────────────────────────
+
+/**
+ * value_argument 노드에서 리터럴 값을 추출한다.
+ * 지원: 문자열, 숫자, bool, nil
+ */
+function extractLiteralFromValueArg(va: SyntaxNode): unknown {
+  for (const child of va.children) {
+    if (!child) continue;
+    if (child.type === "value_argument_label" || child.type === ":") continue;
+    // 문자열
+    const str = extractStringLiteral(child);
+    if (str !== undefined) return str;
+    // 숫자
+    const num = extractNumber(child);
+    if (num !== undefined) return num;
+    // bool / nil
+    if (child.text === "true") return true;
+    if (child.text === "false") return false;
+    if (child.text === "nil") return null;
+  }
+  return undefined;
+}
+
+/**
+ * 같은 파일의 AST에서 배열 상수 선언을 찾아 각 요소를 Record 배열로 반환한다.
+ *
+ * 지원 패턴:
+ *   private let products: [ProductItem] = [ ProductItem(title: "...", price: 1.0), ... ]
+ *
+ * 반환: [{ title: "...", price: 1.0 }, ...] 형태의 배열
+ * 못 찾으면 빈 배열.
+ */
+export function parseSwiftArrayConstant(
+  fileRoot: SyntaxNode,
+  arrayName: string
+): Record<string, unknown>[] {
+  // property_declaration 중 pattern.simple_identifier == arrayName 인 것을 찾는다
+  const propDecls = findAllNodes(fileRoot, "property_declaration");
+  for (const propDecl of propDecls) {
+    // pattern > simple_identifier
+    const pattern = findChild(propDecl, "pattern");
+    const simpleId = pattern ? findChild(pattern, "simple_identifier") : undefined;
+    if (simpleId?.text !== arrayName) continue;
+
+    // array_literal 찾기
+    const arrayLit = findChild(propDecl, "array_literal");
+    if (!arrayLit) continue;
+
+    // array_literal의 직접 자식 call_expression들이 각 요소
+    const result: Record<string, unknown>[] = [];
+    for (const child of arrayLit.children) {
+      if (!child || child.type !== "call_expression") continue;
+
+      const elemRecord: Record<string, unknown> = {};
+
+      // call_suffix > value_arguments > value_argument*
+      const callSuffix = findChild(child, "call_suffix");
+      if (!callSuffix) continue;
+      const valueArgs = findChild(callSuffix, "value_arguments");
+      if (!valueArgs) continue;
+
+      const vas = findAllNodes(valueArgs, "value_argument");
+      for (const va of vas) {
+        const label = findChild(va, "value_argument_label")?.text;
+        if (!label) continue;
+        const val = extractLiteralFromValueArg(va);
+        if (val !== undefined) elemRecord[label] = val;
+      }
+
+      if (Object.keys(elemRecord).length > 0) result.push(elemRecord);
+    }
+
+    return result;
+  }
+
+  return [];
+}
+
+/**
+ * navigation_expression (예: product.title) 을 argBindings에서 해석한다.
+ *
+ * 구조: navigation_expression > [simple_identifier("product"), navigation_suffix > simple_identifier("title")]
+ * → argBindings["product"]["title"] 값 반환
+ * 해석 불가 시 undefined 반환.
+ */
+export function resolveNavigationExpression(
+  node: SyntaxNode,
+  argBindings: Record<string, unknown>
+): unknown {
+  if (node.type !== "navigation_expression") return undefined;
+
+  // 가장 왼쪽 simple_identifier: 루프 변수명
+  const baseId = findChild(node, "simple_identifier");
+  if (!baseId) return undefined;
+
+  const base = argBindings[baseId.text];
+  if (base === undefined || base === null || typeof base !== "object") return undefined;
+
+  // navigation_suffix > simple_identifier: 프로퍼티명
+  const navSuffix = findChild(node, "navigation_suffix");
+  if (!navSuffix) return undefined;
+
+  const propId = findChild(navSuffix, "simple_identifier");
+  if (!propId) return undefined;
+
+  return (base as Record<string, unknown>)[propId.text];
+}
+
+/**
+ * ForEach lambda에서 루프 변수명을 추출한다.
+ * lambda_literal > lambda_function_type > lambda_function_type_parameters > lambda_parameter > simple_identifier
+ */
+export function extractForEachLoopVar(lambdaLiteral: SyntaxNode): string | undefined {
+  const lambdaFuncType = findChild(lambdaLiteral, "lambda_function_type");
+  if (!lambdaFuncType) return undefined;
+  const params = findChild(lambdaFuncType, "lambda_function_type_parameters");
+  if (!params) return undefined;
+  const param = findChild(params, "lambda_parameter");
+  if (!param) return undefined;
+  return findChild(param, "simple_identifier")?.text;
+}
+
+/**
+ * ForEach의 첫 번째 인자에서 배열 소스 이름을 추출한다.
+ * ForEach(products) { ... } → "products"
+ */
+export function extractForEachSourceName(callNode: SyntaxNode): string | undefined {
+  // call_suffix > value_arguments > value_argument > simple_identifier
+  const callSuffix = findChild(callNode, "call_suffix");
+  if (!callSuffix) return undefined;
+  const valueArgs = findChild(callSuffix, "value_arguments");
+  if (!valueArgs) return undefined;
+  const firstArg = findChild(valueArgs, "value_argument");
+  if (!firstArg) return undefined;
+  const simpleId = findChild(firstArg, "simple_identifier");
+  return simpleId?.text;
+}
