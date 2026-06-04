@@ -124,16 +124,7 @@ describe("flutter-basic fixture — detect", () => {
   });
 });
 
-// ── buildScreenIR — 스텁 ─────────────────────────────────────────────────────
-
-describe("buildScreenIR — M3 구현 전 스텁", () => {
-  it("buildScreenIR은 NOT_IMPLEMENTED 에러를 던진다", async () => {
-    const ctx = fixtureCtx("flutter-basic");
-    await expect(
-      flutterAdapter.buildScreenIR(ctx, "HomeScreen")
-    ).rejects.toThrow("NOT_IMPLEMENTED");
-  });
-});
+// buildScreenIR 스텁 테스트는 M3에서 실제 구현으로 대체됨 (buildScreenIR.test.ts 참조)
 
 // ── 합성 fixture: go_router ───────────────────────────────────────────────────
 
@@ -158,7 +149,6 @@ describe("합성 fixture: go_router 케이스", () => {
     const ctx = fixtureCtx("go-router-case", true);
     const screens = await flutterAdapter.discoverScreens(ctx);
     const profile = screenById(screens, "ProfileScreen");
-    // 버그: .find()가 첫 GoRoute의 selector만 반환하므로 ProfileScreen이 candidate로 강등됨
     expect(profile?.discovery).toBe("route");
     expect(profile?.confidence).toBe(1.0);
   });
@@ -252,11 +242,16 @@ describe("엣지 케이스", () => {
     expect(homeOccurrences).toHaveLength(1);
   });
 
-  it("존재하지 않는 클래스 참조는 diagnostics에 기록되고 화면 목록에서 제외된다", async () => {
-    // flutter-basic의 routes 테이블에는 실제로 존재하는 클래스만 있으므로
-    // 모든 발견된 화면은 sourceRef.file이 있어야 한다
-    const ctx = fixtureCtx("flutter-basic");
+  it("존재하지 않는 클래스 참조는 화면 목록에서 제외된다 (missing-class-case 합성 fixture)", async () => {
+    // missing-class-case: MissingScreen은 routes에 등록됐지만 정의가 없음
+    const ctx = fixtureCtx("missing-class-case", true);
     const screens = await flutterAdapter.discoverScreens(ctx);
+    // ExistingScreen은 발견되어야 함
+    const ids = screens.map((s) => s.id);
+    expect(ids).toContain("ExistingScreen");
+    // MissingScreen은 심볼 테이블에 없으므로 화면 목록에서 제외되어야 함
+    expect(ids).not.toContain("MissingScreen");
+    // 발견된 route 화면은 모두 sourceRef.file이 있어야 함
     const routeScreens = screens.filter((s) => s.discovery === "route");
     for (const s of routeScreens) {
       expect(s.sourceRef?.file).toBeTruthy();

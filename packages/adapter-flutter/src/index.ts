@@ -11,6 +11,7 @@ import { readPackageName, hasFlutterDependency } from "./parse/pubspec.js";
 import { buildSymbolTable } from "./parse/scanner.js";
 import { discoverRouteGraph } from "./discover/routeGraph.js";
 import { findHeuristicCandidates } from "./discover/heuristic.js";
+import { buildScreenIR as _buildScreenIR } from "./ir/builder.js";
 
 // ── 유틸 ─────────────────────────────────────────────────────────────────────
 
@@ -123,11 +124,11 @@ export const flutterAdapter: FrameworkAdapter = {
     return screens;
   },
 
-  async buildScreenIR(_ctx: AdapterContext, _screenId: string): Promise<IRDocument> {
-    throw new Error("NOT_IMPLEMENTED: buildScreenIR은 M3에서 구현 예정");
+  async buildScreenIR(ctx: AdapterContext, screenId: string): Promise<IRDocument> {
+    return _buildScreenIR(ctx, screenId);
   },
 };
 
-// diagnostics는 M3 이후 IRDocument.diagnostics 채널로 노출 예정 (현재 미사용)
+// diagnostics는 IRDocument.diagnostics 채널로 노출됨
 export { classNameToTitle };
 export const ADAPTER_ID = "flutter" as const;
