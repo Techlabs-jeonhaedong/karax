@@ -1,6 +1,9 @@
 /**
  * 개별 체크 단위 테스트 (Red → Green → Refactor)
  * execa를 vi.mock으로 완전 격리해 각 분기를 검증한다.
+ *
+ * 주의: checkPlaywrightChromium은 getChromiumPath(playwright Node API)를 사용하므로
+ * 별도 파일 checks.playwright.test.ts에서 격리 테스트한다.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -13,7 +16,6 @@ vi.mock("execa", () => ({
 import { execa } from "execa";
 import {
   checkNode,
-  checkPlaywrightChromium,
   checkFlutter,
   checkDart,
   checkJava,
@@ -79,35 +81,6 @@ describe("checkNode", () => {
     mockExeca.mockResolvedValueOnce({ stdout: "v20.0.0", stderr: "", exitCode: 0 });
     const result = await checkNode();
     expect(result.label).toBeTruthy();
-  });
-});
-
-// ─── checkPlaywrightChromium ───────────────────────────────────────────────────
-
-describe("checkPlaywrightChromium", () => {
-  it("ok: chromium 실행파일이 존재하면 status=ok, autoInstallable=true", async () => {
-    mockExeca.mockResolvedValueOnce({
-      stdout: "/home/user/.cache/ms-playwright/chromium-1169/chrome-linux/chrome",
-      stderr: "",
-      exitCode: 0,
-    });
-    const result = await checkPlaywrightChromium();
-    expect(result.id).toBe("playwright-chromium");
-    expect(result.status).toBe("ok");
-    expect(result.autoInstallable).toBe(true);
-  });
-
-  it("missing: npx playwright chromium-path가 실패하면 status=missing", async () => {
-    mockExeca.mockRejectedValueOnce(new Error("not installed"));
-    const result = await checkPlaywrightChromium();
-    expect(result.status).toBe("missing");
-    expect(result.autoInstallable).toBe(true);
-  });
-
-  it("missing: 출력이 빈 문자열이면 status=missing", async () => {
-    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
-    const result = await checkPlaywrightChromium();
-    expect(result.status).toBe("missing");
   });
 });
 

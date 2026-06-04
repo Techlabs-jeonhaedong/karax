@@ -1,7 +1,7 @@
 # PLAN.md — 소스코드 기반 앱 스크린샷 추출 도구
 
 > **이 문서는 자기완결적 계획서다.** 새 세션에서 이 문서만 읽어도 구현을 이어갈 수 있도록 작성됐다.
-> 마지막 갱신: 2026-06-04 / 상태: M0~M4 완료, M5 미착수
+> 마지막 갱신: 2026-06-04 / 상태: M0~M5 완료 (Flutter 세로 슬라이스 데모 가능), M6 미착수
 
 ---
 
@@ -288,7 +288,7 @@ export function captureAll(opts: AnalyzeOptions & { outDir: string }):
   - 검증: IR 스냅샷 테스트, `Unknown` 노드 처리, confidence 집계 단조성 테스트, 골든 이미지
 - [x] **M4 — Flutter Tier 1 (부분 컴파일)**: 하니스 생성→`flutter test` golden→PNG 회수, 실패 시 Tier 2 fallback
   - 검증: fixture에서 Tier 1/2 캡처 비교, fallback 경로 테스트, 원본 무수정 테스트(전후 디렉토리 해시 비교)
-- [ ] **M5 — SDK/CLI/MCP 조립 + 의존성 자동 설치**: `captureAll` 통합, `sfc` CLI, MCP 서버 7 tools, postinstall/ensure/doctor --fix
+- [x] **M5 — SDK/CLI/MCP 조립 + 의존성 자동 설치**: `captureAll` 통합, `sfc` CLI, MCP 서버 7 tools, postinstall/ensure/doctor --fix
   - 검증: 깨끗한 환경(CI 컨테이너)에서 `npx @sfc/mcp` 설치→캡처까지 무개입 동작. **세로 슬라이스 완성 = 데모 가능 시점**
 - [ ] **M6 — React Native**: 화면 발견 + Tier 2 + react-native-web 컴파일 백엔드 (M2~M4 패턴 복제)
 - [ ] **M7 — Android Compose**: 화면 발견 + Tier 2 + Paparazzi 백엔드

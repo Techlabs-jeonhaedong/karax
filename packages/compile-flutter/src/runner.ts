@@ -37,14 +37,13 @@ export function classifyRunnerError(
 
   const combined = `${stderr}\n${stdout}`.toLowerCase();
 
-  // pub get 실패 패턴
+  // pub get 실패 패턴 — dependency resolution 관련 키워드로 좁게 매치
+  // "resolving dependencies" / "version solving" 이 핵심 신호
   if (
     combined.includes("resolving dependencies") ||
     combined.includes("version solving failed") ||
-    combined.includes("could not satisfy constraints") ||
-    combined.includes("depends on") && combined.includes("version solve") ||
-    combined.includes("pub get") && combined.includes("failed") ||
-    combined.includes("because ") && (combined.includes("depends on") || combined.includes("require"))
+    combined.includes("version solve failed") ||
+    combined.includes("could not satisfy constraints")
   ) {
     const snippet = extractSnippet(stderr || stdout, 500);
     return new CompileCaptureError("PUB_GET_FAILED", `flutter pub get 실패: ${snippet}`, stderr);

@@ -1,5 +1,5 @@
-import { execa } from "execa";
 import type { CheckResult } from "./types.js";
+import { getChromiumPath } from "../ensure.js";
 
 export async function checkPlaywrightChromium(): Promise<CheckResult> {
   const base: Pick<CheckResult, "id" | "label" | "autoInstallable" | "hint"> = {
@@ -9,16 +9,11 @@ export async function checkPlaywrightChromium(): Promise<CheckResult> {
     hint: "npx playwright install chromium 으로 자동 설치 가능합니다.",
   };
 
-  try {
-    const { stdout } = await execa("npx", ["playwright", "chromium-path"]);
-    const path = stdout.trim();
+  const chromiumPath = await getChromiumPath();
 
-    if (!path) {
-      return { ...base, status: "missing" };
-    }
-
-    return { ...base, status: "ok", version: path };
-  } catch {
+  if (!chromiumPath) {
     return { ...base, status: "missing" };
   }
+
+  return { ...base, status: "ok", version: chromiumPath };
 }

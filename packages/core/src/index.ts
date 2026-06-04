@@ -18,3 +18,11 @@ export {
   computeProjectConfidence,
 } from "./confidence/aggregate.js";
 export type { ProjectConfidence } from "./confidence/aggregate.js";
+
+export { captureScreenWithTiers } from "./pipeline/captureEngine.js";
+export type {
+  CaptureEngineDeps,
+  CaptureEngineDiagnostic,
+  CaptureEngineOptions,
+  CaptureEngineResult,
+} from "./pipeline/captureEngine.js";
