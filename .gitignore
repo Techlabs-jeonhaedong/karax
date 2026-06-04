@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+test-results/
+.tmp/
+coverage/
+.nyc_output/
+*.log
+.DS_Store
+grammars/*.wasm

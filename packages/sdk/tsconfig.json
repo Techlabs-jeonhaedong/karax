@@ -1,0 +1,48 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../adapter-api"
+    },
+    {
+      "path": "../adapter-flutter"
+    },
+    {
+      "path": "../adapter-react-native"
+    },
+    {
+      "path": "../adapter-ios"
+    },
+    {
+      "path": "../adapter-android"
+    },
+    {
+      "path": "../compile-flutter"
+    },
+    {
+      "path": "../compile-react-native"
+    },
+    {
+      "path": "../compile-android"
+    },
+    {
+      "path": "../compile-ios"
+    },
+    {
+      "path": "../renderer"
+    },
+    {
+      "path": "../doctor"
+    }
+  ]
+}
