@@ -16,4 +16,4 @@ export type {
 } from "./types.js";
 
 export { loadParser, parseSource } from "./parser/loader.js";
-export type { SupportedLanguage } from "./parser/loader.js";
+export type { SupportedLanguage, SyntaxNode } from "./parser/loader.js";
