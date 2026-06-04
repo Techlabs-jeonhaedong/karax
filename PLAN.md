@@ -1,7 +1,7 @@
 # PLAN.md — 소스코드 기반 앱 스크린샷 추출 도구
 
 > **이 문서는 자기완결적 계획서다.** 새 세션에서 이 문서만 읽어도 구현을 이어갈 수 있도록 작성됐다.
-> 마지막 갱신: 2026-06-04 / 상태: M0~M3 완료, M4 미착수
+> 마지막 갱신: 2026-06-04 / 상태: M0~M4 완료, M5 미착수
 
 ---
 
@@ -286,7 +286,7 @@ export function captureAll(opts: AnalyzeOptions & { outDir: string }):
   - 검증: `flutter-basic` fixture에서 화면 목록(id/discovery/sourceRef) 스냅샷 일치
 - [x] **M3 — Flutter Tier 2 (정적 IR)**: 표준 위젯 매핑(Scaffold/AppBar/Column/Row/Container/Text/Image/Padding/Expanded/ListView), 커스텀 컴포넌트 인라이닝, ThemeResolver, Mock Provider
   - 검증: IR 스냅샷 테스트, `Unknown` 노드 처리, confidence 집계 단조성 테스트, 골든 이미지
-- [ ] **M4 — Flutter Tier 1 (부분 컴파일)**: 하니스 생성→`flutter test` golden→PNG 회수, 실패 시 Tier 2 fallback
+- [x] **M4 — Flutter Tier 1 (부분 컴파일)**: 하니스 생성→`flutter test` golden→PNG 회수, 실패 시 Tier 2 fallback
   - 검증: fixture에서 Tier 1/2 캡처 비교, fallback 경로 테스트, 원본 무수정 테스트(전후 디렉토리 해시 비교)
 - [ ] **M5 — SDK/CLI/MCP 조립 + 의존성 자동 설치**: `captureAll` 통합, `sfc` CLI, MCP 서버 7 tools, postinstall/ensure/doctor --fix
   - 검증: 깨끗한 환경(CI 컨테이너)에서 `npx @sfc/mcp` 설치→캡처까지 무개입 동작. **세로 슬라이스 완성 = 데모 가능 시점**
