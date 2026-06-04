@@ -1,0 +1,198 @@
+{
+  "schemaVersion": "0.1",
+  "screen": {
+    "id": "AppBarTabBarSafeArea",
+    "sourceRef": { "file": "lib/scaffold.dart", "line": 5 },
+    "device": "iphone-15",
+    "discovery": "route",
+    "confidence": 0.95,
+    "root": {
+      "type": "Column",
+      "confidence": 1.0,
+      "layout": {
+        "mainAxis": "start",
+        "crossAxis": "stretch",
+        "width": "fill",
+        "height": "fill"
+      },
+      "style": { "background": "#FFFFFF" },
+      "children": [
+        {
+          "type": "Box",
+          "role": "appbar",
+          "confidence": 1.0,
+          "layout": {
+            "width": "fill",
+            "height": 56
+          },
+          "style": {
+            "background": "#6200EE",
+            "shadow": { "offsetX": 0, "offsetY": 2, "blur": 4, "color": "rgba(0,0,0,0.2)" }
+          },
+          "children": [
+            {
+              "type": "Row",
+              "confidence": 1.0,
+              "layout": {
+                "mainAxis": "spaceBetween",
+                "crossAxis": "center",
+                "width": "fill",
+                "height": "fill",
+                "padding": [0, 16, 0, 16]
+              },
+              "children": [
+                {
+                  "type": "Text",
+                  "confidence": 1.0,
+                  "text": { "value": "Home", "color": "#FFFFFF" }
+                },
+                {
+                  "type": "Icon",
+                  "confidence": 1.0,
+                  "layout": { "width": 24, "height": 24 },
+                  "text": { "value": "search", "color": "#FFFFFF" }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Box",
+          "confidence": 1.0,
+          "layout": {
+            "flex": 1,
+            "width": "fill"
+          },
+          "style": { "background": "#F5F5F5" },
+          "children": [
+            {
+              "type": "Column",
+              "confidence": 0.9,
+              "layout": {
+                "mainAxis": "center",
+                "crossAxis": "center",
+                "width": "fill",
+                "height": "fill",
+                "gap": 16
+              },
+              "children": [
+                {
+                  "type": "Text",
+                  "confidence": 1.0,
+                  "text": { "value": "Main Content Area", "color": "#333333" }
+                },
+                {
+                  "type": "Button",
+                  "confidence": 0.9,
+                  "layout": {
+                    "width": 200,
+                    "height": 48,
+                    "padding": [0, 24, 0, 24]
+                  },
+                  "style": {
+                    "background": "#6200EE",
+                    "borderRadius": 24
+                  },
+                  "children": [
+                    {
+                      "type": "Text",
+                      "confidence": 1.0,
+                      "text": { "value": "Click Me", "color": "#FFFFFF" }
+                    }
+                  ]
+                },
+                {
+                  "type": "Divider",
+                  "confidence": 1.0,
+                  "layout": { "width": "fill", "height": 1 },
+                  "style": { "background": "#E0E0E0" }
+                },
+                {
+                  "type": "Input",
+                  "confidence": 0.9,
+                  "layout": {
+                    "width": "fill",
+                    "height": 48,
+                    "padding": [0, 16, 0, 16],
+                    "margin": [0, 16, 0, 16]
+                  },
+                  "style": {
+                    "background": "#FFFFFF",
+                    "borderRadius": 8,
+                    "border": { "width": 1, "color": "#BDBDBD" }
+                  },
+                  "text": { "value": "Type something..." }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Box",
+          "role": "tabbar",
+          "confidence": 1.0,
+          "layout": {
+            "width": "fill",
+            "height": 56
+          },
+          "style": {
+            "background": "#FFFFFF",
+            "border": { "width": 1, "color": "#E0E0E0" }
+          },
+          "children": [
+            {
+              "type": "Row",
+              "confidence": 1.0,
+              "layout": {
+                "mainAxis": "spaceAround",
+                "crossAxis": "center",
+                "width": "fill",
+                "height": "fill"
+              },
+              "children": [
+                {
+                  "type": "Column",
+                  "confidence": 1.0,
+                  "layout": { "mainAxis": "center", "crossAxis": "center", "gap": 2 },
+                  "children": [
+                    {
+                      "type": "Icon",
+                      "confidence": 1.0,
+                      "layout": { "width": 24, "height": 24 },
+                      "text": { "value": "home" }
+                    },
+                    {
+                      "type": "Text",
+                      "confidence": 1.0,
+                      "text": { "value": "Home", "color": "#6200EE" }
+                    }
+                  ]
+                },
+                {
+                  "type": "Column",
+                  "confidence": 1.0,
+                  "layout": { "mainAxis": "center", "crossAxis": "center", "gap": 2 },
+                  "children": [
+                    {
+                      "type": "Icon",
+                      "confidence": 1.0,
+                      "layout": { "width": 24, "height": 24 },
+                      "text": { "value": "settings" }
+                    },
+                    {
+                      "type": "Text",
+                      "confidence": 1.0,
+                      "text": { "value": "Settings", "color": "#757575" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "designTokens": {},
+  "diagnostics": []
+}

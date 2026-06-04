@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="21507" targetRuntime="AppleCocoa" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="nav-001">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21505"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="System colors in document resources" minToolsVersion="11.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--Navigation Controller-->
+        <scene sceneID="scene-nav">
+            <objects>
+                <navigationController id="nav-001" sceneMemberID="viewController">
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="nav-bar-001">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="56"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </navigationBar>
+                    <connections>
+                        <segue destination="home-vc" kind="relationship" relationship="rootViewController" id="nav-to-home"/>
+                    </connections>
+                </navigationController>
+            </objects>
+            <point key="canvasLocation" x="0" y="0"/>
+        </scene>
+        <!--HomeViewController-->
+        <scene sceneID="scene-home">
+            <objects>
+                <viewController id="home-vc" customClass="HomeViewController" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="home-view">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Welcome Home" textAlignment="natural" lineBreakMode="middleTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" id="label-home-title">
+                                <rect key="frame" x="16" y="100" width="361" height="44"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="28"/>
+                                <nil key="textColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="hero_image" id="imageview-home-hero">
+                                <rect key="frame" x="16" y="160" width="361" height="200"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                            </imageView>
+                            <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" id="btn-home-goto-detail">
+                                <rect key="frame" x="16" y="380" width="361" height="44"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <state key="normal" title="Go to Detail"/>
+                                <connections>
+                                    <segue destination="detail-vc" kind="show" identifier="homeToDetail" id="segue-home-detail"/>
+                                </connections>
+                            </button>
+                            <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="8" id="stack-home-info">
+                                <rect key="frame" x="16" y="440" width="361" height="80"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <subviews>
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="Info Row 1" id="label-info-1">
+                                        <rect key="frame" x="0" y="0" width="361" height="36"/>
+                                    </label>
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="Info Row 2" id="label-info-2">
+                                        <rect key="frame" x="0" y="44" width="361" height="36"/>
+                                    </label>
+                                </subviews>
+                            </stackView>
+                        </subviews>
+                        <viewLayoutGuide key="safeAreaLayoutGuide" id="safe-area-home"/>
+                    </view>
+                    <navigationItem key="navigationItem" title="Home" id="nav-item-home"/>
+                </viewController>
+            </objects>
+            <point key="canvasLocation" x="500" y="0"/>
+        </scene>
+        <!--DetailViewController-->
+        <scene sceneID="scene-detail">
+            <objects>
+                <viewController id="detail-vc" customClass="DetailViewController" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="detail-view">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="Detail Title" id="label-detail-title">
+                                <rect key="frame" x="16" y="100" width="361" height="32"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="22"/>
+                                <nil key="textColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <textField opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" text="Enter search..." borderStyle="roundedRect" id="tf-detail-search">
+                                <rect key="frame" x="16" y="150" width="361" height="44"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                            </textField>
+                        </subviews>
+                        <viewLayoutGuide key="safeAreaLayoutGuide" id="safe-area-detail"/>
+                    </view>
+                    <navigationItem key="navigationItem" title="Detail" id="nav-item-detail"/>
+                </viewController>
+            </objects>
+            <point key="canvasLocation" x="1000" y="0"/>
+        </scene>
+        <!--OrphanViewController (미연결)-->
+        <scene sceneID="scene-orphan">
+            <objects>
+                <viewController id="orphan-vc" customClass="OrphanViewController" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="orphan-view">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="Orphan Screen" id="label-orphan-title">
+                                <rect key="frame" x="16" y="100" width="361" height="44"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="24"/>
+                                <nil key="textColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                        </subviews>
+                        <viewLayoutGuide key="safeAreaLayoutGuide" id="safe-area-orphan"/>
+                    </view>
+                    <navigationItem key="navigationItem" title="Orphan" id="nav-item-orphan"/>
+                </viewController>
+            </objects>
+            <point key="canvasLocation" x="1500" y="0"/>
+        </scene>
+    </scenes>
+</document>

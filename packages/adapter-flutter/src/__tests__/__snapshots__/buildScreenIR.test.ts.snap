@@ -1,0 +1,4120 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildScreenIR — IR 스냅샷 (전체 트리) > DetailScreen: IR 전체 트리 스냅샷 — sourceRef/confidence/diagnostics 포함 1`] = `
+{
+  "designTokens": {
+    "colors": {
+      "background": "#FFFBFE",
+      "error": "#B3261E",
+      "errorContainer": "#F9DEDC",
+      "onBackground": "#1C1B1F",
+      "onError": "#FFFFFF",
+      "onErrorContainer": "#410E0B",
+      "onPrimary": "#FFFFFF",
+      "onPrimaryContainer": "#151021",
+      "onSecondary": "#FFFFFF",
+      "onSecondaryContainer": "#1D192B",
+      "onSurface": "#1C1B1F",
+      "onSurfaceVariant": "#49454F",
+      "onTertiary": "#FFFFFF",
+      "onTertiaryContainer": "#31111D",
+      "outline": "#79747E",
+      "outlineVariant": "#CAC4D0",
+      "primary": "#6750A4",
+      "primaryContainer": "#e1dced",
+      "scrim": "#000000",
+      "secondary": "#625B71",
+      "secondaryContainer": "#E8DEF8",
+      "surface": "#FFFBFE",
+      "surfaceContainerHighest": "#E6E1E5",
+      "surfaceVariant": "#E7E0EC",
+      "tertiary": "#7D5260",
+      "tertiaryContainer": "#FFD8E4",
+    },
+  },
+  "diagnostics": [
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: Dart 문자열 인터폴레이션 (중첩)",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: Dart 문자열 인터폴레이션 (중첩)",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: Dart 문자열 인터폴레이션 (중첩)",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: 변수 참조: badge",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: Dart 문자열 인터폴레이션 (중첩)",
+    },
+  ],
+  "schemaVersion": "0.1",
+  "screen": {
+    "confidence": 0.6610256410256415,
+    "device": "iphone-15",
+    "discovery": "route",
+    "id": "DetailScreen",
+    "root": {
+      "children": [
+        {
+          "children": [
+            {
+              "confidence": 1,
+              "sourceRef": {
+                "file": "lib/screens/detail_screen.dart",
+                "line": 17,
+              },
+              "text": {
+                "color": undefined,
+                "maxLines": undefined,
+                "value": "Product Catalog",
+              },
+              "type": "Text",
+            },
+          ],
+          "confidence": 1,
+          "layout": {
+            "crossAxis": "center",
+            "direction": "row",
+          },
+          "role": "appbar",
+          "sourceRef": {
+            "file": "lib/screens/detail_screen.dart",
+            "line": 14,
+          },
+          "style": {
+            "background": "#6750A4",
+          },
+          "type": "Box",
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "confidence": 1,
+                  "sourceRef": {
+                    "file": "lib/screens/detail_screen.dart",
+                    "line": 29,
+                  },
+                  "text": {
+                    "color": "#1C1B1F",
+                    "maxLines": undefined,
+                    "value": "Featured Products",
+                  },
+                  "type": "Text",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 6,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/detail_screen.dart",
+                    "line": 37,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "confidence": 1,
+                  "sourceRef": {
+                    "file": "lib/screens/detail_screen.dart",
+                    "line": 38,
+                  },
+                  "text": {
+                    "color": "#79747E",
+                    "maxLines": undefined,
+                    "value": "Hand-picked items just for you",
+                  },
+                  "type": "Text",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 24,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/detail_screen.dart",
+                    "line": 42,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 160,
+                                "width": undefined,
+                              },
+                              "sourceRef": {
+                                "file": "lib/widgets/product_card.dart",
+                                "line": 48,
+                              },
+                              "src": "mock-image-placeholder://602",
+                              "style": {
+                                "borderRadius": undefined,
+                              },
+                              "type": "Image",
+                            },
+                            {
+                              "children": [
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 70,
+                                  },
+                                  "text": {
+                                    "color": "#FFFFFF",
+                                    "maxLines": undefined,
+                                    "value": "SALE",
+                                  },
+                                  "type": "Text",
+                                },
+                              ],
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": undefined,
+                                "margin": undefined,
+                                "padding": [
+                                  4,
+                                  10,
+                                  4,
+                                  10,
+                                ],
+                                "width": undefined,
+                              },
+                              "sourceRef": {
+                                "file": "lib/widgets/product_card.dart",
+                                "line": 64,
+                              },
+                              "style": undefined,
+                              "type": "Box",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "sourceRef": {
+                            "file": "lib/widgets/product_card.dart",
+                            "line": 44,
+                          },
+                          "type": "Stack",
+                        },
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 88,
+                                  },
+                                  "text": {
+                                    "color": "#1C1B1F",
+                                    "maxLines": undefined,
+                                    "value": "Wireless Headphones",
+                                  },
+                                  "type": "Text",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "layout": {
+                                    "height": 6,
+                                    "width": undefined,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 96,
+                                  },
+                                  "type": "Box",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 97,
+                                  },
+                                  "text": {
+                                    "color": "#49454F",
+                                    "maxLines": 2,
+                                    "value": "Premium noise-cancelling audio with 30-hour battery life and foldable design.",
+                                  },
+                                  "type": "Text",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "layout": {
+                                    "height": 12,
+                                    "width": undefined,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 107,
+                                  },
+                                  "type": "Box",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 31,
+                                          },
+                                          "text": {
+                                            "color": "#6750A4",
+                                            "maxLines": undefined,
+                                            "value": "79.99",
+                                          },
+                                          "type": "Text",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "width": 8,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 40,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 41,
+                                          },
+                                          "text": {
+                                            "color": "#79747E",
+                                            "maxLines": undefined,
+                                            "value": "129.99",
+                                          },
+                                          "type": "Text",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "width": 6,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 49,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": [
+                                            {
+                                              "children": undefined,
+                                              "confidence": 0.24499999999999997,
+                                              "sourceRef": {
+                                                "file": "lib/widgets/price_tag.dart",
+                                                "line": 56,
+                                              },
+                                              "text": {
+                                                "color": "#FFFFFF",
+                                                "maxLines": undefined,
+                                                "value": "ea nostrud adipiscing",
+                                              },
+                                              "type": "Text",
+                                            },
+                                          ],
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "margin": undefined,
+                                            "padding": [
+                                              2,
+                                              6,
+                                              2,
+                                              6,
+                                            ],
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 50,
+                                          },
+                                          "style": undefined,
+                                          "type": "Box",
+                                        },
+                                      ],
+                                      "confidence": 0.48999999999999994,
+                                      "layout": {
+                                        "crossAxis": "center",
+                                        "direction": "row",
+                                        "mainAxis": "start",
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/widgets/price_tag.dart",
+                                        "line": 26,
+                                      },
+                                      "type": "Row",
+                                    },
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": undefined,
+                                              "confidence": 0.7,
+                                              "sourceRef": {
+                                                "file": "lib/widgets/product_card.dart",
+                                                "line": 128,
+                                              },
+                                              "text": {
+                                                "color": undefined,
+                                                "maxLines": undefined,
+                                                "value": "Add to Cart",
+                                              },
+                                              "type": "Text",
+                                            },
+                                          ],
+                                          "confidence": 0.7,
+                                          "layout": {
+                                            "padding": [
+                                              0,
+                                              16,
+                                              0,
+                                              16,
+                                            ],
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/product_card.dart",
+                                            "line": 118,
+                                          },
+                                          "style": {
+                                            "background": "#6750A4",
+                                          },
+                                          "type": "Button",
+                                        },
+                                      ],
+                                      "confidence": 0.7,
+                                      "layout": {
+                                        "height": 36,
+                                        "width": undefined,
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/widgets/product_card.dart",
+                                        "line": 116,
+                                      },
+                                      "type": "Box",
+                                    },
+                                  ],
+                                  "confidence": 0.7,
+                                  "layout": {
+                                    "crossAxis": "center",
+                                    "direction": "row",
+                                    "mainAxis": "start",
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 108,
+                                  },
+                                  "type": "Row",
+                                },
+                              ],
+                              "confidence": 0.7,
+                              "layout": {
+                                "crossAxis": "start",
+                                "direction": "column",
+                                "mainAxis": "start",
+                              },
+                              "sourceRef": {
+                                "file": "lib/widgets/product_card.dart",
+                                "line": 85,
+                              },
+                              "type": "Column",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "padding": [
+                              16,
+                              16,
+                              16,
+                              16,
+                            ],
+                          },
+                          "sourceRef": {
+                            "file": "lib/widgets/product_card.dart",
+                            "line": 83,
+                          },
+                          "type": "Box",
+                        },
+                      ],
+                      "confidence": 0.7,
+                      "layout": {
+                        "crossAxis": "start",
+                        "direction": "column",
+                        "mainAxis": "start",
+                      },
+                      "sourceRef": {
+                        "file": "lib/widgets/product_card.dart",
+                        "line": 40,
+                      },
+                      "type": "Column",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "height": undefined,
+                    "margin": [
+                      0,
+                      0,
+                      16,
+                      0,
+                    ],
+                    "padding": undefined,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/widgets/product_card.dart",
+                    "line": 27,
+                  },
+                  "style": undefined,
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 160,
+                                "width": undefined,
+                              },
+                              "sourceRef": {
+                                "file": "lib/widgets/product_card.dart",
+                                "line": 48,
+                              },
+                              "src": "mock-image-placeholder://527",
+                              "style": {
+                                "borderRadius": undefined,
+                              },
+                              "type": "Image",
+                            },
+                            {
+                              "children": [
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 70,
+                                  },
+                                  "text": {
+                                    "color": "#FFFFFF",
+                                    "maxLines": undefined,
+                                    "value": "NEW",
+                                  },
+                                  "type": "Text",
+                                },
+                              ],
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": undefined,
+                                "margin": undefined,
+                                "padding": [
+                                  4,
+                                  10,
+                                  4,
+                                  10,
+                                ],
+                                "width": undefined,
+                              },
+                              "sourceRef": {
+                                "file": "lib/widgets/product_card.dart",
+                                "line": 64,
+                              },
+                              "style": undefined,
+                              "type": "Box",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "sourceRef": {
+                            "file": "lib/widgets/product_card.dart",
+                            "line": 44,
+                          },
+                          "type": "Stack",
+                        },
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 88,
+                                  },
+                                  "text": {
+                                    "color": "#1C1B1F",
+                                    "maxLines": undefined,
+                                    "value": "Mechanical Keyboard",
+                                  },
+                                  "type": "Text",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "layout": {
+                                    "height": 6,
+                                    "width": undefined,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 96,
+                                  },
+                                  "type": "Box",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 97,
+                                  },
+                                  "text": {
+                                    "color": "#49454F",
+                                    "maxLines": 2,
+                                    "value": "Tactile switches with RGB backlight, aluminum frame, and USB-C connectivity.",
+                                  },
+                                  "type": "Text",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "layout": {
+                                    "height": 12,
+                                    "width": undefined,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 107,
+                                  },
+                                  "type": "Box",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 31,
+                                          },
+                                          "text": {
+                                            "color": "#6750A4",
+                                            "maxLines": undefined,
+                                            "value": "149.00",
+                                          },
+                                          "type": "Text",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "width": 8,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 40,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.24499999999999997,
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 41,
+                                          },
+                                          "text": {
+                                            "color": "#79747E",
+                                            "maxLines": undefined,
+                                            "value": "quis commodo",
+                                          },
+                                          "type": "Text",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "width": 6,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 49,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": [
+                                            {
+                                              "children": undefined,
+                                              "confidence": 0.24499999999999997,
+                                              "sourceRef": {
+                                                "file": "lib/widgets/price_tag.dart",
+                                                "line": 56,
+                                              },
+                                              "text": {
+                                                "color": "#FFFFFF",
+                                                "maxLines": undefined,
+                                                "value": "do commodo laboris",
+                                              },
+                                              "type": "Text",
+                                            },
+                                          ],
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "margin": undefined,
+                                            "padding": [
+                                              2,
+                                              6,
+                                              2,
+                                              6,
+                                            ],
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 50,
+                                          },
+                                          "style": undefined,
+                                          "type": "Box",
+                                        },
+                                      ],
+                                      "confidence": 0.48999999999999994,
+                                      "layout": {
+                                        "crossAxis": "center",
+                                        "direction": "row",
+                                        "mainAxis": "start",
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/widgets/price_tag.dart",
+                                        "line": 26,
+                                      },
+                                      "type": "Row",
+                                    },
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": undefined,
+                                              "confidence": 0.7,
+                                              "sourceRef": {
+                                                "file": "lib/widgets/product_card.dart",
+                                                "line": 128,
+                                              },
+                                              "text": {
+                                                "color": undefined,
+                                                "maxLines": undefined,
+                                                "value": "Add to Cart",
+                                              },
+                                              "type": "Text",
+                                            },
+                                          ],
+                                          "confidence": 0.7,
+                                          "layout": {
+                                            "padding": [
+                                              0,
+                                              16,
+                                              0,
+                                              16,
+                                            ],
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/product_card.dart",
+                                            "line": 118,
+                                          },
+                                          "style": {
+                                            "background": "#6750A4",
+                                          },
+                                          "type": "Button",
+                                        },
+                                      ],
+                                      "confidence": 0.7,
+                                      "layout": {
+                                        "height": 36,
+                                        "width": undefined,
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/widgets/product_card.dart",
+                                        "line": 116,
+                                      },
+                                      "type": "Box",
+                                    },
+                                  ],
+                                  "confidence": 0.7,
+                                  "layout": {
+                                    "crossAxis": "center",
+                                    "direction": "row",
+                                    "mainAxis": "start",
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 108,
+                                  },
+                                  "type": "Row",
+                                },
+                              ],
+                              "confidence": 0.7,
+                              "layout": {
+                                "crossAxis": "start",
+                                "direction": "column",
+                                "mainAxis": "start",
+                              },
+                              "sourceRef": {
+                                "file": "lib/widgets/product_card.dart",
+                                "line": 85,
+                              },
+                              "type": "Column",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "padding": [
+                              16,
+                              16,
+                              16,
+                              16,
+                            ],
+                          },
+                          "sourceRef": {
+                            "file": "lib/widgets/product_card.dart",
+                            "line": 83,
+                          },
+                          "type": "Box",
+                        },
+                      ],
+                      "confidence": 0.7,
+                      "layout": {
+                        "crossAxis": "start",
+                        "direction": "column",
+                        "mainAxis": "start",
+                      },
+                      "sourceRef": {
+                        "file": "lib/widgets/product_card.dart",
+                        "line": 40,
+                      },
+                      "type": "Column",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "height": undefined,
+                    "margin": [
+                      0,
+                      0,
+                      16,
+                      0,
+                    ],
+                    "padding": undefined,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/widgets/product_card.dart",
+                    "line": 27,
+                  },
+                  "style": undefined,
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 160,
+                                "width": undefined,
+                              },
+                              "sourceRef": {
+                                "file": "lib/widgets/product_card.dart",
+                                "line": 48,
+                              },
+                              "src": "mock-image-placeholder://308",
+                              "style": {
+                                "borderRadius": undefined,
+                              },
+                              "type": "Image",
+                            },
+                            {
+                              "children": [
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.35,
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 70,
+                                  },
+                                  "text": {
+                                    "color": "#FFFFFF",
+                                    "maxLines": undefined,
+                                    "value": "aliqua exercitation",
+                                  },
+                                  "type": "Text",
+                                },
+                              ],
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": undefined,
+                                "margin": undefined,
+                                "padding": [
+                                  4,
+                                  10,
+                                  4,
+                                  10,
+                                ],
+                                "width": undefined,
+                              },
+                              "sourceRef": {
+                                "file": "lib/widgets/product_card.dart",
+                                "line": 64,
+                              },
+                              "style": undefined,
+                              "type": "Box",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "sourceRef": {
+                            "file": "lib/widgets/product_card.dart",
+                            "line": 44,
+                          },
+                          "type": "Stack",
+                        },
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 88,
+                                  },
+                                  "text": {
+                                    "color": "#1C1B1F",
+                                    "maxLines": undefined,
+                                    "value": "USB-C Hub",
+                                  },
+                                  "type": "Text",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "layout": {
+                                    "height": 6,
+                                    "width": undefined,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 96,
+                                  },
+                                  "type": "Box",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 97,
+                                  },
+                                  "text": {
+                                    "color": "#49454F",
+                                    "maxLines": 2,
+                                    "value": "7-in-1 hub: HDMI 4K, USB 3.0 x3, SD card, PD charging. Plug and play.",
+                                  },
+                                  "type": "Text",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "layout": {
+                                    "height": 12,
+                                    "width": undefined,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 107,
+                                  },
+                                  "type": "Box",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 31,
+                                          },
+                                          "text": {
+                                            "color": "#6750A4",
+                                            "maxLines": undefined,
+                                            "value": "34.99",
+                                          },
+                                          "type": "Text",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "width": 8,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 40,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 41,
+                                          },
+                                          "text": {
+                                            "color": "#79747E",
+                                            "maxLines": undefined,
+                                            "value": "49.99",
+                                          },
+                                          "type": "Text",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "width": 6,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 49,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": [
+                                            {
+                                              "children": undefined,
+                                              "confidence": 0.24499999999999997,
+                                              "sourceRef": {
+                                                "file": "lib/widgets/price_tag.dart",
+                                                "line": 56,
+                                              },
+                                              "text": {
+                                                "color": "#FFFFFF",
+                                                "maxLines": undefined,
+                                                "value": "lorem magna ea",
+                                              },
+                                              "type": "Text",
+                                            },
+                                          ],
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "margin": undefined,
+                                            "padding": [
+                                              2,
+                                              6,
+                                              2,
+                                              6,
+                                            ],
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/price_tag.dart",
+                                            "line": 50,
+                                          },
+                                          "style": undefined,
+                                          "type": "Box",
+                                        },
+                                      ],
+                                      "confidence": 0.48999999999999994,
+                                      "layout": {
+                                        "crossAxis": "center",
+                                        "direction": "row",
+                                        "mainAxis": "start",
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/widgets/price_tag.dart",
+                                        "line": 26,
+                                      },
+                                      "type": "Row",
+                                    },
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": undefined,
+                                              "confidence": 0.7,
+                                              "sourceRef": {
+                                                "file": "lib/widgets/product_card.dart",
+                                                "line": 128,
+                                              },
+                                              "text": {
+                                                "color": undefined,
+                                                "maxLines": undefined,
+                                                "value": "Add to Cart",
+                                              },
+                                              "type": "Text",
+                                            },
+                                          ],
+                                          "confidence": 0.7,
+                                          "layout": {
+                                            "padding": [
+                                              0,
+                                              16,
+                                              0,
+                                              16,
+                                            ],
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/widgets/product_card.dart",
+                                            "line": 118,
+                                          },
+                                          "style": {
+                                            "background": "#6750A4",
+                                          },
+                                          "type": "Button",
+                                        },
+                                      ],
+                                      "confidence": 0.7,
+                                      "layout": {
+                                        "height": 36,
+                                        "width": undefined,
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/widgets/product_card.dart",
+                                        "line": 116,
+                                      },
+                                      "type": "Box",
+                                    },
+                                  ],
+                                  "confidence": 0.7,
+                                  "layout": {
+                                    "crossAxis": "center",
+                                    "direction": "row",
+                                    "mainAxis": "start",
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/widgets/product_card.dart",
+                                    "line": 108,
+                                  },
+                                  "type": "Row",
+                                },
+                              ],
+                              "confidence": 0.7,
+                              "layout": {
+                                "crossAxis": "start",
+                                "direction": "column",
+                                "mainAxis": "start",
+                              },
+                              "sourceRef": {
+                                "file": "lib/widgets/product_card.dart",
+                                "line": 85,
+                              },
+                              "type": "Column",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "padding": [
+                              16,
+                              16,
+                              16,
+                              16,
+                            ],
+                          },
+                          "sourceRef": {
+                            "file": "lib/widgets/product_card.dart",
+                            "line": 83,
+                          },
+                          "type": "Box",
+                        },
+                      ],
+                      "confidence": 0.7,
+                      "layout": {
+                        "crossAxis": "start",
+                        "direction": "column",
+                        "mainAxis": "start",
+                      },
+                      "sourceRef": {
+                        "file": "lib/widgets/product_card.dart",
+                        "line": 40,
+                      },
+                      "type": "Column",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "height": undefined,
+                    "margin": [
+                      0,
+                      0,
+                      16,
+                      0,
+                    ],
+                    "padding": undefined,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/widgets/product_card.dart",
+                    "line": 27,
+                  },
+                  "style": undefined,
+                  "type": "Box",
+                },
+              ],
+              "confidence": 1,
+              "layout": {
+                "crossAxis": "start",
+                "direction": "column",
+                "mainAxis": "start",
+              },
+              "sourceRef": {
+                "file": "lib/screens/detail_screen.dart",
+                "line": 26,
+              },
+              "type": "Column",
+            },
+          ],
+          "confidence": 1,
+          "layout": {
+            "direction": "column",
+            "padding": [
+              24,
+              20,
+              24,
+              20,
+            ],
+          },
+          "role": "content",
+          "sourceRef": {
+            "file": "lib/screens/detail_screen.dart",
+            "line": 24,
+          },
+          "type": "Scroll",
+        },
+      ],
+      "confidence": 1,
+      "layout": {
+        "direction": "column",
+        "height": "fill",
+        "width": "fill",
+      },
+      "sourceRef": {
+        "file": "lib/screens/detail_screen.dart",
+        "line": 12,
+      },
+      "style": {
+        "background": "#F3EFF4",
+      },
+      "type": "Box",
+    },
+    "sourceRef": {
+      "file": "lib/screens/detail_screen.dart",
+      "line": 7,
+      "symbol": "DetailScreen",
+    },
+  },
+}
+`;
+
+exports[`buildScreenIR — IR 스냅샷 (전체 트리) > HomeScreen: IR 전체 트리 스냅샷 — sourceRef/confidence/diagnostics 포함 1`] = `
+{
+  "designTokens": {
+    "colors": {
+      "background": "#FFFBFE",
+      "error": "#B3261E",
+      "errorContainer": "#F9DEDC",
+      "onBackground": "#1C1B1F",
+      "onError": "#FFFFFF",
+      "onErrorContainer": "#410E0B",
+      "onPrimary": "#FFFFFF",
+      "onPrimaryContainer": "#151021",
+      "onSecondary": "#FFFFFF",
+      "onSecondaryContainer": "#1D192B",
+      "onSurface": "#1C1B1F",
+      "onSurfaceVariant": "#49454F",
+      "onTertiary": "#FFFFFF",
+      "onTertiaryContainer": "#31111D",
+      "outline": "#79747E",
+      "outlineVariant": "#CAC4D0",
+      "primary": "#6750A4",
+      "primaryContainer": "#e1dced",
+      "scrim": "#000000",
+      "secondary": "#625B71",
+      "secondaryContainer": "#E8DEF8",
+      "surface": "#FFFBFE",
+      "surfaceContainerHighest": "#E6E1E5",
+      "surfaceVariant": "#E7E0EC",
+      "tertiary": "#7D5260",
+      "tertiaryContainer": "#FFD8E4",
+    },
+  },
+  "diagnostics": [],
+  "schemaVersion": "0.1",
+  "screen": {
+    "confidence": 1,
+    "device": "iphone-15",
+    "discovery": "route",
+    "id": "HomeScreen",
+    "root": {
+      "children": [
+        {
+          "children": [
+            {
+              "confidence": 1,
+              "sourceRef": {
+                "file": "lib/screens/home_screen.dart",
+                "line": 17,
+              },
+              "text": {
+                "color": undefined,
+                "maxLines": undefined,
+                "value": "Flutter Basic Fixture",
+              },
+              "type": "Text",
+            },
+          ],
+          "confidence": 1,
+          "layout": {
+            "crossAxis": "center",
+            "direction": "row",
+          },
+          "role": "appbar",
+          "sourceRef": {
+            "file": "lib/screens/home_screen.dart",
+            "line": 14,
+          },
+          "style": {
+            "background": "#6750A4",
+          },
+          "type": "Box",
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "confidence": 1,
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 33,
+                  },
+                  "text": {
+                    "color": "#1C1B1F",
+                    "maxLines": undefined,
+                    "value": "Welcome to the Fixture App",
+                  },
+                  "type": "Text",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 12,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 41,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "confidence": 1,
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 43,
+                  },
+                  "text": {
+                    "color": "#49454F",
+                    "maxLines": undefined,
+                    "value": "This is a reference fixture app for the screenshot-from-code tool. Each screen demonstrates a specific UI archetype used for static analysis and rendering tests.",
+                  },
+                  "type": "Text",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 32,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 52,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "confidence": 1,
+                  "layout": {
+                    "height": 64,
+                    "width": 64,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 56,
+                  },
+                  "src": "asset://assets/images/logo.png",
+                  "style": {
+                    "borderRadius": undefined,
+                  },
+                  "type": "Image",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 16,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 63,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "confidence": 1,
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 64,
+                  },
+                  "text": {
+                    "color": "#79747E",
+                    "maxLines": undefined,
+                    "value": "Logo (local asset)",
+                  },
+                  "type": "Text",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 24,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 68,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "confidence": 1,
+                  "layout": {
+                    "height": 180,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 72,
+                  },
+                  "src": "mock-image-placeholder://602",
+                  "style": {
+                    "borderRadius": undefined,
+                  },
+                  "type": "Image",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 8,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 102,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "confidence": 1,
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 103,
+                  },
+                  "text": {
+                    "color": "#79747E",
+                    "maxLines": undefined,
+                    "value": "Cover photo (network)",
+                  },
+                  "type": "Text",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 40,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 107,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "confidence": 1,
+                          "sourceRef": {
+                            "file": "lib/screens/home_screen.dart",
+                            "line": 128,
+                          },
+                          "text": {
+                            "color": undefined,
+                            "maxLines": undefined,
+                            "value": "View Product Details",
+                          },
+                          "type": "Text",
+                        },
+                      ],
+                      "confidence": 1,
+                      "layout": {
+                        "padding": [
+                          16,
+                          0,
+                          16,
+                          0,
+                        ],
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/home_screen.dart",
+                        "line": 111,
+                      },
+                      "style": {
+                        "background": "#6750A4",
+                      },
+                      "type": "Button",
+                    },
+                  ],
+                  "confidence": 1,
+                  "layout": {
+                    "height": undefined,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 109,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 12,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 134,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "confidence": 1,
+                              "sourceRef": {
+                                "file": "lib/screens/home_screen.dart",
+                                "line": 151,
+                              },
+                              "text": {
+                                "color": undefined,
+                                "maxLines": undefined,
+                                "value": "Browse List",
+                              },
+                              "type": "Text",
+                            },
+                          ],
+                          "confidence": 1,
+                          "layout": {
+                            "padding": [
+                              14,
+                              0,
+                              14,
+                              0,
+                            ],
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/home_screen.dart",
+                            "line": 139,
+                          },
+                          "style": undefined,
+                          "type": "Button",
+                        },
+                      ],
+                      "confidence": 1,
+                      "layout": {
+                        "flex": 1,
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/home_screen.dart",
+                        "line": 138,
+                      },
+                      "type": "Box",
+                    },
+                    {
+                      "children": undefined,
+                      "confidence": 1,
+                      "layout": {
+                        "height": undefined,
+                        "width": 12,
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/home_screen.dart",
+                        "line": 157,
+                      },
+                      "type": "Box",
+                    },
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "confidence": 1,
+                              "sourceRef": {
+                                "file": "lib/screens/home_screen.dart",
+                                "line": 171,
+                              },
+                              "text": {
+                                "color": undefined,
+                                "maxLines": undefined,
+                                "value": "Settings",
+                              },
+                              "type": "Text",
+                            },
+                          ],
+                          "confidence": 1,
+                          "layout": {
+                            "padding": [
+                              14,
+                              0,
+                              14,
+                              0,
+                            ],
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/home_screen.dart",
+                            "line": 159,
+                          },
+                          "style": undefined,
+                          "type": "Button",
+                        },
+                      ],
+                      "confidence": 1,
+                      "layout": {
+                        "flex": 1,
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/home_screen.dart",
+                        "line": 158,
+                      },
+                      "type": "Box",
+                    },
+                  ],
+                  "confidence": 1,
+                  "layout": {
+                    "crossAxis": "center",
+                    "direction": "row",
+                    "mainAxis": "start",
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/home_screen.dart",
+                    "line": 136,
+                  },
+                  "type": "Row",
+                },
+              ],
+              "confidence": 1,
+              "layout": {
+                "crossAxis": "start",
+                "direction": "column",
+                "mainAxis": "start",
+              },
+              "sourceRef": {
+                "file": "lib/screens/home_screen.dart",
+                "line": 29,
+              },
+              "type": "Column",
+            },
+          ],
+          "confidence": 1,
+          "layout": {
+            "direction": "column",
+            "padding": [
+              32,
+              24,
+              32,
+              24,
+            ],
+          },
+          "role": "content",
+          "sourceRef": {
+            "file": "lib/screens/home_screen.dart",
+            "line": 27,
+          },
+          "type": "Scroll",
+        },
+      ],
+      "confidence": 1,
+      "layout": {
+        "direction": "column",
+        "height": "fill",
+        "width": "fill",
+      },
+      "sourceRef": {
+        "file": "lib/screens/home_screen.dart",
+        "line": 12,
+      },
+      "style": {
+        "background": "#F8F4FF",
+      },
+      "type": "Box",
+    },
+    "sourceRef": {
+      "file": "lib/screens/home_screen.dart",
+      "line": 7,
+      "symbol": "HomeScreen",
+    },
+  },
+}
+`;
+
+exports[`buildScreenIR — IR 스냅샷 (전체 트리) > ListScreen: IR 전체 트리 스냅샷 — sourceRef/confidence/diagnostics 포함 1`] = `
+{
+  "designTokens": {
+    "colors": {
+      "background": "#FFFBFE",
+      "error": "#B3261E",
+      "errorContainer": "#F9DEDC",
+      "onBackground": "#1C1B1F",
+      "onError": "#FFFFFF",
+      "onErrorContainer": "#410E0B",
+      "onPrimary": "#FFFFFF",
+      "onPrimaryContainer": "#151021",
+      "onSecondary": "#FFFFFF",
+      "onSecondaryContainer": "#1D192B",
+      "onSurface": "#1C1B1F",
+      "onSurfaceVariant": "#49454F",
+      "onTertiary": "#FFFFFF",
+      "onTertiaryContainer": "#31111D",
+      "outline": "#79747E",
+      "outlineVariant": "#CAC4D0",
+      "primary": "#6750A4",
+      "primaryContainer": "#e1dced",
+      "scrim": "#000000",
+      "secondary": "#625B71",
+      "secondaryContainer": "#E8DEF8",
+      "surface": "#FFFBFE",
+      "surfaceContainerHighest": "#E6E1E5",
+      "surfaceVariant": "#E7E0EC",
+      "tertiary": "#7D5260",
+      "tertiaryContainer": "#FFD8E4",
+    },
+  },
+  "diagnostics": [
+    {
+      "code": "UNRESOLVED_COMPONENT",
+      "level": "warn",
+      "message": "커스텀 위젯 'CircularProgressIndicator'를 심볼 테이블에서 찾을 수 없음",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: 동적 표현식: item.title.substring(0, 1)",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: 동적 표현식: item.title",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: 동적 표현식: item.subtitle",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: 동적 표현식: item.category",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Icon 조건부 표현식: 기본값(Icons.bookmark_outline) 사용",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "_buildBody(): 3개 조건 분기 감지 — Branch 노드로 래핑 (첫 분기 기본 표시)",
+    },
+  ],
+  "schemaVersion": "0.1",
+  "screen": {
+    "confidence": 0.5181538461538456,
+    "device": "iphone-15",
+    "discovery": "route",
+    "id": "ListScreen",
+    "root": {
+      "children": [
+        {
+          "children": [
+            {
+              "confidence": 1,
+              "sourceRef": {
+                "file": "lib/screens/list_screen.dart",
+                "line": 44,
+              },
+              "text": {
+                "color": undefined,
+                "maxLines": undefined,
+                "value": "Reading List",
+              },
+              "type": "Text",
+            },
+          ],
+          "confidence": 1,
+          "layout": {
+            "crossAxis": "center",
+            "direction": "row",
+          },
+          "role": "appbar",
+          "sourceRef": {
+            "file": "lib/screens/list_screen.dart",
+            "line": 41,
+          },
+          "style": {
+            "background": "#FFFFFF",
+          },
+          "type": "Box",
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": undefined,
+                          "confidence": 0.13999999999999999,
+                          "role": "component:CircularProgressIndicator",
+                          "type": "Unknown",
+                        },
+                        {
+                          "children": undefined,
+                          "confidence": 0.7,
+                          "layout": {
+                            "height": 20,
+                            "width": undefined,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/list_screen.dart",
+                            "line": 99,
+                          },
+                          "type": "Box",
+                        },
+                        {
+                          "children": undefined,
+                          "confidence": 0.7,
+                          "sourceRef": {
+                            "file": "lib/screens/list_screen.dart",
+                            "line": 100,
+                          },
+                          "text": {
+                            "color": "#79747E",
+                            "maxLines": undefined,
+                            "value": "Loading your list...",
+                          },
+                          "type": "Text",
+                        },
+                      ],
+                      "confidence": 0.7,
+                      "layout": {
+                        "crossAxis": "start",
+                        "direction": "column",
+                        "mainAxis": "start",
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/list_screen.dart",
+                        "line": 93,
+                      },
+                      "type": "Column",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "crossAxis": "center",
+                    "mainAxis": "center",
+                  },
+                  "role": "branch-arm:_screenState == _ScreenState.loading",
+                  "sourceRef": {
+                    "file": "lib/screens/list_screen.dart",
+                    "line": 92,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.7,
+                                  "layout": {
+                                    "height": 48,
+                                    "width": 48,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/screens/list_screen.dart",
+                                    "line": 133,
+                                  },
+                                  "text": {
+                                    "color": undefined,
+                                    "value": "Icons.bookmark_outline",
+                                  },
+                                  "type": "Icon",
+                                },
+                              ],
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 96,
+                                "margin": undefined,
+                                "padding": undefined,
+                                "width": 96,
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/list_screen.dart",
+                                "line": 126,
+                              },
+                              "style": undefined,
+                              "type": "Box",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 24,
+                                "width": undefined,
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/list_screen.dart",
+                                "line": 139,
+                              },
+                              "type": "Box",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "sourceRef": {
+                                "file": "lib/screens/list_screen.dart",
+                                "line": 140,
+                              },
+                              "text": {
+                                "color": "#1C1B1F",
+                                "maxLines": undefined,
+                                "value": "No items yet",
+                              },
+                              "type": "Text",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 8,
+                                "width": undefined,
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/list_screen.dart",
+                                "line": 148,
+                              },
+                              "type": "Box",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "sourceRef": {
+                                "file": "lib/screens/list_screen.dart",
+                                "line": 149,
+                              },
+                              "text": {
+                                "color": "#79747E",
+                                "maxLines": undefined,
+                                "value": "Your reading list is empty.\\nAdd books to get started.",
+                              },
+                              "type": "Text",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 32,
+                                "width": undefined,
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/list_screen.dart",
+                                "line": 154,
+                              },
+                              "type": "Box",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "padding": [
+                                  14,
+                                  24,
+                                  14,
+                                  24,
+                                ],
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/list_screen.dart",
+                                "line": 155,
+                              },
+                              "style": {
+                                "background": "#6750A4",
+                              },
+                              "type": "Button",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "crossAxis": "start",
+                            "direction": "column",
+                            "mainAxis": "start",
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/list_screen.dart",
+                            "line": 123,
+                          },
+                          "type": "Column",
+                        },
+                      ],
+                      "confidence": 0.7,
+                      "layout": {
+                        "padding": [
+                          40,
+                          40,
+                          40,
+                          40,
+                        ],
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/list_screen.dart",
+                        "line": 121,
+                      },
+                      "type": "Box",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "crossAxis": "center",
+                    "mainAxis": "center",
+                  },
+                  "role": "branch-arm:_screenState == _ScreenState.empty",
+                  "sourceRef": {
+                    "file": "lib/screens/list_screen.dart",
+                    "line": 120,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.24499999999999997,
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 220,
+                                          },
+                                          "text": {
+                                            "color": "#6750A4",
+                                            "maxLines": undefined,
+                                            "value": "dolore ea nostrud",
+                                          },
+                                          "type": "Text",
+                                        },
+                                      ],
+                                      "confidence": 0.48999999999999994,
+                                      "layout": {
+                                        "crossAxis": "center",
+                                        "mainAxis": "center",
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/screens/list_screen.dart",
+                                        "line": 219,
+                                      },
+                                      "type": "Box",
+                                    },
+                                  ],
+                                  "confidence": 0.48999999999999994,
+                                  "layout": {
+                                    "height": 44,
+                                    "margin": undefined,
+                                    "padding": undefined,
+                                    "width": 44,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/screens/list_screen.dart",
+                                    "line": 212,
+                                  },
+                                  "style": undefined,
+                                  "type": "Box",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "children": undefined,
+                                      "confidence": 0.24499999999999997,
+                                      "sourceRef": {
+                                        "file": "lib/screens/list_screen.dart",
+                                        "line": 230,
+                                      },
+                                      "text": {
+                                        "color": "#1C1B1F",
+                                        "maxLines": undefined,
+                                        "value": "enim do",
+                                      },
+                                      "type": "Text",
+                                    },
+                                    {
+                                      "children": [
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": 2,
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 241,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.24499999999999997,
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 242,
+                                          },
+                                          "text": {
+                                            "color": "#79747E",
+                                            "maxLines": undefined,
+                                            "value": "commodo magna sed",
+                                          },
+                                          "type": "Text",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": 4,
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 246,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": [
+                                            {
+                                              "children": undefined,
+                                              "confidence": 0.24499999999999997,
+                                              "sourceRef": {
+                                                "file": "lib/screens/list_screen.dart",
+                                                "line": 253,
+                                              },
+                                              "text": {
+                                                "color": "#6750A4",
+                                                "maxLines": undefined,
+                                                "value": "laboris tempor adipiscing enim",
+                                              },
+                                              "type": "Text",
+                                            },
+                                          ],
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "margin": undefined,
+                                            "padding": [
+                                              2,
+                                              8,
+                                              2,
+                                              8,
+                                            ],
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 247,
+                                          },
+                                          "style": undefined,
+                                          "type": "Box",
+                                        },
+                                      ],
+                                      "confidence": 0.48999999999999994,
+                                      "layout": {
+                                        "crossAxis": "start",
+                                        "direction": "column",
+                                        "mainAxis": "start",
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/screens/list_screen.dart",
+                                        "line": 238,
+                                      },
+                                      "type": "Column",
+                                    },
+                                  ],
+                                  "confidence": 0.48999999999999994,
+                                  "layout": {
+                                    "direction": "column",
+                                    "flex": 1,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/screens/list_screen.dart",
+                                    "line": 210,
+                                  },
+                                  "type": "Column",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.48999999999999994,
+                                  "layout": {
+                                    "height": undefined,
+                                    "width": undefined,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/screens/list_screen.dart",
+                                    "line": 264,
+                                  },
+                                  "text": {
+                                    "color": "#6750A4",
+                                    "value": "Icons.bookmark_outline",
+                                  },
+                                  "type": "Icon",
+                                },
+                              ],
+                              "confidence": 0.48999999999999994,
+                              "layout": {
+                                "crossAxis": "center",
+                                "direction": "row",
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/list_screen.dart",
+                                "line": 210,
+                              },
+                              "type": "Row",
+                            },
+                          ],
+                          "confidence": 0.48999999999999994,
+                          "layout": {
+                            "height": undefined,
+                            "margin": [
+                              0,
+                              0,
+                              10,
+                              0,
+                            ],
+                            "padding": undefined,
+                            "width": undefined,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/list_screen.dart",
+                            "line": 203,
+                          },
+                          "style": undefined,
+                          "type": "Box",
+                        },
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.24499999999999997,
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 220,
+                                          },
+                                          "text": {
+                                            "color": "#6750A4",
+                                            "maxLines": undefined,
+                                            "value": "dolore ea nostrud",
+                                          },
+                                          "type": "Text",
+                                        },
+                                      ],
+                                      "confidence": 0.48999999999999994,
+                                      "layout": {
+                                        "crossAxis": "center",
+                                        "mainAxis": "center",
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/screens/list_screen.dart",
+                                        "line": 219,
+                                      },
+                                      "type": "Box",
+                                    },
+                                  ],
+                                  "confidence": 0.48999999999999994,
+                                  "layout": {
+                                    "height": 44,
+                                    "margin": undefined,
+                                    "padding": undefined,
+                                    "width": 44,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/screens/list_screen.dart",
+                                    "line": 212,
+                                  },
+                                  "style": undefined,
+                                  "type": "Box",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "children": undefined,
+                                      "confidence": 0.24499999999999997,
+                                      "sourceRef": {
+                                        "file": "lib/screens/list_screen.dart",
+                                        "line": 230,
+                                      },
+                                      "text": {
+                                        "color": "#1C1B1F",
+                                        "maxLines": undefined,
+                                        "value": "enim do",
+                                      },
+                                      "type": "Text",
+                                    },
+                                    {
+                                      "children": [
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": 2,
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 241,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.24499999999999997,
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 242,
+                                          },
+                                          "text": {
+                                            "color": "#79747E",
+                                            "maxLines": undefined,
+                                            "value": "commodo magna sed",
+                                          },
+                                          "type": "Text",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": 4,
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 246,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": [
+                                            {
+                                              "children": undefined,
+                                              "confidence": 0.24499999999999997,
+                                              "sourceRef": {
+                                                "file": "lib/screens/list_screen.dart",
+                                                "line": 253,
+                                              },
+                                              "text": {
+                                                "color": "#6750A4",
+                                                "maxLines": undefined,
+                                                "value": "laboris tempor adipiscing enim",
+                                              },
+                                              "type": "Text",
+                                            },
+                                          ],
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "margin": undefined,
+                                            "padding": [
+                                              2,
+                                              8,
+                                              2,
+                                              8,
+                                            ],
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 247,
+                                          },
+                                          "style": undefined,
+                                          "type": "Box",
+                                        },
+                                      ],
+                                      "confidence": 0.48999999999999994,
+                                      "layout": {
+                                        "crossAxis": "start",
+                                        "direction": "column",
+                                        "mainAxis": "start",
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/screens/list_screen.dart",
+                                        "line": 238,
+                                      },
+                                      "type": "Column",
+                                    },
+                                  ],
+                                  "confidence": 0.48999999999999994,
+                                  "layout": {
+                                    "direction": "column",
+                                    "flex": 1,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/screens/list_screen.dart",
+                                    "line": 210,
+                                  },
+                                  "type": "Column",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.48999999999999994,
+                                  "layout": {
+                                    "height": undefined,
+                                    "width": undefined,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/screens/list_screen.dart",
+                                    "line": 264,
+                                  },
+                                  "text": {
+                                    "color": "#6750A4",
+                                    "value": "Icons.bookmark_outline",
+                                  },
+                                  "type": "Icon",
+                                },
+                              ],
+                              "confidence": 0.48999999999999994,
+                              "layout": {
+                                "crossAxis": "center",
+                                "direction": "row",
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/list_screen.dart",
+                                "line": 210,
+                              },
+                              "type": "Row",
+                            },
+                          ],
+                          "confidence": 0.48999999999999994,
+                          "layout": {
+                            "height": undefined,
+                            "margin": [
+                              0,
+                              0,
+                              10,
+                              0,
+                            ],
+                            "padding": undefined,
+                            "width": undefined,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/list_screen.dart",
+                            "line": 203,
+                          },
+                          "style": undefined,
+                          "type": "Box",
+                        },
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.24499999999999997,
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 220,
+                                          },
+                                          "text": {
+                                            "color": "#6750A4",
+                                            "maxLines": undefined,
+                                            "value": "dolore ea nostrud",
+                                          },
+                                          "type": "Text",
+                                        },
+                                      ],
+                                      "confidence": 0.48999999999999994,
+                                      "layout": {
+                                        "crossAxis": "center",
+                                        "mainAxis": "center",
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/screens/list_screen.dart",
+                                        "line": 219,
+                                      },
+                                      "type": "Box",
+                                    },
+                                  ],
+                                  "confidence": 0.48999999999999994,
+                                  "layout": {
+                                    "height": 44,
+                                    "margin": undefined,
+                                    "padding": undefined,
+                                    "width": 44,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/screens/list_screen.dart",
+                                    "line": 212,
+                                  },
+                                  "style": undefined,
+                                  "type": "Box",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "children": undefined,
+                                      "confidence": 0.24499999999999997,
+                                      "sourceRef": {
+                                        "file": "lib/screens/list_screen.dart",
+                                        "line": 230,
+                                      },
+                                      "text": {
+                                        "color": "#1C1B1F",
+                                        "maxLines": undefined,
+                                        "value": "enim do",
+                                      },
+                                      "type": "Text",
+                                    },
+                                    {
+                                      "children": [
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": 2,
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 241,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.24499999999999997,
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 242,
+                                          },
+                                          "text": {
+                                            "color": "#79747E",
+                                            "maxLines": undefined,
+                                            "value": "commodo magna sed",
+                                          },
+                                          "type": "Text",
+                                        },
+                                        {
+                                          "children": undefined,
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": 4,
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 246,
+                                          },
+                                          "type": "Box",
+                                        },
+                                        {
+                                          "children": [
+                                            {
+                                              "children": undefined,
+                                              "confidence": 0.24499999999999997,
+                                              "sourceRef": {
+                                                "file": "lib/screens/list_screen.dart",
+                                                "line": 253,
+                                              },
+                                              "text": {
+                                                "color": "#6750A4",
+                                                "maxLines": undefined,
+                                                "value": "laboris tempor adipiscing enim",
+                                              },
+                                              "type": "Text",
+                                            },
+                                          ],
+                                          "confidence": 0.48999999999999994,
+                                          "layout": {
+                                            "height": undefined,
+                                            "margin": undefined,
+                                            "padding": [
+                                              2,
+                                              8,
+                                              2,
+                                              8,
+                                            ],
+                                            "width": undefined,
+                                          },
+                                          "sourceRef": {
+                                            "file": "lib/screens/list_screen.dart",
+                                            "line": 247,
+                                          },
+                                          "style": undefined,
+                                          "type": "Box",
+                                        },
+                                      ],
+                                      "confidence": 0.48999999999999994,
+                                      "layout": {
+                                        "crossAxis": "start",
+                                        "direction": "column",
+                                        "mainAxis": "start",
+                                      },
+                                      "sourceRef": {
+                                        "file": "lib/screens/list_screen.dart",
+                                        "line": 238,
+                                      },
+                                      "type": "Column",
+                                    },
+                                  ],
+                                  "confidence": 0.48999999999999994,
+                                  "layout": {
+                                    "direction": "column",
+                                    "flex": 1,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/screens/list_screen.dart",
+                                    "line": 210,
+                                  },
+                                  "type": "Column",
+                                },
+                                {
+                                  "children": undefined,
+                                  "confidence": 0.48999999999999994,
+                                  "layout": {
+                                    "height": undefined,
+                                    "width": undefined,
+                                  },
+                                  "sourceRef": {
+                                    "file": "lib/screens/list_screen.dart",
+                                    "line": 264,
+                                  },
+                                  "text": {
+                                    "color": "#6750A4",
+                                    "value": "Icons.bookmark_outline",
+                                  },
+                                  "type": "Icon",
+                                },
+                              ],
+                              "confidence": 0.48999999999999994,
+                              "layout": {
+                                "crossAxis": "center",
+                                "direction": "row",
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/list_screen.dart",
+                                "line": 210,
+                              },
+                              "type": "Row",
+                            },
+                          ],
+                          "confidence": 0.48999999999999994,
+                          "layout": {
+                            "height": undefined,
+                            "margin": [
+                              0,
+                              0,
+                              10,
+                              0,
+                            ],
+                            "padding": undefined,
+                            "width": undefined,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/list_screen.dart",
+                            "line": 203,
+                          },
+                          "style": undefined,
+                          "type": "Box",
+                        },
+                      ],
+                      "confidence": 0.7,
+                      "layout": {
+                        "direction": "column",
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/list_screen.dart",
+                        "line": 182,
+                      },
+                      "type": "List",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "direction": "column",
+                    "padding": [
+                      16,
+                      16,
+                      16,
+                      16,
+                    ],
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/list_screen.dart",
+                    "line": 182,
+                  },
+                  "type": "Scroll",
+                },
+              ],
+              "confidence": 0.5,
+              "role": "conditions:_screenState == _ScreenState.loading|_screenState == _ScreenState.empty",
+              "sourceRef": {
+                "file": "lib/screens/list_screen.dart",
+                "line": 71,
+              },
+              "type": "Branch",
+            },
+          ],
+          "confidence": 0.5,
+          "layout": {
+            "direction": "column",
+            "height": "fill",
+            "width": "fill",
+          },
+          "role": "content",
+          "sourceRef": {
+            "file": "lib/screens/list_screen.dart",
+            "line": 71,
+          },
+          "type": "Box",
+        },
+      ],
+      "confidence": 1,
+      "layout": {
+        "direction": "column",
+        "height": "fill",
+        "width": "fill",
+      },
+      "sourceRef": {
+        "file": "lib/screens/list_screen.dart",
+        "line": 39,
+      },
+      "style": {
+        "background": "#F8F9FA",
+      },
+      "type": "Box",
+    },
+    "sourceRef": {
+      "file": "lib/screens/list_screen.dart",
+      "line": 8,
+      "symbol": "ListScreen",
+    },
+  },
+}
+`;
+
+exports[`buildScreenIR — IR 스냅샷 (전체 트리) > OrphanScreen: IR 전체 트리 스냅샷 — sourceRef/confidence/diagnostics 포함 1`] = `
+{
+  "designTokens": {
+    "colors": {
+      "background": "#FFFBFE",
+      "error": "#B3261E",
+      "errorContainer": "#F9DEDC",
+      "onBackground": "#1C1B1F",
+      "onError": "#FFFFFF",
+      "onErrorContainer": "#410E0B",
+      "onPrimary": "#FFFFFF",
+      "onPrimaryContainer": "#151021",
+      "onSecondary": "#FFFFFF",
+      "onSecondaryContainer": "#1D192B",
+      "onSurface": "#1C1B1F",
+      "onSurfaceVariant": "#49454F",
+      "onTertiary": "#FFFFFF",
+      "onTertiaryContainer": "#31111D",
+      "outline": "#79747E",
+      "outlineVariant": "#CAC4D0",
+      "primary": "#6750A4",
+      "primaryContainer": "#e1dced",
+      "scrim": "#000000",
+      "secondary": "#625B71",
+      "secondaryContainer": "#E8DEF8",
+      "surface": "#FFFBFE",
+      "surfaceContainerHighest": "#E6E1E5",
+      "surfaceVariant": "#E7E0EC",
+      "tertiary": "#7D5260",
+      "tertiaryContainer": "#FFD8E4",
+    },
+  },
+  "diagnostics": [],
+  "schemaVersion": "0.1",
+  "screen": {
+    "confidence": 0.6,
+    "device": "iphone-15",
+    "discovery": "candidate",
+    "id": "OrphanScreen",
+    "root": {
+      "children": [
+        {
+          "children": [
+            {
+              "confidence": 1,
+              "sourceRef": {
+                "file": "lib/screens/orphan_screen.dart",
+                "line": 17,
+              },
+              "text": {
+                "color": undefined,
+                "maxLines": undefined,
+                "value": "Orphan Screen",
+              },
+              "type": "Text",
+            },
+          ],
+          "confidence": 1,
+          "layout": {
+            "crossAxis": "center",
+            "direction": "row",
+          },
+          "role": "appbar",
+          "sourceRef": {
+            "file": "lib/screens/orphan_screen.dart",
+            "line": 14,
+          },
+          "style": {
+            "background": "#FF8F00",
+          },
+          "type": "Box",
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "confidence": 1,
+                      "layout": {
+                        "height": 52,
+                        "width": 52,
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/orphan_screen.dart",
+                        "line": 36,
+                      },
+                      "text": {
+                        "color": undefined,
+                        "value": "Icons.link_off",
+                      },
+                      "type": "Icon",
+                    },
+                  ],
+                  "confidence": 1,
+                  "layout": {
+                    "height": 100,
+                    "margin": undefined,
+                    "padding": undefined,
+                    "width": 100,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/orphan_screen.dart",
+                    "line": 29,
+                  },
+                  "style": undefined,
+                  "type": "Box",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 32,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/orphan_screen.dart",
+                    "line": 42,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "confidence": 1,
+                  "sourceRef": {
+                    "file": "lib/screens/orphan_screen.dart",
+                    "line": 43,
+                  },
+                  "text": {
+                    "color": "#1C1B1F",
+                    "maxLines": undefined,
+                    "value": "Orphan Screen",
+                  },
+                  "type": "Text",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 16,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/orphan_screen.dart",
+                    "line": 52,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "confidence": 1,
+                  "sourceRef": {
+                    "file": "lib/screens/orphan_screen.dart",
+                    "line": 53,
+                  },
+                  "text": {
+                    "color": "#49454F",
+                    "maxLines": undefined,
+                    "value": "This screen is not connected to any route or navigation entry. It exists as a standalone widget that the heuristic discovery algorithm should detect as a "candidate" screen.",
+                  },
+                  "type": "Text",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 40,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/orphan_screen.dart",
+                    "line": 64,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "confidence": 1,
+                              "layout": {
+                                "height": 18,
+                                "width": 18,
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/orphan_screen.dart",
+                                "line": 78,
+                              },
+                              "text": {
+                                "color": undefined,
+                                "value": "Icons.info_outline",
+                              },
+                              "type": "Icon",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 1,
+                              "layout": {
+                                "height": undefined,
+                                "width": 8,
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/orphan_screen.dart",
+                                "line": 79,
+                              },
+                              "type": "Box",
+                            },
+                            {
+                              "confidence": 1,
+                              "sourceRef": {
+                                "file": "lib/screens/orphan_screen.dart",
+                                "line": 80,
+                              },
+                              "text": {
+                                "color": "#FF8F00",
+                                "maxLines": undefined,
+                                "value": "Discovery note",
+                              },
+                              "type": "Text",
+                            },
+                          ],
+                          "confidence": 1,
+                          "layout": {
+                            "crossAxis": "center",
+                            "direction": "row",
+                            "mainAxis": "start",
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/orphan_screen.dart",
+                            "line": 76,
+                          },
+                          "type": "Row",
+                        },
+                        {
+                          "children": undefined,
+                          "confidence": 1,
+                          "layout": {
+                            "height": 8,
+                            "width": undefined,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/orphan_screen.dart",
+                            "line": 90,
+                          },
+                          "type": "Box",
+                        },
+                        {
+                          "confidence": 1,
+                          "sourceRef": {
+                            "file": "lib/screens/orphan_screen.dart",
+                            "line": 91,
+                          },
+                          "text": {
+                            "color": "#5D4037",
+                            "maxLines": undefined,
+                            "value": "Expected discovery: candidate (not route)\\nThe heuristic scanner should find this screen\\nvia the *Screen class name suffix.",
+                          },
+                          "type": "Text",
+                        },
+                      ],
+                      "confidence": 1,
+                      "layout": {
+                        "crossAxis": "start",
+                        "direction": "column",
+                        "mainAxis": "start",
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/orphan_screen.dart",
+                        "line": 73,
+                      },
+                      "type": "Column",
+                    },
+                  ],
+                  "confidence": 1,
+                  "layout": {
+                    "height": undefined,
+                    "margin": undefined,
+                    "padding": [
+                      20,
+                      20,
+                      20,
+                      20,
+                    ],
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/orphan_screen.dart",
+                    "line": 65,
+                  },
+                  "style": undefined,
+                  "type": "Box",
+                },
+              ],
+              "confidence": 1,
+              "layout": {
+                "crossAxis": "start",
+                "direction": "column",
+                "mainAxis": "start",
+              },
+              "sourceRef": {
+                "file": "lib/screens/orphan_screen.dart",
+                "line": 25,
+              },
+              "type": "Column",
+            },
+          ],
+          "confidence": 1,
+          "layout": {
+            "padding": [
+              32,
+              32,
+              32,
+              32,
+            ],
+          },
+          "role": "content",
+          "sourceRef": {
+            "file": "lib/screens/orphan_screen.dart",
+            "line": 23,
+          },
+          "type": "Box",
+        },
+      ],
+      "confidence": 1,
+      "layout": {
+        "direction": "column",
+        "height": "fill",
+        "width": "fill",
+      },
+      "sourceRef": {
+        "file": "lib/screens/orphan_screen.dart",
+        "line": 12,
+      },
+      "style": {
+        "background": "#FFF8E1",
+      },
+      "type": "Box",
+    },
+    "sourceRef": {
+      "file": "lib/screens/orphan_screen.dart",
+      "line": 7,
+      "symbol": "OrphanScreen",
+    },
+  },
+}
+`;
+
+exports[`buildScreenIR — IR 스냅샷 (전체 트리) > SettingsScreen: IR 전체 트리 스냅샷 — sourceRef/confidence/diagnostics 포함 1`] = `
+{
+  "designTokens": {
+    "colors": {
+      "background": "#FFFBFE",
+      "error": "#B3261E",
+      "errorContainer": "#F9DEDC",
+      "onBackground": "#1C1B1F",
+      "onError": "#FFFFFF",
+      "onErrorContainer": "#410E0B",
+      "onPrimary": "#FFFFFF",
+      "onPrimaryContainer": "#151021",
+      "onSecondary": "#FFFFFF",
+      "onSecondaryContainer": "#1D192B",
+      "onSurface": "#1C1B1F",
+      "onSurfaceVariant": "#49454F",
+      "onTertiary": "#FFFFFF",
+      "onTertiaryContainer": "#31111D",
+      "outline": "#79747E",
+      "outlineVariant": "#CAC4D0",
+      "primary": "#6750A4",
+      "primaryContainer": "#e1dced",
+      "scrim": "#000000",
+      "secondary": "#625B71",
+      "secondaryContainer": "#E8DEF8",
+      "surface": "#FFFBFE",
+      "surfaceContainerHighest": "#E6E1E5",
+      "surfaceVariant": "#E7E0EC",
+      "tertiary": "#7D5260",
+      "tertiaryContainer": "#FFD8E4",
+    },
+  },
+  "diagnostics": [
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: 동적 표현식: label.toUpperCase()",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: 변수 참조: subtitle",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: 동적 표현식: label.toUpperCase()",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: 동적 표현식: label.toUpperCase()",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: 동적 표현식: label.toUpperCase()",
+    },
+    {
+      "code": "DYNAMIC_DATA_MOCKED",
+      "level": "info",
+      "message": "Text 노드 mock 처리: 변수 참조: subtitle",
+    },
+  ],
+  "schemaVersion": "0.1",
+  "screen": {
+    "confidence": 0.727272727272727,
+    "device": "iphone-15",
+    "discovery": "route",
+    "id": "SettingsScreen",
+    "root": {
+      "children": [
+        {
+          "children": [
+            {
+              "confidence": 1,
+              "sourceRef": {
+                "file": "lib/screens/settings_screen.dart",
+                "line": 29,
+              },
+              "text": {
+                "color": "token:onPrimaryContainer",
+                "maxLines": undefined,
+                "value": "Settings",
+              },
+              "type": "Text",
+            },
+          ],
+          "confidence": 1,
+          "layout": {
+            "crossAxis": "center",
+            "direction": "row",
+          },
+          "role": "appbar",
+          "sourceRef": {
+            "file": "lib/screens/settings_screen.dart",
+            "line": 26,
+          },
+          "style": {
+            "background": "token:primaryContainer",
+          },
+          "type": "Box",
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": undefined,
+                      "confidence": 0.35,
+                      "sourceRef": {
+                        "file": "lib/screens/settings_screen.dart",
+                        "line": 186,
+                      },
+                      "text": {
+                        "color": "token:primary",
+                        "maxLines": undefined,
+                        "value": "dolore ea nostrud",
+                      },
+                      "type": "Text",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "padding": [
+                      24,
+                      16,
+                      8,
+                      16,
+                    ],
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 184,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 20,
+                                "width": 20,
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 232,
+                              },
+                              "text": {
+                                "color": undefined,
+                                "value": "icon",
+                              },
+                              "type": "Icon",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "height": 40,
+                            "margin": undefined,
+                            "padding": undefined,
+                            "width": 40,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/settings_screen.dart",
+                            "line": 225,
+                          },
+                          "style": undefined,
+                          "type": "Box",
+                        },
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 234,
+                              },
+                              "text": {
+                                "color": "token:onSurface",
+                                "maxLines": undefined,
+                                "value": "Dark Mode",
+                              },
+                              "type": "Text",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 241,
+                              },
+                              "text": {
+                                "color": "token:onSurfaceVariant",
+                                "maxLines": undefined,
+                                "value": "Switch to dark theme",
+                              },
+                              "type": "Text",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "direction": "column",
+                            "flex": 1,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/settings_screen.dart",
+                            "line": 224,
+                          },
+                          "type": "Column",
+                        },
+                      ],
+                      "confidence": 0.7,
+                      "layout": {
+                        "crossAxis": "center",
+                        "direction": "row",
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/settings_screen.dart",
+                        "line": 224,
+                      },
+                      "type": "Row",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "height": undefined,
+                    "margin": [
+                      4,
+                      16,
+                      4,
+                      16,
+                    ],
+                    "padding": undefined,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 218,
+                  },
+                  "style": undefined,
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 20,
+                                "width": 20,
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 232,
+                              },
+                              "text": {
+                                "color": undefined,
+                                "value": "icon",
+                              },
+                              "type": "Icon",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "height": 40,
+                            "margin": undefined,
+                            "padding": undefined,
+                            "width": 40,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/settings_screen.dart",
+                            "line": 225,
+                          },
+                          "style": undefined,
+                          "type": "Box",
+                        },
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 234,
+                              },
+                              "text": {
+                                "color": "token:onSurface",
+                                "maxLines": undefined,
+                                "value": "Text Size",
+                              },
+                              "type": "Text",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 0.35,
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 241,
+                              },
+                              "text": {
+                                "color": "token:onSurfaceVariant",
+                                "maxLines": undefined,
+                                "value": "cool dog clear small bright",
+                              },
+                              "type": "Text",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "direction": "column",
+                            "flex": 1,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/settings_screen.dart",
+                            "line": 224,
+                          },
+                          "type": "Column",
+                        },
+                      ],
+                      "confidence": 0.7,
+                      "layout": {
+                        "crossAxis": "center",
+                        "direction": "row",
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/settings_screen.dart",
+                        "line": 224,
+                      },
+                      "type": "Row",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "height": undefined,
+                    "margin": [
+                      4,
+                      16,
+                      4,
+                      16,
+                    ],
+                    "padding": undefined,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 218,
+                  },
+                  "style": undefined,
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": undefined,
+                      "confidence": 0.35,
+                      "sourceRef": {
+                        "file": "lib/screens/settings_screen.dart",
+                        "line": 186,
+                      },
+                      "text": {
+                        "color": "token:primary",
+                        "maxLines": undefined,
+                        "value": "commodo ullamco",
+                      },
+                      "type": "Text",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "padding": [
+                      24,
+                      16,
+                      8,
+                      16,
+                    ],
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 184,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 20,
+                                "width": 20,
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 232,
+                              },
+                              "text": {
+                                "color": undefined,
+                                "value": "icon",
+                              },
+                              "type": "Icon",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "height": 40,
+                            "margin": undefined,
+                            "padding": undefined,
+                            "width": 40,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/settings_screen.dart",
+                            "line": 225,
+                          },
+                          "style": undefined,
+                          "type": "Box",
+                        },
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 234,
+                              },
+                              "text": {
+                                "color": "token:onSurface",
+                                "maxLines": undefined,
+                                "value": "Push Notifications",
+                              },
+                              "type": "Text",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 241,
+                              },
+                              "text": {
+                                "color": "token:onSurfaceVariant",
+                                "maxLines": undefined,
+                                "value": "Enabled",
+                              },
+                              "type": "Text",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "direction": "column",
+                            "flex": 1,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/settings_screen.dart",
+                            "line": 224,
+                          },
+                          "type": "Column",
+                        },
+                      ],
+                      "confidence": 0.7,
+                      "layout": {
+                        "crossAxis": "center",
+                        "direction": "row",
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/settings_screen.dart",
+                        "line": 224,
+                      },
+                      "type": "Row",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "height": undefined,
+                    "margin": [
+                      4,
+                      16,
+                      4,
+                      16,
+                    ],
+                    "padding": undefined,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 218,
+                  },
+                  "style": undefined,
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": undefined,
+                      "confidence": 0.35,
+                      "sourceRef": {
+                        "file": "lib/screens/settings_screen.dart",
+                        "line": 186,
+                      },
+                      "text": {
+                        "color": "token:primary",
+                        "maxLines": undefined,
+                        "value": "elit enim",
+                      },
+                      "type": "Text",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "padding": [
+                      24,
+                      16,
+                      8,
+                      16,
+                    ],
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 184,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 20,
+                                "width": 20,
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 232,
+                              },
+                              "text": {
+                                "color": undefined,
+                                "value": "icon",
+                              },
+                              "type": "Icon",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "height": 40,
+                            "margin": undefined,
+                            "padding": undefined,
+                            "width": 40,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/settings_screen.dart",
+                            "line": 225,
+                          },
+                          "style": undefined,
+                          "type": "Box",
+                        },
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 234,
+                              },
+                              "text": {
+                                "color": "token:onSurface",
+                                "maxLines": undefined,
+                                "value": "Analytics",
+                              },
+                              "type": "Text",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 241,
+                              },
+                              "text": {
+                                "color": "token:onSurfaceVariant",
+                                "maxLines": undefined,
+                                "value": "Help improve the app",
+                              },
+                              "type": "Text",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "direction": "column",
+                            "flex": 1,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/settings_screen.dart",
+                            "line": 224,
+                          },
+                          "type": "Column",
+                        },
+                      ],
+                      "confidence": 0.7,
+                      "layout": {
+                        "crossAxis": "center",
+                        "direction": "row",
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/settings_screen.dart",
+                        "line": 224,
+                      },
+                      "type": "Row",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "height": undefined,
+                    "margin": [
+                      4,
+                      16,
+                      4,
+                      16,
+                    ],
+                    "padding": undefined,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 218,
+                  },
+                  "style": undefined,
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": undefined,
+                      "confidence": 0.35,
+                      "sourceRef": {
+                        "file": "lib/screens/settings_screen.dart",
+                        "line": 186,
+                      },
+                      "text": {
+                        "color": "token:primary",
+                        "maxLines": undefined,
+                        "value": "veniam lorem magna ea",
+                      },
+                      "type": "Text",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "padding": [
+                      24,
+                      16,
+                      8,
+                      16,
+                    ],
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 184,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "layout": {
+                                "height": 20,
+                                "width": 20,
+                              },
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 232,
+                              },
+                              "text": {
+                                "color": undefined,
+                                "value": "icon",
+                              },
+                              "type": "Icon",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "height": 40,
+                            "margin": undefined,
+                            "padding": undefined,
+                            "width": 40,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/settings_screen.dart",
+                            "line": 225,
+                          },
+                          "style": undefined,
+                          "type": "Box",
+                        },
+                        {
+                          "children": [
+                            {
+                              "children": undefined,
+                              "confidence": 0.7,
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 234,
+                              },
+                              "text": {
+                                "color": "token:onSurface",
+                                "maxLines": undefined,
+                                "value": "Language",
+                              },
+                              "type": "Text",
+                            },
+                            {
+                              "children": undefined,
+                              "confidence": 0.35,
+                              "sourceRef": {
+                                "file": "lib/screens/settings_screen.dart",
+                                "line": 241,
+                              },
+                              "text": {
+                                "color": "token:onSurfaceVariant",
+                                "maxLines": undefined,
+                                "value": "fresh quick cat fox lazy",
+                              },
+                              "type": "Text",
+                            },
+                          ],
+                          "confidence": 0.7,
+                          "layout": {
+                            "direction": "column",
+                            "flex": 1,
+                          },
+                          "sourceRef": {
+                            "file": "lib/screens/settings_screen.dart",
+                            "line": 224,
+                          },
+                          "type": "Column",
+                        },
+                      ],
+                      "confidence": 0.7,
+                      "layout": {
+                        "crossAxis": "center",
+                        "direction": "row",
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/settings_screen.dart",
+                        "line": 224,
+                      },
+                      "type": "Row",
+                    },
+                  ],
+                  "confidence": 0.7,
+                  "layout": {
+                    "height": undefined,
+                    "margin": [
+                      4,
+                      16,
+                      4,
+                      16,
+                    ],
+                    "padding": undefined,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 218,
+                  },
+                  "style": undefined,
+                  "type": "Box",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 24,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 134,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "children": undefined,
+                      "confidence": 1,
+                      "layout": {
+                        "padding": [
+                          14,
+                          0,
+                          14,
+                          0,
+                        ],
+                      },
+                      "sourceRef": {
+                        "file": "lib/screens/settings_screen.dart",
+                        "line": 137,
+                      },
+                      "style": undefined,
+                      "type": "Button",
+                    },
+                  ],
+                  "confidence": 1,
+                  "layout": {
+                    "padding": [
+                      0,
+                      16,
+                      0,
+                      16,
+                    ],
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 135,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 40,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 153,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": [
+                    {
+                      "confidence": 1,
+                      "sourceRef": {
+                        "file": "lib/screens/settings_screen.dart",
+                        "line": 155,
+                      },
+                      "text": {
+                        "color": "token:outline",
+                        "maxLines": undefined,
+                        "value": "Version 1.0.0 (fixture)",
+                      },
+                      "type": "Text",
+                    },
+                  ],
+                  "confidence": 1,
+                  "layout": {
+                    "crossAxis": "center",
+                    "mainAxis": "center",
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 154,
+                  },
+                  "type": "Box",
+                },
+                {
+                  "children": undefined,
+                  "confidence": 1,
+                  "layout": {
+                    "height": 16,
+                    "width": undefined,
+                  },
+                  "sourceRef": {
+                    "file": "lib/screens/settings_screen.dart",
+                    "line": 162,
+                  },
+                  "type": "Box",
+                },
+              ],
+              "confidence": 1,
+              "layout": {
+                "direction": "column",
+              },
+              "sourceRef": {
+                "file": "lib/screens/settings_screen.dart",
+                "line": 38,
+              },
+              "type": "List",
+            },
+          ],
+          "confidence": 1,
+          "layout": {
+            "direction": "column",
+            "padding": undefined,
+          },
+          "role": "content",
+          "sourceRef": {
+            "file": "lib/screens/settings_screen.dart",
+            "line": 38,
+          },
+          "type": "Scroll",
+        },
+      ],
+      "confidence": 1,
+      "layout": {
+        "direction": "column",
+        "height": "fill",
+        "width": "fill",
+      },
+      "sourceRef": {
+        "file": "lib/screens/settings_screen.dart",
+        "line": 24,
+      },
+      "style": undefined,
+      "type": "Box",
+    },
+    "sourceRef": {
+      "file": "lib/screens/settings_screen.dart",
+      "line": 5,
+      "symbol": "SettingsScreen",
+    },
+  },
+}
+`;

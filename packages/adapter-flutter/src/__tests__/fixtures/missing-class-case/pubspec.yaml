@@ -1,0 +1,9 @@
+name: missing_class_case
+description: Fixture for testing UNRESOLVED_CLASS diagnostic — routes table references a class that does not exist in the project.
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter

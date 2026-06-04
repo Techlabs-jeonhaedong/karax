@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "0.1",
+  "screen": {
+    "id": "StackScroll",
+    "sourceRef": { "file": "lib/stack_scroll.dart", "line": 1 },
+    "device": "iphone-15",
+    "discovery": "candidate",
+    "confidence": 0.75,
+    "root": {
+      "type": "Stack",
+      "confidence": 1.0,
+      "layout": {
+        "width": "fill",
+        "height": "fill"
+      },
+      "style": { "background": "#FAFAFA" },
+      "children": [
+        {
+          "type": "Scroll",
+          "confidence": 1.0,
+          "layout": {
+            "direction": "column",
+            "width": "fill",
+            "height": "fill",
+            "padding": [0, 0, 80, 0]
+          },
+          "children": [
+            {
+              "type": "Column",
+              "confidence": 1.0,
+              "layout": {
+                "mainAxis": "start",
+                "crossAxis": "stretch",
+                "width": "fill",
+                "gap": 12,
+                "padding": [16, 16, 16, 16]
+              },
+              "children": [
+                {
+                  "type": "Text",
+                  "confidence": 1.0,
+                  "text": { "value": "Scrollable Content", "color": "#111111" }
+                },
+                {
+                  "type": "Box",
+                  "confidence": 0.9,
+                  "layout": { "width": "fill", "height": 150 },
+                  "style": { "background": "#E3F2FD", "borderRadius": 12 },
+                  "children": [
+                    {
+                      "type": "Text",
+                      "confidence": 1.0,
+                      "layout": { "padding": [16, 16, 16, 16] },
+                      "text": { "value": "Item 1", "color": "#1565C0" }
+                    }
+                  ]
+                },
+                {
+                  "type": "Box",
+                  "confidence": 0.9,
+                  "layout": { "width": "fill", "height": 150 },
+                  "style": { "background": "#F3E5F5", "borderRadius": 12 },
+                  "children": [
+                    {
+                      "type": "Text",
+                      "confidence": 1.0,
+                      "layout": { "padding": [16, 16, 16, 16] },
+                      "text": { "value": "Item 2", "color": "#6A1B9A" }
+                    }
+                  ]
+                },
+                {
+                  "type": "Box",
+                  "confidence": 0.9,
+                  "layout": { "width": "fill", "height": 150 },
+                  "style": { "background": "#E8F5E9", "borderRadius": 12 },
+                  "children": [
+                    {
+                      "type": "Text",
+                      "confidence": 1.0,
+                      "layout": { "padding": [16, 16, 16, 16] },
+                      "text": { "value": "Item 3", "color": "#2E7D32" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Box",
+          "role": "tabbar",
+          "confidence": 1.0,
+          "layout": {
+            "width": "fill",
+            "height": 60
+          },
+          "style": { "background": "#FFFFFF", "border": { "width": 1, "color": "#E0E0E0" } }
+        }
+      ]
+    }
+  },
+  "designTokens": {},
+  "diagnostics": [
+    { "level": "warn", "code": "DYNAMIC_DATA_MOCKED", "message": "List items use mocked data" }
+  ]
+}

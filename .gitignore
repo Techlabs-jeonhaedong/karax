@@ -1,0 +1,25 @@
+node_modules/
+dist/
+*.tsbuildinfo
+test-results/
+.tmp/
+coverage/
+.nyc_output/
+*.log
+.DS_Store
+grammars/*.wasm
+
+# Fixture app build artifacts
+.dart_tool/
+fixtures/**/build/
+
+# Compiled JS that accidentally lands in src/ (should be in dist/)
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+!packages/*/src/**/__tests__/
+tmp/
+
+# Integration test output (should never be committed)
+packages/*/test-out-integration/

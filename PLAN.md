@@ -1,7 +1,7 @@
 # PLAN.md — 소스코드 기반 앱 스크린샷 추출 도구
 
 > **이 문서는 자기완결적 계획서다.** 새 세션에서 이 문서만 읽어도 구현을 이어갈 수 있도록 작성됐다.
-> 마지막 갱신: 2026-06-04 / 상태: 설계 완료, 구현 미착수 (M0부터 시작)
+> 마지막 갱신: 2026-06-04 / 상태: M0~M9 전체 완료 — 최종 검수 단계
 
 ---
 
@@ -195,7 +195,7 @@ screenshot-from-code/
 └─ docs/
 ```
 
-- 의존 방향: `cli`/`mcp` → `sdk` → `core`+`renderer`+`adapter-*`+`compile-*`+`doctor` → `adapter-api`. **순환 없음**.
+- 의존 방향: `cli`/`mcp` → `sdk` → `core`+`renderer`+`adapter-*`+`compile-*`+`doctor` → `adapter-api` → `core`. **순환 없음** — `core`(IR 스키마)가 공통 최하위 기반이고, `core`는 `@sfc` 내부 의존이 0개(zod만 사용)다.
 - `enrich-llm`은 `sdk`에 선택 주입 (코어 의존성 아님).
 - 기존 빈 `packages/screenshot_sdk_flutter/`는 zero-config 요구와 안 맞으므로 M0에서 제거.
 
@@ -278,22 +278,22 @@ export function captureAll(opts: AnalyzeOptions & { outDir: string }):
 
 ### 체크리스트 (진행 상태)
 
-- [ ] **M0 — 모노레포 스캐폴드**: pnpm workspace, tsconfig, vitest, 패키지 골격, IR zod 스키마, `FrameworkAdapter`/`CompileBackend` 인터페이스, 기존 `packages/screenshot_sdk_flutter` 제거
+- [x] **M0 — 모노레포 스캐폴드**: pnpm workspace, tsconfig, vitest, 패키지 골격, IR zod 스키마, `FrameworkAdapter`/`CompileBackend` 인터페이스, 기존 `packages/screenshot_sdk_flutter` 제거
   - 검증: `pnpm -r build` 통과, IR 스키마 round-trip 유닛테스트(유효/무효 케이스)
-- [ ] **M1 — Detector + Doctor 골격 + Renderer MVP**: Detector(fixtures 4종+혼합 케이스), Doctor 감지·진단(설치는 스텁), 손으로 작성한 IR 픽스처→HTML→Playwright PNG
+- [x] **M1 — Detector + Doctor 골격 + Renderer MVP**: Detector(fixtures 4종+혼합 케이스), Doctor 감지·진단(설치는 스텁), 손으로 작성한 IR 픽스처→HTML→Playwright PNG
   - 검증: Detector 테이블 테스트, Renderer 골든 이미지 테스트(픽셀 diff 임계치). **렌더러를 어댑터보다 먼저 검증하는 게 핵심 전략**
-- [ ] **M2 — Flutter 화면 발견**: 라우트 그래프(MaterialApp routes/go_router/Navigator) + heuristic Scaffold 스캔
+- [x] **M2 — Flutter 화면 발견**: 라우트 그래프(MaterialApp routes/go_router/Navigator) + heuristic Scaffold 스캔
   - 검증: `flutter-basic` fixture에서 화면 목록(id/discovery/sourceRef) 스냅샷 일치
-- [ ] **M3 — Flutter Tier 2 (정적 IR)**: 표준 위젯 매핑(Scaffold/AppBar/Column/Row/Container/Text/Image/Padding/Expanded/ListView), 커스텀 컴포넌트 인라이닝, ThemeResolver, Mock Provider
+- [x] **M3 — Flutter Tier 2 (정적 IR)**: 표준 위젯 매핑(Scaffold/AppBar/Column/Row/Container/Text/Image/Padding/Expanded/ListView), 커스텀 컴포넌트 인라이닝, ThemeResolver, Mock Provider
   - 검증: IR 스냅샷 테스트, `Unknown` 노드 처리, confidence 집계 단조성 테스트, 골든 이미지
-- [ ] **M4 — Flutter Tier 1 (부분 컴파일)**: 하니스 생성→`flutter test` golden→PNG 회수, 실패 시 Tier 2 fallback
+- [x] **M4 — Flutter Tier 1 (부분 컴파일)**: 하니스 생성→`flutter test` golden→PNG 회수, 실패 시 Tier 2 fallback
   - 검증: fixture에서 Tier 1/2 캡처 비교, fallback 경로 테스트, 원본 무수정 테스트(전후 디렉토리 해시 비교)
-- [ ] **M5 — SDK/CLI/MCP 조립 + 의존성 자동 설치**: `captureAll` 통합, `sfc` CLI, MCP 서버 7 tools, postinstall/ensure/doctor --fix
+- [x] **M5 — SDK/CLI/MCP 조립 + 의존성 자동 설치**: `captureAll` 통합, `sfc` CLI, MCP 서버 7 tools, postinstall/ensure/doctor --fix
   - 검증: 깨끗한 환경(CI 컨테이너)에서 `npx @sfc/mcp` 설치→캡처까지 무개입 동작. **세로 슬라이스 완성 = 데모 가능 시점**
-- [ ] **M6 — React Native**: 화면 발견 + Tier 2 + react-native-web 컴파일 백엔드 (M2~M4 패턴 복제)
-- [ ] **M7 — Android Compose**: 화면 발견 + Tier 2 + Paparazzi 백엔드
-- [ ] **M8 — iOS SwiftUI**: 화면 발견 + Tier 2 + 시뮬레이터 스냅샷 백엔드 (macOS 한정)
-- [ ] **M9 — 보강**: UIKit(Storyboard/XIB)·Android XML 레거시, LLM enrich 플러그인, Branch variant 렌더 옵션, confidence 노출 강화
+- [x] **M6 — React Native**: 화면 발견 + Tier 2 + react-native-web 컴파일 백엔드 (M2~M4 패턴 복제)
+- [x] **M7 — Android Compose**: 화면 발견 + Tier 2 + Paparazzi 백엔드
+- [x] **M8 — iOS SwiftUI**: 화면 발견 + Tier 2 + 시뮬레이터 스냅샷 백엔드 (macOS 한정)
+- [x] **M9 — 보강**: UIKit(Storyboard/XIB)·Android XML 레거시, LLM enrich 플러그인, Branch variant 렌더 옵션, confidence 노출 강화
 
 ---
 
@@ -318,7 +318,7 @@ export function captureAll(opts: AnalyzeOptions & { outDir: string }):
 - **Tier 2 노드 단위**: 표준 위젯 매핑 1.0 / 인라인 해석 0.7 / mock 바인딩 0.5 / Unknown 0.2
 - **화면 단위**: 노드 confidence를 면적/노드수 가중 집계 × discovery 가중(route 1.0 / candidate 0.6)
 - **프로젝트 단위**: 화면 평균 + 커버리지(해석 노드/전체 노드 비율)
-- **diagnostics 코드**로 설명 가능성 확보: `UNRESOLVED_COMPONENT`, `THEME_DEFAULTED`, `DYNAMIC_DATA_MOCKED`, `COMPILE_FALLBACK`
+- **diagnostics 코드**로 설명 가능성 확보: `UNRESOLVED_COMPONENT`, `THEME_DEFAULTED`, `DYNAMIC_DATA_MOCKED`, `COMPILE_FALLBACK`, `BRANCH_VARIANT_EXPANDED` (Branch 분기 전개), `ENRICHED` (LLM 보강 적용), `ENRICH_REJECTED` (LLM 보강 응답 스키마 위반으로 거부)
 - 노출 채널: `AnalysisReport.overallConfidence`, PNG별 사이드카 `*.report.json`, MCP `get_analysis_report`, (옵션) 낮은 신뢰 노드 하이라이트 오버레이 모드
 - README에 한계 고정 문구: Tier 2는 픽셀 퍼펙트 아님 / 동적 데이터·차트·지도·애니메이션은 placeholder·근사 / 코드생성 의존 UI 누락 가능
 

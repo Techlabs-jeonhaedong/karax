@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Fixture App</string>
+
+    <!-- HomeScreen -->
+    <string name="home_title">Welcome to Fixture App</string>
+    <string name="home_body">This is a sample application demonstrating standard Compose widgets including images, buttons, and text elements.</string>
+    <string name="home_btn_explore">Explore Products</string>
+    <string name="home_btn_settings">Settings</string>
+    <string name="home_local_image_desc">Local hero image</string>
+    <string name="home_network_image_desc">Network featured image</string>
+
+    <!-- DetailScreen -->
+    <string name="detail_title">Product Catalog</string>
+    <string name="detail_subtitle">Browse our curated collection</string>
+    <string name="product_alpha_name">Alpha Widget Pro</string>
+    <string name="product_alpha_desc">High-performance widget with advanced features for power users.</string>
+    <string name="product_beta_name">Beta Gadget Plus</string>
+    <string name="product_beta_desc">Versatile gadget designed for everyday productivity and ease of use.</string>
+    <string name="product_gamma_name">Gamma Device Ultra</string>
+    <string name="product_gamma_desc">Premium device offering unparalleled quality and cutting-edge technology.</string>
+
+    <!-- ListScreen -->
+    <string name="list_title">Item List</string>
+    <string name="list_loading">Loading items…</string>
+    <string name="list_empty">No items found</string>
+    <string name="list_empty_hint">Try refreshing or check back later.</string>
+
+    <!-- SettingsScreen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_dark_mode">Dark Mode</string>
+    <string name="settings_dark_mode_desc">Switch between light and dark themes</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_push_notifications">Push Notifications</string>
+    <string name="settings_push_notifications_desc">Receive alerts for new updates</string>
+    <string name="settings_account">Account</string>
+    <string name="settings_profile">Edit Profile</string>
+    <string name="settings_logout">Log Out</string>
+    <string name="settings_app_version">App Version</string>
+    <string name="settings_version_value">1.0.0 (build 1)</string>
+
+    <!-- OrphanScreen -->
+    <string name="orphan_title">Hidden Debug Panel</string>
+    <string name="orphan_body">This screen is not connected to any navigation route. It serves as a heuristic candidate for screen discovery testing.</string>
+    <string name="orphan_action">Run Diagnostics</string>
+</resources>
