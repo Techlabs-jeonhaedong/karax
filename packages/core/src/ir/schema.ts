@@ -2,11 +2,13 @@ import { z } from "zod";
 
 // ── 공유 프리미티브 ──────────────────────────────────────────────
 
-const SourceRefSchema = z.object({
-  file: z.string(),
-  line: z.number().int().nonnegative().optional(),
-  symbol: z.string().optional(),
-});
+const SourceRefSchema = z
+  .object({
+    file: z.string(),
+    line: z.number().int().nonnegative().optional(),
+    symbol: z.string().optional(),
+  })
+  .strict();
 
 const Padding4Schema = z
   .tuple([
@@ -39,6 +41,7 @@ const LayoutSchema = z
     margin: Padding4Schema.optional(),
     gap: z.number().nonnegative().optional(),
   })
+  .strict()
   .optional();
 
 // ── Style ──────────────────────────────────────────────────────
@@ -48,6 +51,7 @@ const BorderSchema = z
     width: z.number().nonnegative().optional(),
     color: z.string().optional(),
   })
+  .strict()
   .optional();
 
 const ShadowSchema = z
@@ -58,6 +62,7 @@ const ShadowSchema = z
     spread: z.number().optional(),
     color: z.string().optional(),
   })
+  .strict()
   .optional();
 
 const StyleSchema = z
@@ -68,6 +73,7 @@ const StyleSchema = z
     shadow: ShadowSchema,
     opacity: z.number().min(0).max(1).optional(),
   })
+  .strict()
   .optional();
 
 // ── Text / Image 전용 속성 ──────────────────────────────────────
@@ -79,6 +85,7 @@ const TextPropSchema = z
     color: z.string().optional(),
     maxLines: z.number().int().positive().optional(),
   })
+  .strict()
   .optional();
 
 // ── 노드 타입 열거 ──────────────────────────────────────────────
@@ -122,32 +129,36 @@ export type IRNode = {
   children?: IRNode[];
 };
 
-const IRNodeSchemaBase = z.object({
-  type: NodeTypeSchema,
-  role: z.string().nullish(),
-  layout: LayoutSchema,
-  style: StyleSchema,
-  text: TextPropSchema,
-  src: z.string().optional(),
-  confidence: z.number().min(0).max(1),
-  sourceRef: SourceRefSchema.optional(),
-});
+const IRNodeSchemaBase = z
+  .object({
+    type: NodeTypeSchema,
+    role: z.string().nullish(),
+    layout: LayoutSchema,
+    style: StyleSchema,
+    text: TextPropSchema,
+    src: z.string().optional(),
+    confidence: z.number().min(0).max(1),
+    sourceRef: SourceRefSchema.optional(),
+  })
+  .strict();
 
-// lazy 재귀 처리
+// lazy 재귀 처리 — strict()를 extend 후 다시 적용
 const IRNodeSchema: z.ZodType<IRNode> = IRNodeSchemaBase.extend({
   children: z.lazy(() => IRNodeSchema.array()).optional(),
-});
+}).strict();
 
 // ── Diagnostics ────────────────────────────────────────────────
 
 const DiagnosticLevelSchema = z.enum(["info", "warn", "error"]);
 
-const DiagnosticSchema = z.object({
-  level: DiagnosticLevelSchema,
-  code: z.string(),
-  message: z.string(),
-  sourceRef: SourceRefSchema.optional(),
-});
+const DiagnosticSchema = z
+  .object({
+    level: DiagnosticLevelSchema,
+    code: z.string(),
+    message: z.string(),
+    sourceRef: SourceRefSchema.optional(),
+  })
+  .strict();
 
 // ── DesignTokens ───────────────────────────────────────────────
 
@@ -157,23 +168,28 @@ const DesignTokensSchema = z
     spacing: z.record(z.number()).optional(),
     typography: z.record(z.unknown()).optional(),
   })
+  .strict()
   .optional();
 
 // ── IRDocument ─────────────────────────────────────────────────
 
-export const IRDocumentSchema = z.object({
-  schemaVersion: z.string(),
-  screen: z.object({
-    id: z.string(),
-    sourceRef: SourceRefSchema.optional(),
-    device: z.string().optional(),
-    discovery: z.enum(["route", "candidate"]),
-    confidence: z.number().min(0).max(1),
-    root: IRNodeSchema,
-  }),
-  designTokens: DesignTokensSchema,
-  diagnostics: DiagnosticSchema.array().optional().default([]),
-});
+export const IRDocumentSchema = z
+  .object({
+    schemaVersion: z.string(),
+    screen: z
+      .object({
+        id: z.string(),
+        sourceRef: SourceRefSchema.optional(),
+        device: z.string().optional(),
+        discovery: z.enum(["route", "candidate"]),
+        confidence: z.number().min(0).max(1),
+        root: IRNodeSchema,
+      })
+      .strict(),
+    designTokens: DesignTokensSchema,
+    diagnostics: DiagnosticSchema.array().optional().default([]),
+  })
+  .strict();
 
 export type IRDocument = z.infer<typeof IRDocumentSchema>;
 

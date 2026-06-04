@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Local hero banner image — used on HomeScreen as a local asset example.
+    A simple vector placeholder representing a landscape/banner graphic.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="360dp"
+    android:height="180dp"
+    android:viewportWidth="360"
+    android:viewportHeight="180">
+
+    <!-- Sky gradient background -->
+    <path
+        android:fillColor="#FF4FC3F7"
+        android:pathData="M0,0 L360,0 L360,180 L0,180 Z" />
+
+    <!-- Sun -->
+    <path
+        android:fillColor="#FFFFEB3B"
+        android:pathData="M300,40 m-24,0 a24,24 0 1,0 48,0 a24,24 0 1,0 -48,0" />
+
+    <!-- Mountain left -->
+    <path
+        android:fillColor="#FF5C6BC0"
+        android:pathData="M0,180 L80,80 L160,180 Z" />
+
+    <!-- Mountain right (taller) -->
+    <path
+        android:fillColor="#FF3949AB"
+        android:pathData="M120,180 L220,60 L320,180 Z" />
+
+    <!-- Ground -->
+    <path
+        android:fillColor="#FF66BB6A"
+        android:pathData="M0,150 Q90,130 180,150 Q270,170 360,145 L360,180 L0,180 Z" />
+
+    <!-- App name watermark -->
+    <path
+        android:fillColor="#33FFFFFF"
+        android:pathData="M20,170 L100,170 L100,175 L20,175 Z" />
+</vector>

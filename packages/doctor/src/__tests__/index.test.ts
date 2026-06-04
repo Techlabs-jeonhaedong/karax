@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { DOCTOR_VERSION } from "../index.js";
+import { runDoctor } from "../index.js";
 
-describe("doctor 패키지 스텁", () => {
-  it("doctor stub가 올바른 값을 내보냄", () => {
-    expect(DOCTOR_VERSION).toBe("0.0.1");
+describe("doctor 패키지 export", () => {
+  it("runDoctor 함수가 export됨", () => {
+    expect(typeof runDoctor).toBe("function");
   });
 });

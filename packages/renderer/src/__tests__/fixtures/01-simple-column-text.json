@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "0.1",
+  "screen": {
+    "id": "SimpleColumnText",
+    "sourceRef": { "file": "lib/simple.dart", "line": 1, "symbol": "SimpleColumnText" },
+    "device": "iphone-15",
+    "discovery": "route",
+    "confidence": 1.0,
+    "root": {
+      "type": "Column",
+      "confidence": 1.0,
+      "layout": {
+        "mainAxis": "start",
+        "crossAxis": "stretch",
+        "width": "fill",
+        "height": "fill",
+        "padding": [16, 16, 16, 16],
+        "gap": 8
+      },
+      "style": { "background": "#FFFFFF" },
+      "children": [
+        {
+          "type": "Text",
+          "confidence": 1.0,
+          "text": { "value": "Hello World", "color": "#000000" }
+        },
+        {
+          "type": "Text",
+          "confidence": 1.0,
+          "text": { "value": "This is a subtitle text that demonstrates wrapping behavior.", "color": "#666666", "maxLines": 2 }
+        },
+        {
+          "type": "Text",
+          "confidence": 1.0,
+          "text": { "value": "Caption text", "color": "#999999" }
+        }
+      ]
+    }
+  },
+  "designTokens": {},
+  "diagnostics": []
+}

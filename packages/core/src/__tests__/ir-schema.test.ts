@@ -299,3 +299,107 @@ describe("IRDocumentSchema export", () => {
     expect(typeof IRDocumentSchema.safeParse).toBe("function");
   });
 });
+
+// ── strict 모드: 알 수 없는 키 거부 ───────────────────────────────
+
+describe("IRDocument — strict 모드 (알 수 없는 키 거부)", () => {
+  it("IRDocumentSchema 최상위에 알 수 없는 키가 있으면 거부", () => {
+    const doc = { ...validDoc, unknownTopLevelKey: "oops" };
+    expect(() => parseIRDocument(doc)).toThrow();
+  });
+
+  it("screen 객체에 알 수 없는 키가 있으면 거부", () => {
+    const doc = {
+      ...validDoc,
+      screen: { ...validDoc.screen, unknownScreenKey: 123 },
+    };
+    expect(() => parseIRDocument(doc)).toThrow();
+  });
+
+  it("IRNode에 알 수 없는 키가 있으면 거부 (오타 키: childrne)", () => {
+    const doc = {
+      ...validDoc,
+      screen: {
+        ...validDoc.screen,
+        root: {
+          type: "Column" as const,
+          confidence: 1.0,
+          childrne: [], // 오타
+        },
+      },
+    };
+    expect(() => parseIRDocument(doc)).toThrow();
+  });
+
+  it("IRNode layout에 알 수 없는 키가 있으면 거부", () => {
+    const doc = {
+      ...validDoc,
+      screen: {
+        ...validDoc.screen,
+        root: {
+          type: "Column" as const,
+          confidence: 1.0,
+          layout: { direction: "row" as const, unknownLayoutKey: true },
+        },
+      },
+    };
+    expect(() => parseIRDocument(doc)).toThrow();
+  });
+
+  it("IRNode style에 알 수 없는 키가 있으면 거부", () => {
+    const doc = {
+      ...validDoc,
+      screen: {
+        ...validDoc.screen,
+        root: {
+          type: "Box" as const,
+          confidence: 1.0,
+          style: { background: "#fff", unknownStyleKey: "bad" },
+        },
+      },
+    };
+    expect(() => parseIRDocument(doc)).toThrow();
+  });
+
+  it("designTokens에 알 수 없는 키가 있으면 거부", () => {
+    const doc = {
+      ...validDoc,
+      designTokens: {
+        colors: {},
+        spacing: {},
+        typography: {},
+        unknownTokenKey: {},
+      },
+    };
+    expect(() => parseIRDocument(doc)).toThrow();
+  });
+
+  it("diagnostics 항목에 알 수 없는 키가 있으면 거부", () => {
+    const doc = {
+      ...validDoc,
+      diagnostics: [
+        {
+          level: "warn" as const,
+          code: "TEST",
+          message: "test",
+          unknownDiagKey: true,
+        },
+      ],
+    };
+    expect(() => parseIRDocument(doc)).toThrow();
+  });
+
+  it("sourceRef에 알 수 없는 키가 있으면 거부", () => {
+    const doc = {
+      ...validDoc,
+      screen: {
+        ...validDoc.screen,
+        sourceRef: {
+          file: "lib/home.dart",
+          unknownRefKey: "oops",
+        },
+      },
+    };
+    expect(() => parseIRDocument(doc)).toThrow();
+  });
+});

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme. -->
+    <style name="Theme.FixtureApp" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Compose handles theming via MaterialTheme; this style only sets the window background. -->
+        <item name="android:windowBackground">@color/background_light</item>
+        <item name="android:statusBarColor">@color/brand_primary</item>
+    </style>
+</resources>

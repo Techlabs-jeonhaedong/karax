@@ -8,3 +8,7 @@ coverage/
 *.log
 .DS_Store
 grammars/*.wasm
+
+# Fixture app build artifacts
+.dart_tool/
+fixtures/**/build/
