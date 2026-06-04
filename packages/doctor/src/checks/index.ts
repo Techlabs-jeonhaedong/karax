@@ -6,3 +6,4 @@ export { checkJava } from "./java.js";
 export { checkGradle } from "./gradle.js";
 export { checkXcodebuild } from "./xcode.js";
 export { checkCocoaPods } from "./cocoapods.js";
+export { checkAndroidSdk, detectAndroidSdkPath } from "./androidSdk.js";

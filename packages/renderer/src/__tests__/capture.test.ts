@@ -30,7 +30,7 @@ describe("renderScreenshot — Playwright Chromium 캡처", () => {
       expect(result.pngPath).toMatch(/\.png$/);
       expect(existsSync(result.pngPath)).toBe(true);
     },
-    30_000,
+    60_000,
   );
 
   it(
@@ -42,7 +42,7 @@ describe("renderScreenshot — Playwright Chromium 캡처", () => {
       expect(result.width).toBe(393 * 3); // 1179
       expect(result.height).toBe(852 * 3); // 2556
     },
-    30_000,
+    60_000,
   );
 
   it(
@@ -54,7 +54,7 @@ describe("renderScreenshot — Playwright Chromium 캡처", () => {
       expect(result.width).toBe(Math.round(412 * 2.625)); // 1081
       expect(result.height).toBe(Math.round(915 * 2.625)); // 2401
     },
-    30_000,
+    60_000,
   );
 
   it(
@@ -116,6 +116,6 @@ describe("renderScreenshot — Playwright Chromium 캡처", () => {
       const result = await renderScreenshot(ir, { device: "iphone-15", outDir: TMP_OUT });
       expect(existsSync(result.pngPath)).toBe(true);
     },
-    30_000,
+    60_000,
   );
 }, );

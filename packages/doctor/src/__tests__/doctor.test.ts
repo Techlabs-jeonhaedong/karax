@@ -91,6 +91,7 @@ describe("runDoctor", () => {
     expect(ids).toContain("java");
     expect(ids).toContain("gradle");
     expect(ids).toContain("cocoapods");
+    expect(ids).toContain("android-sdk");
   });
 
   it("tiersAvailable에 4개 프레임워크가 포함됨", async () => {

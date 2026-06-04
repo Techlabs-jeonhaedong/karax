@@ -10,7 +10,8 @@ export async function checkGradle(): Promise<CheckResult> {
   };
 
   try {
-    const { stdout } = await execa("gradle", ["--version"]);
+    // 콜드스타트가 느린 머신에서 30s+ 소요 가능 → timeout 30s
+    const { stdout } = await execa("gradle", ["--version"], { timeout: 30_000 });
     // "Gradle 8.14.3" 형태 파싱
     const match = stdout.match(/Gradle\s+(\d+\.\d+(?:\.\d+)?)/);
     if (!match) {

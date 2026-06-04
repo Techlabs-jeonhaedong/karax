@@ -46,6 +46,7 @@ function computeAndroid(checks: CheckResult[]): FrameworkTier {
   const missing: string[] = [];
   if (!isOk(checks, "java")) missing.push("java");
   if (!isOk(checks, "gradle")) missing.push("gradle");
+  if (!isOk(checks, "android-sdk")) missing.push("android-sdk");
 
   return { tier1: missing.length === 0, tier2: true, missing };
 }

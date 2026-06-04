@@ -101,7 +101,7 @@ describe("Flutter 화면 골든 이미지 테스트 (buildScreenIR → render �
           `픽셀 diff ${diffPixels}/${totalPixels} (${(ratio * 100).toFixed(3)}%) > 임계치 0.5%`,
         ).toBeLessThanOrEqual(GOLDENS_THRESHOLD);
       },
-      60_000,
+      120_000,
     );
   }
 

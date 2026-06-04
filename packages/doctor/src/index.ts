@@ -7,6 +7,7 @@ import {
   checkGradle,
   checkXcodebuild,
   checkCocoaPods,
+  checkAndroidSdk,
 } from "./checks/index.js";
 import type { CheckResult } from "./checks/types.js";
 import { computeTiers, type TiersAvailable } from "./tiers.js";
@@ -80,5 +81,6 @@ async function runAllChecks(): Promise<CheckResult[]> {
     checkGradle(),
     checkXcodebuild(),
     checkCocoaPods(),
+    checkAndroidSdk(),
   ]);
 }

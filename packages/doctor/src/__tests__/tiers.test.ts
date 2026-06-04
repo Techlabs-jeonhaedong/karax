@@ -74,31 +74,45 @@ describe("computeTiers — React Native", () => {
 // ─── Android ─────────────────────────────────────────────────────────────────
 
 describe("computeTiers — Android", () => {
-  it("java + gradle ok → tier1=true", () => {
-    const checks = [ok("java"), ok("gradle"), ok("node"), ok("playwright-chromium")];
+  it("java + gradle + android-sdk ok → tier1=true", () => {
+    const checks = [ok("java"), ok("gradle"), ok("android-sdk"), ok("node"), ok("playwright-chromium")];
     const tiers = computeTiers(checks);
     expect(tiers.android.tier1).toBe(true);
     expect(tiers.android.missing).toEqual([]);
   });
 
   it("java missing → tier1=false, missing에 java 포함", () => {
-    const checks = [missing("java"), ok("gradle"), ok("node"), ok("playwright-chromium")];
+    const checks = [missing("java"), ok("gradle"), ok("android-sdk"), ok("node"), ok("playwright-chromium")];
     const tiers = computeTiers(checks);
     expect(tiers.android.tier1).toBe(false);
     expect(tiers.android.missing).toContain("java");
   });
 
   it("gradle missing → tier1=false, missing에 gradle 포함", () => {
-    const checks = [ok("java"), missing("gradle"), ok("node"), ok("playwright-chromium")];
+    const checks = [ok("java"), missing("gradle"), ok("android-sdk"), ok("node"), ok("playwright-chromium")];
     const tiers = computeTiers(checks);
     expect(tiers.android.tier1).toBe(false);
     expect(tiers.android.missing).toContain("gradle");
   });
 
-  it("java outdated (JDK<11) → tier1=false", () => {
-    const checks = [outdated("java"), ok("gradle"), ok("node"), ok("playwright-chromium")];
+  it("android-sdk missing → tier1=false, missing에 android-sdk 포함", () => {
+    const checks = [ok("java"), ok("gradle"), missing("android-sdk"), ok("node"), ok("playwright-chromium")];
     const tiers = computeTiers(checks);
     expect(tiers.android.tier1).toBe(false);
+    expect(tiers.android.missing).toContain("android-sdk");
+  });
+
+  it("java outdated (JDK<11) → tier1=false", () => {
+    const checks = [outdated("java"), ok("gradle"), ok("android-sdk"), ok("node"), ok("playwright-chromium")];
+    const tiers = computeTiers(checks);
+    expect(tiers.android.tier1).toBe(false);
+  });
+
+  it("android-sdk outdated → tier1=false", () => {
+    const checks = [ok("java"), ok("gradle"), outdated("android-sdk"), ok("node"), ok("playwright-chromium")];
+    const tiers = computeTiers(checks);
+    expect(tiers.android.tier1).toBe(false);
+    expect(tiers.android.missing).toContain("android-sdk");
   });
 });
 

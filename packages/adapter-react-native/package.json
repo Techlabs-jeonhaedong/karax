@@ -21,7 +21,11 @@
     "@sfc/core": "workspace:*"
   },
   "devDependencies": {
+    "@sfc/renderer": "workspace:*",
     "@types/node": "^22.0.0",
+    "@types/pngjs": "^6.0.5",
+    "pixelmatch": "^6.0.0",
+    "pngjs": "^7.0.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }

@@ -11,7 +11,8 @@ export async function checkFlutter(): Promise<CheckResult> {
 
   try {
     // flutter --version 은 stdout 대신 stderr에 출력하는 경우도 있음
-    const { stdout, stderr } = await execa("flutter", ["--version"]);
+    // 콜드스타트가 느린 머신에서 30s+ 소요 가능 → timeout 30s
+    const { stdout, stderr } = await execa("flutter", ["--version"], { timeout: 30_000 });
     const output = stdout || stderr;
 
     // "Flutter 3.38.5 • channel stable" 형태 파싱

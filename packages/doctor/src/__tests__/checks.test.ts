@@ -22,6 +22,7 @@ import {
   checkGradle,
   checkXcodebuild,
   checkCocoaPods,
+  checkAndroidSdk,
 } from "../checks/index.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

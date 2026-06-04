@@ -18,6 +18,7 @@ const FLUTTER_FIXTURE = path.resolve(
   "../../fixtures/flutter-basic"
 );
 
+
 // ── 기본 export 확인 ────────────────────────────────────────────────
 
 describe("SDK exports", () => {
@@ -122,13 +123,6 @@ describe("listScreens", () => {
     for (const s of screens) {
       expect(s.discovery).toBe("route");
     }
-  });
-
-  it("미지원 프레임워크에서 UNSUPPORTED_FRAMEWORK 에러를 던져야 한다", async () => {
-    // react-native는 어댑터 미구현
-    await expect(
-      listScreens({ projectPath: FLUTTER_FIXTURE, framework: "react-native" })
-    ).rejects.toThrow(/UNSUPPORTED_FRAMEWORK/);
   });
 
   it("framework 미지정 시 자동 감지로 동작해야 한다", async () => {
@@ -311,3 +305,4 @@ describe("captureScreen — Tier 1 실제 실행 (flutter 설치 필요)", () =>
     }
   );
 });
+

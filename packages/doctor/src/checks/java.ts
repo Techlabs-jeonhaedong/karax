@@ -32,7 +32,8 @@ export async function checkJava(): Promise<CheckResult> {
 
   try {
     // java -version 은 stderr에 출력
-    const { stdout, stderr } = await execa("java", ["-version"]);
+    // 콜드스타트가 느린 머신에서 30s+ 소요 가능 → timeout 30s
+    const { stdout, stderr } = await execa("java", ["-version"], { timeout: 30_000 });
     const output = stdout || stderr;
 
     const parsed = parseJavaMajor(output);

@@ -15,7 +15,8 @@ export async function checkXcodebuild(): Promise<CheckResult> {
   }
 
   try {
-    const { stdout } = await execa("xcodebuild", ["-version"]);
+    // xcodebuild -version은 병렬 부하 환경에서 60s+ 소요 가능 → timeout 90s
+    const { stdout } = await execa("xcodebuild", ["-version"], { timeout: 90_000 });
     // "Xcode 16.2" 형태 파싱
     const match = stdout.match(/Xcode\s+(\d+(?:\.\d+)?)/);
     if (!match) {

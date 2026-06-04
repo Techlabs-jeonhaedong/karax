@@ -92,7 +92,7 @@ describe("골든 이미지 테스트 — pixelmatch diff ≤ 0.1%", () => {
           `픽셀 diff ${diffPixels}/${totalPixels} (${(ratio * 100).toFixed(3)}%) > 임계치 0.1%`,
         ).toBeLessThanOrEqual(GOLDENS_THRESHOLD);
       },
-      30_000,
+      60_000,
     );
   }
 

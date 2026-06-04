@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FLUTTER_FIXTURE = path.resolve(__dirname, "../../../../fixtures/flutter-basic");
+const RN_FIXTURE = path.resolve(__dirname, "../../../../fixtures/react-native-basic");
 
 /** 서버+클라이언트 InMemory 쌍을 생성하고 연결 */
 async function makeClientServer() {
@@ -188,7 +189,7 @@ describe("MCP 서버 — capture_screen tool (mode: static)", () => {
     const listResult = await client.callTool({
       name: "list_screens",
       arguments: { projectPath: FLUTTER_FIXTURE },
-    });
+    }, undefined, { timeout: 60_000 });
     expect(listResult.isError).toBeFalsy();
 
     const listText = (listResult.content as Array<{ type: string; text: string }>).find(
@@ -197,6 +198,7 @@ describe("MCP 서버 — capture_screen tool (mode: static)", () => {
     const { screens } = JSON.parse(listText!.text);
     const firstScreenId = screens[0].id;
 
+    // Chromium 첫 시작이 30s+ 소요 가능 → MCP request timeout 120s
     const result = await client.callTool({
       name: "capture_screen",
       arguments: {
@@ -206,7 +208,7 @@ describe("MCP 서버 — capture_screen tool (mode: static)", () => {
         outDir: "/tmp/sfc-mcp-test",
         mockSeed: 42,
       },
-    });
+    }, undefined, { timeout: 120_000 });
 
     expect(result.isError).toBeFalsy();
 
@@ -228,7 +230,8 @@ describe("MCP 서버 — capture_screen tool (mode: static)", () => {
     expect(imageContent!.mimeType).toBe("image/png");
     expect(imageContent!.data).toBeDefined();
     expect(imageContent!.data!.length).toBeGreaterThan(0);
-  }, 60_000);
+  // Chromium 첫 시작이 30s+ 소요 가능 → 120s
+  }, 120_000);
 
   it("screenId 누락 → isError", async () => {
     const result = await client.callTool({
@@ -279,10 +282,12 @@ describe("MCP 서버 — doctor tool", () => {
   });
 
   it("doctor → checks + tiersAvailable 포함 응답 반환", async () => {
+    // doctor는 java/xcodebuild/flutter 체크 포함 → 콜드스타트 환경에서 30s+ 소요 가능
+    // MCP request timeout도 120s로 설정
     const result = await client.callTool({
       name: "doctor",
       arguments: {},
-    });
+    }, undefined, { timeout: 120_000 });
 
     expect(result.isError).toBeFalsy();
 
@@ -294,7 +299,7 @@ describe("MCP 서버 — doctor tool", () => {
     const parsed = JSON.parse(text!.text);
     expect(parsed.checks).toBeDefined();
     expect(parsed.tiersAvailable).toBeDefined();
-  });
+  }, 120_000);
 });
 
 describe("MCP 서버 — get_screen_ir tool", () => {
@@ -462,4 +467,45 @@ describe("MCP 서버 — 엣지 케이스", () => {
     });
     expect(result.isError).toBe(true);
   });
+});
+
+// ─── list_screens — RN fixture 계약 테스트 ───────────────────────────
+
+describe("MCP 서버 — list_screens 계약 (react-native-basic fixture)", () => {
+  let client: Client;
+  let server: Awaited<ReturnType<typeof makeClientServer>>["server"];
+
+  beforeEach(async () => {
+    ({ client, server } = await makeClientServer());
+  });
+
+  afterEach(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  it("react-native-basic fixture → screens 배열 반환, 각 항목에 id/discovery/confidence 포함", async () => {
+    // tree-sitter WASM 초기화 30s+ 소요 가능 → 60s timeout
+    const result = await client.callTool({
+      name: "list_screens",
+      arguments: { projectPath: RN_FIXTURE },
+    });
+
+    expect(result.isError).toBeFalsy();
+
+    const text = (result.content as Array<{ type: string; text: string }>).find(
+      (c) => c.type === "text"
+    );
+    expect(text).toBeDefined();
+
+    const parsed = JSON.parse(text!.text);
+    expect(Array.isArray(parsed.screens)).toBe(true);
+    expect(parsed.screens.length).toBeGreaterThan(0);
+
+    for (const screen of parsed.screens) {
+      expect(screen).toHaveProperty("id");
+      expect(["route", "candidate"]).toContain(screen.discovery);
+      expect(typeof screen.confidence).toBe("number");
+    }
+  }, 60_000);
 });

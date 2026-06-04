@@ -28,10 +28,10 @@ async function detectFlutterPath(env: CompileEnvironment): Promise<string | null
     }
   }
 
-  // PATH에서 flutter 탐색
+  // PATH에서 flutter 탐색 (콜드스타트가 느린 머신에서 20s+ 소요 가능 → 30s)
   try {
     const result = await execa("flutter", ["--version"], {
-      timeout: 15_000,
+      timeout: 30_000,
       reject: false,
     });
     if (result.exitCode === 0) return "flutter";

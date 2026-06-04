@@ -27,9 +27,21 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@sfc/renderer':
+        specifier: workspace:*
+        version: link:../renderer
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
+      pixelmatch:
+        specifier: ^6.0.0
+        version: 6.0.0
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
@@ -87,9 +99,21 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@sfc/renderer':
+        specifier: workspace:*
+        version: link:../renderer
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
+      pixelmatch:
+        specifier: ^6.0.0
+        version: 6.0.0
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
@@ -106,9 +130,21 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@sfc/renderer':
+        specifier: workspace:*
+        version: link:../renderer
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
+      pixelmatch:
+        specifier: ^6.0.0
+        version: 6.0.0
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
@@ -314,6 +350,9 @@ importers:
         specifier: ^7.0.0
         version: 7.0.0
     devDependencies:
+      '@sfc/adapter-flutter':
+        specifier: workspace:*
+        version: link:../adapter-flutter
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19

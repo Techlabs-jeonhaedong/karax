@@ -71,12 +71,15 @@ function mainAxisToJustify(v: string | undefined): string {
   }
 }
 
-function crossAxisToAlign(v: string | undefined): string {
+function crossAxisToAlign(v: string | undefined, direction?: "row" | "column"): string {
   switch (v) {
     case "center": return "center";
     case "end": return "flex-end";
     case "stretch": return "stretch";
-    default: return "flex-start";
+    case "start": return "flex-start";
+    default:
+      // React Native 기본: column flex container는 align-items:stretch, row는 center
+      return direction === "row" ? "center" : "stretch";
   }
 }
 
@@ -410,7 +413,7 @@ function renderFlex(
 
   const l = node.layout;
   const justify = mainAxisToJustify(l?.mainAxis);
-  const align = crossAxisToAlign(l?.crossAxis);
+  const align = crossAxisToAlign(l?.crossAxis, direction);
   const baseCSS = buildLayoutCSS(node, designTokens);
   const positionCSS = isStackChild ? "position:absolute;top:0;left:0;right:0;bottom:0;" : "";
 

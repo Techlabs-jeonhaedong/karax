@@ -21,18 +21,31 @@ const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, "../../../..");
 const CLI_BIN = path.join(ROOT, "packages/cli/dist/bin.js");
 const FLUTTER_FIXTURE = path.join(ROOT, "fixtures/flutter-basic");
+const RN_FIXTURE = path.join(ROOT, "fixtures/react-native-basic");
+const ANDROID_FIXTURE = path.join(ROOT, "fixtures/android-compose-basic");
+const IOS_FIXTURE = path.join(ROOT, "fixtures/ios-swiftui-basic");
 
 const BASE_ENV = {
   ...process.env,
   SFC_SKIP_ENSURE: "1",
-  NODE_OPTIONS: undefined as unknown as string, // 불필요한 NODE_OPTIONS 제거
+  NODE_OPTIONS: undefined as unknown as string,
 };
 
-async function runCli(args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+// tree-sitter-swift.wasm Turboshaft Zone OOM 방지: node 바이너리에 직접 V8 플래그 전달
+const WASM_NODE_FLAGS = [
+  "--no-wasm-tier-up",
+  "--no-wasm-dynamic-tiering",
+  "--wasm-num-compilation-tasks=1",
+];
+
+async function runCli(
+  args: string[],
+  timeoutMs = 30_000,
+): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
-    const { stdout, stderr } = await execFileAsync("node", [CLI_BIN, ...args], {
+    const { stdout, stderr } = await execFileAsync("node", [...WASM_NODE_FLAGS, CLI_BIN, ...args], {
       env: BASE_ENV,
-      timeout: 30_000,
+      timeout: timeoutMs,
     });
     return { stdout, stderr, code: 0 };
   } catch (e: unknown) {
@@ -172,6 +185,7 @@ describe("sfc capture --mode static", () => {
     const outDir = path.join(os.tmpdir(), "cli-e2e-capture-single");
     await fs.mkdir(outDir, { recursive: true });
 
+    // Chromium 첫 시작 30s+ → 120s timeout 사용
     const { stdout, code } = await runCli([
       "capture",
       FLUTTER_FIXTURE,
@@ -181,7 +195,7 @@ describe("sfc capture --mode static", () => {
       "static",
       "--out",
       outDir,
-    ]);
+    ], 120_000);
 
     expect(code).toBe(0);
     // stdout에 경로 또는 성공 메시지 포함
@@ -191,13 +205,14 @@ describe("sfc capture --mode static", () => {
     const files = await fs.readdir(outDir);
     const pngs = files.filter((f) => f.endsWith(".png"));
     expect(pngs.length).toBeGreaterThan(0);
-  });
+  }, 150_000);
 
   it("전체 화면 캡처(--mode static)가 성공한다", async () => {
     if (!cliBuildExists) return;
     const outDir = path.join(os.tmpdir(), "cli-e2e-capture-all");
     await fs.mkdir(outDir, { recursive: true });
 
+    // 전체 화면(5개) 캡처 + 병렬 환경 부하 → 180s timeout
     const { stdout, code } = await runCli([
       "capture",
       FLUTTER_FIXTURE,
@@ -205,13 +220,13 @@ describe("sfc capture --mode static", () => {
       "static",
       "--out",
       outDir,
-    ]);
+    ], 180_000);
 
     // 성공(0) 또는 부분 실패(2) 모두 허용
     expect([0, 2]).toContain(code);
     // 어떤 형태로든 요약이 출력돼야 한다
     expect(stdout.length).toBeGreaterThan(0);
-  });
+  }, 240_000);
 
   it("--json 플래그로 JSON 결과를 출력한다", async () => {
     if (!cliBuildExists) return;
@@ -336,5 +351,95 @@ describe("알 수 없는 서브커맨드", () => {
     if (!cliBuildExists) return;
     const { code } = await runCli(["unknowncommand"]);
     expect(code).toBe(1);
+  });
+});
+
+// ─── React Native fixture sfc detect / sfc list e2e ───────────────
+
+describe("sfc detect — react-native-basic", () => {
+  it("react-native를 감지한다", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["detect", RN_FIXTURE]);
+    expect(code).toBe(0);
+    expect(stdout.toLowerCase()).toContain("react-native");
+  });
+});
+
+describe("sfc list — react-native-basic", () => {
+  it("화면 목록을 출력한다", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["list", RN_FIXTURE]);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/Screen/i);
+  });
+
+  it("--json으로 5개 화면이 반환된다", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["list", RN_FIXTURE, "--json"]);
+    expect(code).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBe(5);
+    expect(parsed[0]).toHaveProperty("id");
+  });
+});
+
+// ─── Android fixture sfc detect / sfc list e2e ───────────────────
+
+describe("sfc detect — android-compose-basic", () => {
+  it("android를 감지한다", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["detect", ANDROID_FIXTURE]);
+    expect(code).toBe(0);
+    expect(stdout.toLowerCase()).toContain("android");
+  });
+});
+
+describe("sfc list — android-compose-basic", () => {
+  it("화면 목록을 출력한다", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["list", ANDROID_FIXTURE]);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/Screen/i);
+  });
+
+  it("--json으로 5개 화면이 반환된다", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["list", ANDROID_FIXTURE, "--json"]);
+    expect(code).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBe(5);
+    expect(parsed[0]).toHaveProperty("id");
+  });
+});
+
+// ─── iOS fixture sfc detect / sfc list e2e ───────────────────────
+
+describe("sfc detect — ios-swiftui-basic", () => {
+  it("ios를 감지한다", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["detect", IOS_FIXTURE]);
+    expect(code).toBe(0);
+    expect(stdout.toLowerCase()).toContain("ios");
+  });
+});
+
+describe("sfc list — ios-swiftui-basic", () => {
+  it("화면 목록을 출력한다", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["list", IOS_FIXTURE]);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/Screen/i);
+  });
+
+  it("--json으로 5개 화면이 반환된다", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["list", IOS_FIXTURE, "--json"]);
+    expect(code).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBe(5);
+    expect(parsed[0]).toHaveProperty("id");
   });
 });

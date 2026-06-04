@@ -26,8 +26,6 @@ import { computeProjectConfidence } from "@sfc/core";
 import { captureScreenWithTiers } from "@sfc/core";
 import { runDoctor, doctorFix as coreDoctorFix } from "@sfc/doctor";
 import type { DoctorReport } from "@sfc/doctor";
-import { flutterAdapter } from "@sfc/adapter-flutter";
-import { flutterCompileBackend } from "@sfc/compile-flutter";
 import { renderScreenshot } from "@sfc/renderer";
 import type { IRDocument } from "@sfc/core";
 
@@ -38,19 +36,97 @@ export const SDK_VERSION = "0.0.1" as const;
 export type { DetectResult, DoctorReport, ScreenSummary, CaptureResult, IRDocument };
 export type { FrameworkId, DeviceProfileId, CaptureMode };
 
-// ── 어댑터/백엔드 레지스트리 ──────────────────────────────────────
-// M6~M8에서 어댑터 추가는 이 두 레지스트리에 한 줄씩 추가
+// ── 어댑터/백엔드 lazy 로더 ───────────────────────────────────────
+//
+// 어댑터들은 tree-sitter WASM을 포함하는 패키지를 의존하므로,
+// 정적 import 시 WASM JIT 컴파일이 모든 패키지에 대해 동시에 발생해
+// V8 Zone OOM이 유발된다. dynamic import로 필요한 시점에만 로드한다.
+//
+// ⚠️  V8 WASM-JIT Zone OOM 주의 (Node v22+ + swift/kotlin tree-sitter WASM):
+//   SDK를 라이브러리로 직접 사용하는 호스트 프로세스에서 iOS fixture 대상으로
+//   captureAll/captureScreen을 실행하면 "Fatal process out of memory: Zone
+//   (Turboshaft WASM 컴파일)" 크래시가 발생할 수 있습니다.
+//   완화 방법:
+//     1. Node 실행 시 --liftoff-only 플래그 사용 (WASM baseline JIT만 사용):
+//        node --liftoff-only your-script.js
+//     2. vitest 등 테스트 러너의 worker 격리 환경 사용
+//     3. --max-old-space-size는 이 OOM에 효과 없음 (Turboshaft Zone은 별도 할당)
+//   CLI/MCP 서버는 내부적으로 격리된 프로세스로 실행되므로 영향 없음.
 
-const ADAPTER_REGISTRY: Partial<Record<FrameworkId, FrameworkAdapter>> = {
-  flutter: flutterAdapter,
-};
+const _adapterCache: Partial<Record<FrameworkId, FrameworkAdapter>> = {};
+const _backendCache: Partial<Record<FrameworkId, CompileBackend>> = {};
 
-const COMPILE_BACKEND_REGISTRY: Partial<Record<FrameworkId, CompileBackend>> = {
-  flutter: flutterCompileBackend,
-};
+async function loadAdapter(id: FrameworkId): Promise<FrameworkAdapter> {
+  if (_adapterCache[id]) return _adapterCache[id]!;
 
-// M6~M8 구현 전까지 미지원 프레임워크 목록
-const UNSUPPORTED_FRAMEWORKS: FrameworkId[] = ["react-native", "ios", "android"];
+  let adapter: FrameworkAdapter;
+  switch (id) {
+    case "flutter": {
+      const m = await import("@sfc/adapter-flutter");
+      adapter = m.flutterAdapter;
+      break;
+    }
+    case "react-native": {
+      const m = await import("@sfc/adapter-react-native");
+      adapter = m.reactNativeAdapter;
+      break;
+    }
+    case "android": {
+      const m = await import("@sfc/adapter-android");
+      adapter = m.androidAdapter;
+      break;
+    }
+    case "ios": {
+      const m = await import("@sfc/adapter-ios");
+      adapter = m.iosAdapter;
+      break;
+    }
+    default:
+      throw Object.assign(
+        new Error(`UNSUPPORTED_FRAMEWORK: '${id}' 어댑터가 없습니다.`),
+        { code: "UNSUPPORTED_FRAMEWORK" }
+      );
+  }
+
+  _adapterCache[id] = adapter;
+  return adapter;
+}
+
+async function loadCompileBackend(id: FrameworkId): Promise<CompileBackend | undefined> {
+  if (id in _backendCache) return _backendCache[id];
+
+  let backend: CompileBackend | undefined;
+  switch (id) {
+    case "flutter": {
+      const m = await import("@sfc/compile-flutter");
+      backend = m.flutterCompileBackend;
+      break;
+    }
+    case "react-native": {
+      const m = await import("@sfc/compile-react-native");
+      backend = m.rnWebCompileBackend;
+      break;
+    }
+    case "android": {
+      const m = await import("@sfc/compile-android");
+      backend = m.androidPaparazziBackend;
+      break;
+    }
+    case "ios": {
+      const m = await import("@sfc/compile-ios");
+      backend = m.iosSimulatorBackend;
+      break;
+    }
+    default:
+      backend = undefined;
+  }
+
+  _backendCache[id] = backend;
+  return backend;
+}
+
+// 모든 프레임워크가 등록됨 — 미지원 목록 없음
+const UNSUPPORTED_FRAMEWORKS: FrameworkId[] = [];
 
 // ── ensureDependencies ────────────────────────────────────────────
 
@@ -119,29 +195,17 @@ async function resolveFrameworkId(
   return detected.frameworks[0].id;
 }
 
-/** 어댑터를 가져온다. 미지원 시 UNSUPPORTED_FRAMEWORK 에러. */
-function getAdapter(frameworkId: FrameworkId): FrameworkAdapter {
+/** 어댑터를 가져온다 (lazy dynamic import). 미지원 시 UNSUPPORTED_FRAMEWORK 에러. */
+async function getAdapter(frameworkId: FrameworkId): Promise<FrameworkAdapter> {
   if (UNSUPPORTED_FRAMEWORKS.includes(frameworkId)) {
     throw Object.assign(
       new Error(
-        `UNSUPPORTED_FRAMEWORK: '${frameworkId}' 어댑터는 아직 구현되지 않았습니다. ` +
-          `M6(react-native)/M7(android)/M8(ios) 마일스톤에서 해제됩니다.`
+        `UNSUPPORTED_FRAMEWORK: '${frameworkId}' 어댑터는 아직 구현되지 않았습니다.`
       ),
       { code: "UNSUPPORTED_FRAMEWORK" }
     );
   }
-
-  const adapter = ADAPTER_REGISTRY[frameworkId];
-  if (!adapter) {
-    throw Object.assign(
-      new Error(
-        `UNSUPPORTED_FRAMEWORK: '${frameworkId}' 어댑터가 레지스트리에 없습니다.`
-      ),
-      { code: "UNSUPPORTED_FRAMEWORK" }
-    );
-  }
-
-  return adapter;
+  return loadAdapter(frameworkId);
 }
 
 /** renderScreenshot을 captureEngine deps 형식으로 래핑 */
@@ -185,7 +249,7 @@ export async function doctorFix(report?: DoctorReport): Promise<DoctorReport> {
  */
 export async function listScreens(opts: AnalyzeOptions): Promise<ScreenSummary[]> {
   const frameworkId = await resolveFrameworkId(opts);
-  const adapter = getAdapter(frameworkId);
+  const adapter = await getAdapter(frameworkId);
 
   const ctx: AdapterContext = {
     projectPath: opts.projectPath,
@@ -207,7 +271,7 @@ export async function buildScreenIR(
   opts: AnalyzeOptions & { screenId?: string }
 ): Promise<IRDocument[]> {
   const frameworkId = await resolveFrameworkId(opts);
-  const adapter = getAdapter(frameworkId);
+  const adapter = await getAdapter(frameworkId);
 
   const ctx: AdapterContext = {
     projectPath: opts.projectPath,
@@ -243,8 +307,8 @@ export async function captureScreen(
   await ensureDependencies();
 
   const frameworkId = await resolveFrameworkId(opts);
-  const adapter = getAdapter(frameworkId);
-  const compileBackend = COMPILE_BACKEND_REGISTRY[frameworkId];
+  const adapter = await getAdapter(frameworkId);
+  const compileBackend = await loadCompileBackend(frameworkId);
 
   const ctx: AdapterContext = {
     projectPath: opts.projectPath,
@@ -302,8 +366,8 @@ export async function captureAll(
   await ensureDependencies();
 
   const frameworkId = await resolveFrameworkId(opts);
-  const adapter = getAdapter(frameworkId);
-  const compileBackend = COMPILE_BACKEND_REGISTRY[frameworkId];
+  const adapter = await getAdapter(frameworkId);
+  const compileBackend = await loadCompileBackend(frameworkId);
 
   const ctx: AdapterContext = {
     projectPath: opts.projectPath,
