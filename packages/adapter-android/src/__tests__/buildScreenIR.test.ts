@@ -178,6 +178,24 @@ describe("buildScreenIR — ListScreen (조건부 렌더링 + LazyColumn)", () =
     );
     expect(hasDynamic).toBe(true);
   });
+
+  it("appbar role 노드를 포함한다", async () => {
+    const doc = await androidAdapter.buildScreenIR(ctx, "ListScreen");
+    const hasAppbar = doc.screen.root.children?.some((c) => c.role === "appbar");
+    expect(hasAppbar).toBe(true);
+  });
+
+  it("TopAppBar title 'Item List'가 appbar 노드 안에 Text로 나타난다 (L1 버그 수정)", async () => {
+    const doc = await androidAdapter.buildScreenIR(ctx, "ListScreen");
+    function findInAppbar(node: IRNode): string[] {
+      if (node.role === "appbar") return collectTextValues(node);
+      const texts: string[] = [];
+      for (const c of node.children ?? []) texts.push(...findInAppbar(c));
+      return texts;
+    }
+    const appbarTexts = findInAppbar(doc.screen.root);
+    expect(appbarTexts).toContain("Item List");
+  });
 });
 
 describe("buildScreenIR — SettingsScreen (테마 토큰)", () => {

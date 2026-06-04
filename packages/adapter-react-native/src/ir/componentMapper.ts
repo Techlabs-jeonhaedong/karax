@@ -108,9 +108,13 @@ export function parseStyleSheet(root: SyntaxNode): Record<string, Record<string,
  */
 function parseStyleObject(objNode: SyntaxNode): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  const pairs = findNodes(objNode, "pair");
+  // findNodes는 재귀 탐색이라 중첩 객체의 pair도 포함됨.
+  // 직접 자식 pair만 처리해야 shadowOffset.width가 width로 잘못 올라오는 것을 막는다.
+  const directPairs = objNode.children.filter(
+    (c): c is SyntaxNode => c !== null && c.type === "pair"
+  );
 
-  for (const pair of pairs) {
+  for (const pair of directPairs) {
     const keyNode = pair.children.find(
       (c): c is SyntaxNode => c !== null && c.type === "property_identifier"
     );
@@ -746,13 +750,13 @@ async function mapLogicalAnd(
 // ── .map() 반복 ───────────────────────────────────────────────────────────────
 
 /**
- * array_expression의 첫 번째 object 리터럴을 파싱하여 Record로 반환한다.
- * SAMPLE_PRODUCTS 같은 상수 배열의 첫 요소를 추출하는 데 사용한다.
+ * array_expression의 모든 object 리터럴을 파싱하여 Record 배열로 반환한다.
+ * SAMPLE_PRODUCTS 같은 상수 배열의 전체 요소를 추출하는 데 사용한다.
  */
-function parseArrayFirstObject(
+function parseArrayAllObjects(
   root: SyntaxNode,
   arrayName: string
-): Record<string, unknown> | null {
+): Record<string, unknown>[] {
   const varDeclarators = findNodes(root, "variable_declarator");
   for (const decl of varDeclarators) {
     const nameId = findChild(decl, "identifier");
@@ -761,15 +765,14 @@ function parseArrayFirstObject(
     const arrExpr = findNodes(decl, "array")[0];
     if (!arrExpr) continue;
 
-    // 배열 첫 번째 object 요소
-    const firstObj = arrExpr.children.find(
+    const objects = arrExpr.children.filter(
       (c): c is SyntaxNode => c !== null && c.type === "object"
     );
-    if (!firstObj) continue;
+    if (objects.length === 0) continue;
 
-    return parseStyleObject(firstObj) as Record<string, unknown>;
+    return objects.map(obj => parseStyleObject(obj) as Record<string, unknown>);
   }
-  return null;
+  return [];
 }
 
 /**
@@ -848,10 +851,13 @@ async function mapArrayMap(
   // 콜백 파라미터명 추출: (product) => ... → "product"
   const paramName = extractCallbackParamName(callback);
 
-  // 파일 AST에서 배열 첫 요소 데이터를 파싱하여 argBindings에 추가
-  let itemBindings: Record<string, unknown> | undefined;
+  // callback body에서 JSX 반환 추출
+  const returnNode = extractArrowReturn(callback);
+  if (!returnNode) return null;
+
+  // 파일 AST에서 배열 전체 요소를 파싱하여 각 반복마다 개별 bindings 적용
+  let allElemBindings: Array<Record<string, unknown>> = [];
   if (arraySourceName && paramName && ctx.symbolTable) {
-    // 현재 파일 root 찾기 (files Map으로 직접 조회)
     const parsedFile = ctx.currentFile
       ? (ctx.symbolTable.files.get(ctx.currentFile) ??
          Array.from(ctx.symbolTable.fileByComponent.values()).find(
@@ -859,31 +865,39 @@ async function mapArrayMap(
          ))
       : null;
     if (parsedFile) {
-      const firstElem = parseArrayFirstObject(parsedFile.root, arraySourceName);
-      if (firstElem) {
-        itemBindings = { [paramName]: firstElem, ...ctx.argBindings };
+      const elems = parseArrayAllObjects(parsedFile.root, arraySourceName);
+      if (elems.length > 0) {
+        allElemBindings = elems.map(elem => ({ [paramName]: elem, ...ctx.argBindings }));
       }
     }
   }
 
-  // callback body에서 JSX 반환 추출
-  const returnNode = extractArrowReturn(callback);
-  if (!returnNode) return null;
-
-  const mapCtx: MapContext = itemBindings
-    ? { ...ctx, argBindings: itemBindings }
-    : ctx;
-
-  const representative = await mapComponent(returnNode, mock, mapCtx);
-  if (!representative) return null;
-
   const count = mock?.listCount() ?? 3;
-  const items: IRNode[] = Array.from({ length: count }, () => ({ ...representative }));
+
+  // 각 아이템마다 해당 요소의 bindings로 개별 렌더링
+  const items: IRNode[] = [];
+  if (allElemBindings.length > 0) {
+    // 실제 배열 요소 수와 count 중 min 사용, 부족하면 마지막 요소 반복
+    for (let i = 0; i < count; i++) {
+      const elemIdx = Math.min(i, allElemBindings.length - 1);
+      const elemCtx: MapContext = { ...ctx, argBindings: allElemBindings[elemIdx] };
+      const ir = await mapComponent(returnNode, mock, elemCtx);
+      if (ir) items.push(ir);
+    }
+  } else {
+    // 배열 소스를 찾지 못한 경우 mock ctx로 대표 아이템 1개를 복제
+    const representative = await mapComponent(returnNode, mock, ctx);
+    if (representative) {
+      for (let i = 0; i < count; i++) items.push({ ...representative });
+    }
+  }
+
+  if (items.length === 0) return null;
 
   ctx.diagnostics?.push({
     level: "info",
     code: "DYNAMIC_DATA_MOCKED",
-    message: `.map() 반복 — ${count}개 mock 아이템으로 렌더링`,
+    message: `.map() 반복 — ${count}개 아이템으로 렌더링 (소스 배열 ${allElemBindings.length > 0 ? "파싱됨" : "미확인"})`,
   });
 
   return {

@@ -306,7 +306,16 @@ export interface ModifierInfo {
 export function extractModifiers(node: SyntaxNode): ModifierInfo[] {
   const modifiers: ModifierInfo[] = [];
 
-  function walk(n: SyntaxNode) {
+  /**
+   * outerCallSuffix: 상위 call_expression의 call_suffix.
+   * Text(...).foregroundStyle(Color(...)) AST 구조:
+   *   call_expression
+   *     navigation_expression(Text.foregroundStyle)
+   *     call_suffix((Color(...)))   ← outerCallSuffix
+   * navigation_expression 안의 navigation_suffix(.foregroundStyle)는
+   * 자체 children에 call_suffix를 갖지 않고 상위 call_expression의 call_suffix를 공유한다.
+   */
+  function walk(n: SyntaxNode, outerCallSuffix?: SyntaxNode) {
     if (n.type === "navigation_expression") {
       // 내부 navigation_expression 먼저 재귀
       const innerNav = findChild(n, "navigation_expression");
@@ -314,21 +323,25 @@ export function extractModifiers(node: SyntaxNode): ModifierInfo[] {
       const inner = innerNav ?? innerCall;
       if (inner) walk(inner);
 
-      // 이 레벨의 navigation_suffix + 바로 다음 call_suffix(call_expression 없이)
-      // 구조: [call_expression(inner), navigation_suffix(.font), call_suffix((.body))]
-      // 또는 [navigation_expression(inner), navigation_suffix(.padding), call_suffix((20))]
+      // 이 레벨의 navigation_suffix
       const navSuffix = findChild(n, "navigation_suffix");
       if (navSuffix) {
         const modName = findChild(navSuffix, "simple_identifier")?.text;
         if (modName) {
-          // 이 navigation_expression의 다음 sibling call_suffix에서 args 가져오기
-          // n.children: [...inner..., navigation_suffix, call_suffix?]
+          // 1. navigation_expression 자신의 children에서 call_suffix 탐색
+          //    (예: Text.font(.body) — call_suffix가 navigation_expression 자식)
           const children = n.children.filter(c => c !== null);
           const nsIdx = children.findIndex(c => c?.type === "navigation_suffix");
           const nextSib = nsIdx >= 0 ? children[nsIdx + 1] : undefined;
-          const valueArgs = nextSib?.type === "call_suffix"
+          let valueArgs = nextSib?.type === "call_suffix"
             ? findChild(nextSib, "value_arguments")
             : undefined;
+
+          // 2. 없으면 상위 call_expression의 call_suffix 사용
+          //    (예: Text(...).foregroundStyle(Color(...)) — call_suffix가 outer call_expression 자식)
+          if (!valueArgs && outerCallSuffix) {
+            valueArgs = findChild(outerCallSuffix, "value_arguments");
+          }
 
           modifiers.push({
             name: modName,
@@ -339,7 +352,11 @@ export function extractModifiers(node: SyntaxNode): ModifierInfo[] {
       }
     } else if (n.type === "call_expression") {
       const navExpr = findChild(n, "navigation_expression");
-      if (navExpr) walk(navExpr);
+      if (navExpr) {
+        // call_expression의 call_suffix를 inner navigation_expression 처리 시 전달
+        const outerSuffix = findChild(n, "call_suffix");
+        walk(navExpr, outerSuffix);
+      }
     }
   }
 

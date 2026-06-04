@@ -899,7 +899,8 @@ export async function mapView(
       // 대문자로 시작하는 커스텀 View struct
       if (/^[A-Z]/.test(name)) {
         if (ctx.symbolTable && ctx.depth < ctx.maxDepth && !ctx.visited.has(name)) {
-          const callArgs = extractCallArgsMap(node);
+          // 체인 바인딩: 현재 스코프의 argBindings를 전달해 simple_identifier 전달 패턴을 처리
+          const callArgs = extractCallArgsMap(node, ctx.argBindings);
           const inlined = await tryInlineSwiftView(name, ctx.symbolTable, ctx.projectPath, {
             ...ctx,
             argBindings: callArgs,
@@ -927,7 +928,23 @@ export async function mapView(
 
 // ── call-site named args 추출 ─────────────────────────────────────────────────
 
-function extractCallArgsMap(node: SyntaxNode): Record<string, unknown> {
+/**
+ * call_expression에서 named 인자의 리터럴 값을 추출한다.
+ *
+ * 지원:
+ * - 문자열 리터럴: title: "Hello"
+ * - 숫자 리터럴: originalPrice: 299.99
+ * - Bool 리터럴: isEnabled: true
+ * - nil: badge: nil
+ * - 체인 바인딩: 현재 스코프 argBindings의 simple_identifier 전달
+ *   (Flutter extractCallSiteArgs 패턴 — 상위→하위 리터럴 체인)
+ *
+ * 동적 표현식(member_access, navigation_expression)은 추출 불가 → 제외.
+ */
+function extractCallArgsMap(
+  node: SyntaxNode,
+  currentArgBindings?: Record<string, unknown>
+): Record<string, unknown> {
   const args = extractCallArgs(node);
   if (!args) return {};
 
@@ -941,15 +958,28 @@ function extractCallArgsMap(node: SyntaxNode): Record<string, unknown> {
     const valueNode = va.children.find(c => c !== null && c.type !== "value_argument_label" && c.type !== ":");
     if (!valueNode) continue;
 
+    // 문자열 리터럴
     const str = extractStringLiteral(valueNode);
     if (str !== undefined) { result[label] = str; continue; }
 
+    // 숫자 리터럴
     const num = extractNumber(valueNode);
     if (num !== undefined) { result[label] = num; continue; }
 
+    // Bool/nil 리터럴
     if (valueNode.text === "true") { result[label] = true; continue; }
     if (valueNode.text === "false") { result[label] = false; continue; }
     if (valueNode.text === "nil") { result[label] = null; continue; }
+
+    // simple_identifier 체인 바인딩: 상위 argBindings에서 값 조회
+    // ProductCard(originalPrice: originalPrice) 처럼 파라미터를 그대로 전달하는 패턴
+    if (valueNode.type === "simple_identifier" && currentArgBindings) {
+      const varName = valueNode.text;
+      if (Object.prototype.hasOwnProperty.call(currentArgBindings, varName)) {
+        result[label] = currentArgBindings[varName];
+        continue;
+      }
+    }
   }
 
   return result;

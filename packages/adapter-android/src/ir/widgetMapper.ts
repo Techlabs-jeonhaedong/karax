@@ -502,10 +502,9 @@ export async function mapComposable(
 async function mapScaffold(callText: string, ctx: MapContext): Promise<IRNode> {
   const children: IRNode[] = [];
 
-  // topBar 파라미터 추출
-  const topBarMatch = /topBar\s*=\s*\{([\s\S]*?)\}(?=\s*,|\s*\))/.exec(callText);
-  if (topBarMatch) {
-    const topBarBlock = topBarMatch[1]!;
+  // topBar 파라미터 추출 (중괄호 카운팅으로 중첩 블록 처리)
+  const topBarBlock = extractNamedLambdaParam(callText, "topBar");
+  if (topBarBlock) {
     const appBarNodes = await parseBlock(topBarBlock, ctx);
     for (const n of appBarNodes) {
       children.push({ ...n, role: "appbar" });
@@ -513,9 +512,9 @@ async function mapScaffold(callText: string, ctx: MapContext): Promise<IRNode> {
   }
 
   // bottomBar
-  const bottomBarMatch = /bottomBar\s*=\s*\{([\s\S]*?)\}(?=\s*,|\s*\))/.exec(callText);
-  if (bottomBarMatch) {
-    const nodes = await parseBlock(bottomBarMatch[1]!, ctx);
+  const bottomBarBlock = extractNamedLambdaParam(callText, "bottomBar");
+  if (bottomBarBlock) {
+    const nodes = await parseBlock(bottomBarBlock, ctx);
     for (const n of nodes) {
       children.push({ ...n, role: "tabbar" });
     }
@@ -848,17 +847,17 @@ async function mapCard(callText: string, ctx: MapContext): Promise<IRNode> {
 async function mapTopAppBar(callText: string, ctx: MapContext): Promise<IRNode> {
   const children: IRNode[] = [];
 
-  // title = { Text(...) }
-  const titleMatch = /\btitle\s*=\s*\{([^}]*)\}/.exec(callText);
-  if (titleMatch) {
-    const titleNodes = await parseBlock(titleMatch[1]!, ctx);
+  // title = { Text(...) } — 중괄호 카운팅으로 중첩 블록 처리
+  const titleBlock = extractNamedLambdaParam(callText, "title");
+  if (titleBlock) {
+    const titleNodes = await parseBlock(titleBlock, ctx);
     children.push(...titleNodes);
   }
 
   // navigationIcon = { ... }
-  const navIconMatch = /navigationIcon\s*=\s*\{([^}]*)\}/.exec(callText);
-  if (navIconMatch) {
-    const navNodes = await parseBlock(navIconMatch[1]!, ctx);
+  const navIconBlock = extractNamedLambdaParam(callText, "navigationIcon");
+  if (navIconBlock) {
+    const navNodes = await parseBlock(navIconBlock, ctx);
     children.push(...navNodes);
   }
 
@@ -1146,6 +1145,33 @@ function extractTrailingLambda(callText: string): string | undefined {
 
   if (lastOpen < 0) return undefined;
   return callText.slice(lastOpen + 1, callText.lastIndexOf("}"));
+}
+
+/**
+ * named lambda 파라미터 `paramName = { ... }` 에서 `{...}` 내부를 추출한다.
+ * 중괄호 카운팅으로 중첩 블록을 정확히 처리한다.
+ * (non-greedy `*?` 정규식은 내부 `}` 에서 잘리는 버그가 있음)
+ */
+function extractNamedLambdaParam(callText: string, paramName: string): string | undefined {
+  const markerRe = new RegExp(`\\b${paramName}\\s*=\\s*\\{`);
+  const markerMatch = markerRe.exec(callText);
+  if (!markerMatch) return undefined;
+
+  // `{` 위치
+  const openIdx = markerMatch.index + markerMatch[0].length - 1;
+  let depth = 0;
+  let closeIdx = -1;
+
+  for (let i = openIdx; i < callText.length; i++) {
+    if (callText[i] === "{") depth++;
+    else if (callText[i] === "}") {
+      depth--;
+      if (depth === 0) { closeIdx = i; break; }
+    }
+  }
+
+  if (closeIdx < 0) return undefined;
+  return callText.slice(openIdx + 1, closeIdx);
 }
 
 // ── when/if 블록 파싱 ─────────────────────────────────────────────────────────

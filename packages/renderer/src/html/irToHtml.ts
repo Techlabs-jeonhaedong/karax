@@ -300,14 +300,15 @@ function renderNode(
       const size = node.layout?.width ?? 24;
       const iconColor = resolveColor(node.text?.color, designTokens) ?? "#757575";
       const css = [
-        `width:${size}px`,
+        `min-width:${size}px`,
         `height:${size}px`,
         "display:inline-flex",
         "align-items:center",
         "justify-content:center",
         `color:${iconColor}`,
         "font-size:11px",
-        "overflow:hidden",
+        "white-space:nowrap",
+        "flex-shrink:0",
       ]
         .join(";");
       return `<div style="${css}" title="${escapeHtml(name)}">[${escapeHtml(name)}]</div>`;
@@ -446,13 +447,19 @@ function renderAppBar(
   const shadowCSS = sh
     ? `box-shadow:${sh.offsetX ?? 0}px ${sh.offsetY ?? 2}px ${sh.blur ?? 4}px ${sh.color ?? "rgba(0,0,0,0.2)"};`
     : "box-shadow:0px 2px 4px rgba(0,0,0,0.2);";
+  const padding = node.layout?.padding;
+  const paddingCSS = padding
+    ? `padding:${padding[0]}px ${padding[1]}px ${padding[2]}px ${padding[3]}px;`
+    : "padding:0;";
   const children = (node.children ?? [])
     .map((c) => renderNode(c, designTokens, false))
     .join("");
+  // position:relative(일반 플로우) + flex-shrink:0 으로 레이아웃 공간을 차지함
+  // position:sticky 는 overflow:hidden 조상이 있으면 동작 안 함
   const css =
-    `position:sticky;top:0px;left:0;right:0;width:100%;height:${h}px;` +
+    `width:100%;min-height:${h}px;` +
     `background:${bg};${shadowCSS}z-index:100;box-sizing:border-box;` +
-    `display:flex;align-items:center;flex-shrink:0;`;
+    `display:flex;align-items:center;flex-shrink:0;${paddingCSS}`;
   return `<div style="${css}">${children}</div>`;
 }
 
@@ -469,8 +476,9 @@ function renderTabBar(
   const children = (node.children ?? [])
     .map((c) => renderNode(c, designTokens, false))
     .join("");
+  // 일반 플로우 + flex-shrink:0 으로 레이아웃 공간을 차지함
   const css =
-    `position:sticky;bottom:0px;left:0;right:0;width:100%;height:${h}px;` +
+    `width:100%;min-height:${h}px;` +
     `background:${bg};${borderCSS}z-index:100;box-sizing:border-box;` +
     `display:flex;align-items:center;flex-shrink:0;`;
   return `<div style="${css}">${children}</div>`;

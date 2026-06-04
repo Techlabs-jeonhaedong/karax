@@ -95,7 +95,7 @@ describe("generateCaptureTest", () => {
     expect(result).toContain(outPath);
   });
 
-  it("ImageRenderer + uiImage.pngData() 패턴 포함", () => {
+  it("UIHostingController + UIWindow 1차 캡처 + ImageRenderer 2차 폴백 포함", () => {
     const result = generateCaptureTest({
       screen,
       moduleName: "SFCHarness",
@@ -105,11 +105,15 @@ describe("generateCaptureTest", () => {
       scale: 3.0,
       constructorArgs: "",
     });
+    // 1차: UIWindow + UIHostingController
+    expect(result).toContain("UIWindow");
+    expect(result).toContain("makeKeyAndVisible");
+    // 2차 폴백: ImageRenderer
     expect(result).toContain("ImageRenderer");
     expect(result).toContain("pngData");
   });
 
-  it("UIWindow에 attach해서 렌더링 (오프스크린 빈 이미지 방지)", () => {
+  it("UIWindow에 attach해서 1차 렌더링 (iOS 26 NavigationStack 지원)", () => {
     const result = generateCaptureTest({
       screen,
       moduleName: "SFCHarness",
@@ -119,9 +123,38 @@ describe("generateCaptureTest", () => {
       scale: 3.0,
       constructorArgs: "",
     });
-    // window에 attach해야 SwiftUI 콘텐츠가 올바르게 렌더됨
+    // 1차: UIWindow에 attach — NavigationStack 등 scene-dependent 뷰 지원
     expect(result).toContain("UIWindow");
     expect(result).toContain("makeKeyAndVisible");
+  });
+
+  it("background white + colorScheme light 환경 설정으로 투명 이미지 방지", () => {
+    const result = generateCaptureTest({
+      screen,
+      moduleName: "SFCHarness",
+      outPath: "/tmp/out.png",
+      width: 390,
+      height: 844,
+      scale: 3.0,
+      constructorArgs: "",
+    });
+    expect(result).toContain("Color.white");
+    expect(result).toContain("colorScheme");
+    expect(result).toContain(".light");
+  });
+
+  it("layer.render + drawHierarchy 3단계 폴백 체인 포함", () => {
+    const result = generateCaptureTest({
+      screen,
+      moduleName: "SFCHarness",
+      outPath: "/tmp/out.png",
+      width: 390,
+      height: 844,
+      scale: 3.0,
+      constructorArgs: "",
+    });
+    expect(result).toContain("layer.render");
+    expect(result).toContain("drawHierarchy");
   });
 
   it("RunLoop을 통해 렌더 싸이클이 완료될 때까지 대기", () => {

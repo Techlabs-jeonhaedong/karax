@@ -250,12 +250,21 @@ export interface GenerateCaptureTestOpts {
 /**
  * XCTest 캡처 Swift 코드를 생성한다.
  *
- * - @MainActor XCTestCase: Swift 6 동시성 규칙 준수
- * - UIWindow에 UIHostingController를 attach한 뒤 렌더 (오프스크린 빈 이미지 방지)
- *   window에 attach되지 않은 view는 SwiftUI 콘텐츠를 그리지 못하는 iOS 알려진 제약
- * - RunLoop.main.run(until:)으로 SwiftUI 렌더 싸이클 완료 대기
- * - 1차: UIGraphicsImageRenderer (UIWindow 경유)
- * - 2차 fallback: ImageRenderer (UIHostingController 렌더 결과가 너무 작으면)
+ * 캡처 전략 (3단계 폴백):
+ *
+ * 1차 — UIHostingController + UIWindow (async/await, iOS 26 호환):
+ *   - UIWindow에 attach 후 Task.sleep으로 렌더 사이클 대기.
+ *   - RunLoop.main.run은 async XCTest에서 deadlock을 유발하므로 사용하지 않는다.
+ *   - NavigationStack 포함 복잡한 뷰에서도 안정적으로 동작.
+ *   - view.layer.render(in:) 사용 (drawHierarchy보다 offscreen에서 신뢰성 높음).
+ *
+ * 2차 — ImageRenderer:
+ *   - 1차 결과가 너무 작을 때(< 5000 bytes) 시도.
+ *   - NavigationStack 없는 단순 뷰에서 더 빠름.
+ *
+ * 3차 — drawHierarchy(afterScreenUpdates: true):
+ *   - 2차도 실패 시 마지막 수단.
+ *
  * - outPath는 코드에 문자열 상수로 하드코딩 (env 전달 불필요)
  */
 export function generateCaptureTest(opts: GenerateCaptureTestOpts): string {
@@ -273,58 +282,67 @@ import UIKit
 final class CaptureTest: XCTestCase {
     func testCapture${screen.id}() async throws {
         let outPath = "${outPath}"
-
-        let rootView = AnyView(
-            ${widgetCall}
-                .frame(width: ${width}, height: ${height})
-        )
-
-        // UIWindow에 attach해서 렌더링 (window 없이는 SwiftUI가 콘텐츠를 그리지 않음)
-        let windowScene = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first
-        let window: UIWindow
-        if let scene = windowScene {
-            window = UIWindow(windowScene: scene)
-        } else {
-            window = UIWindow(frame: CGRect(x: 0, y: 0, width: ${width}, height: ${height}))
-        }
-        window.frame = CGRect(x: 0, y: 0, width: ${width}, height: ${height})
-
-        let hostingVC = UIHostingController(rootView: rootView)
-        hostingVC.view.frame = window.bounds
-        hostingVC.view.backgroundColor = .systemBackground
-        window.rootViewController = hostingVC
-        window.makeKeyAndVisible()
-
-        // SwiftUI 렌더 싸이클 완료 대기 (레이아웃 패스 2회 이상 허용)
-        hostingVC.view.layoutIfNeeded()
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.5))
-        hostingVC.view.layoutIfNeeded()
+        let size = CGSize(width: ${width}, height: ${height})
 
         let fmt = UIGraphicsImageRendererFormat()
         fmt.scale = ${scale}
-        fmt.opaque = false
-        let uiGraphicsRenderer = UIGraphicsImageRenderer(
-            size: CGSize(width: ${width}, height: ${height}),
-            format: fmt
+        fmt.opaque = true
+
+        // 1차: UIHostingController + UIWindow — iOS 26 async XCTest 호환
+        // RunLoop.main.run은 async 컨텍스트에서 deadlock 유발하므로 Task.sleep 사용
+        let hostView = AnyView(
+            ${widgetCall}
+                .frame(width: ${width}, height: ${height})
+                .background(Color.white)
+                .environment(\\.colorScheme, .light)
         )
-        let uiImage = uiGraphicsRenderer.image { _ in
-            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        let hostingVC = UIHostingController(rootView: hostView)
+        hostingVC.view.frame = CGRect(origin: .zero, size: size)
+        hostingVC.view.backgroundColor = .white
+
+        // UIWindow에 attach — NavigationStack 등 scene-dependent 뷰 레이아웃 활성화
+        let window = UIWindow(frame: CGRect(origin: .zero, size: size))
+        window.rootViewController = hostingVC
+        window.makeKeyAndVisible()
+
+        // 레이아웃 패스 + async 렌더 사이클 대기 (NavigationStack 초기화 포함)
+        hostingVC.view.layoutIfNeeded()
+        // Task.sleep: async XCTest에서 RunLoop.main.run 대신 사용 (iOS 18+ 권장)
+        try await Task.sleep(nanoseconds: 2_000_000_000)
+        hostingVC.view.layoutIfNeeded()
+
+        // view.layer.render: drawHierarchy보다 offscreen 환경에서 신뢰성 높음
+        let layerRenderer = UIGraphicsImageRenderer(size: size, format: fmt)
+        let layerImage = layerRenderer.image { ctx in
+            hostingVC.view.layer.render(in: ctx.cgContext)
         }
+        var pngData = layerImage.pngData()
 
-        var pngData = uiImage.pngData()
-
-        // fallback: UIWindow 렌더 결과가 너무 작으면 ImageRenderer 시도
-        if pngData == nil || pngData!.count < 500 {
-            let renderer = ImageRenderer(content: rootView)
+        // 2차 폴백: ImageRenderer — layer.render 결과가 너무 작을 때
+        if pngData == nil || pngData!.count < 5000 {
+            let captureView = AnyView(
+                ${widgetCall}
+                    .frame(width: ${width}, height: ${height})
+                    .background(Color.white)
+                    .environment(\\.colorScheme, .light)
+            )
+            let renderer = ImageRenderer(content: captureView)
             renderer.scale = ${scale}
             renderer.proposedSize = .init(width: ${width}, height: ${height})
             pngData = renderer.uiImage?.pngData()
         }
 
+        // 3차 폴백: drawHierarchy(afterScreenUpdates: true)
+        if pngData == nil || pngData!.count < 5000 {
+            let hierRenderer = UIGraphicsImageRenderer(size: size, format: fmt)
+            let hierImage = hierRenderer.image { _ in
+                hostingVC.view.drawHierarchy(in: hostingVC.view.bounds, afterScreenUpdates: true)
+            }
+            pngData = hierImage.pngData()
+        }
+
         guard let finalPngData = pngData else {
-            XCTFail("ImageRenderer failed to render ${screen.id}")
+            XCTFail("모든 캡처 방법 실패: ${screen.id}")
             return
         }
 
@@ -335,7 +353,7 @@ final class CaptureTest: XCTestCase {
             FileManager.default.fileExists(atPath: outPath),
             "PNG not found at: \\(outPath)"
         )
-        XCTAssertGreaterThan(finalPngData.count, 100, "PNG too small: \\(finalPngData.count) bytes")
+        XCTAssertGreaterThan(finalPngData.count, 1000, "PNG too small (likely blank): \\(finalPngData.count) bytes")
     }
 }
 `;

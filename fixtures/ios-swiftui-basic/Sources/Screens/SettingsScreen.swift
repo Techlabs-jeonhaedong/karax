@@ -121,6 +121,14 @@ struct SettingsScreen: View {
                     Text(colorScheme == .dark ? "Dark" : "Light")
                         .foregroundStyle(.secondary)
                 }
+                // LogoColor 토큰 사용 — Assets.xcassets 컬러셋 참조 검증용
+                HStack {
+                    Circle()
+                        .fill(Color("LogoColor"))
+                        .frame(width: 16, height: 16)
+                    Text("Brand Color")
+                        .foregroundStyle(Color("LogoColor"))
+                }
                 Link(destination: URL(string: "https://example.com/privacy")!) {
                     Label("Privacy Policy", systemImage: "hand.raised.fill")
                         .foregroundStyle(.tint)

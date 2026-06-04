@@ -213,4 +213,69 @@ describe("buildScreenIR — IR 스키마 유효성", () => {
     );
     expect(hasPriceValue).toBe(true);
   });
+
+  it("DetailScreen: 카드 3장이 서로 다른 상품명을 가진다 (per-item bindings)", async () => {
+    const doc = await reactNativeAdapter.buildScreenIR(
+      { projectPath: FIXTURE_PATH, mockSeed: 42 },
+      "DetailScreen"
+    );
+    function findTextValues(node: typeof doc.screen.root): string[] {
+      const values: string[] = [];
+      if (node.type === "Text" && node.text?.value) values.push(node.text.value);
+      for (const c of node.children ?? []) values.push(...findTextValues(c));
+      return values;
+    }
+    const texts = findTextValues(doc.screen.root);
+    // SAMPLE_PRODUCTS: product-1=Premium Wireless Headphones, product-2=Ergonomic Office Chair, product-3=Artisan Coffee Blend
+    // 3개 모두 distinct name이 Text에 나와야 함 (이전 버그: product-1 데이터가 3번 반복됨)
+    const hasHeadphones = texts.some(t => t.includes("Premium Wireless Headphones"));
+    const hasChair = texts.some(t => t.includes("Ergonomic Office Chair"));
+    const hasCoffee = texts.some(t => t.includes("Artisan Coffee Blend"));
+    expect(hasHeadphones).toBe(true);
+    expect(hasChair).toBe(true);
+    expect(hasCoffee).toBe(true);
+  });
+
+  it("DetailScreen: PriceTag originalPrice가 discountPercent로부터 계산된다 (로컬 변수 pre-compute)", async () => {
+    const doc = await reactNativeAdapter.buildScreenIR(
+      { projectPath: FIXTURE_PATH, mockSeed: 42 },
+      "DetailScreen"
+    );
+    function findTextValues(node: typeof doc.screen.root): string[] {
+      const values: string[] = [];
+      if (node.type === "Text" && node.text?.value) values.push(node.text.value);
+      for (const c of node.children ?? []) values.push(...findTextValues(c));
+      return values;
+    }
+    const texts = findTextValues(doc.screen.root);
+    // product-1: price=199.99, discountPercent=20 → originalPrice=Math.round(199.99/(1-0.2))=Math.round(249.99)=250 → "USD250.00"
+    // product-3: price=24.99, discountPercent=10 → originalPrice=Math.round(24.99/(1-0.1))=Math.round(27.77)=28 → "USD28.00"
+    // product-2는 discountPercent 없으므로 originalPrice=null → originalPrice 텍스트 없음
+    const hasProduct1Original = texts.some(t => t.includes("250.00") || t.includes("250"));
+    const hasProduct3Original = texts.some(t => t.includes("28.00") || t.includes("28"));
+    expect(hasProduct1Original).toBe(true);
+    expect(hasProduct3Original).toBe(true);
+  });
+
+  it("OrphanScreen: .map() 반복 시 배열 전체 요소를 순서대로 바인딩한다", async () => {
+    const doc = await reactNativeAdapter.buildScreenIR(
+      { projectPath: FIXTURE_PATH, mockSeed: 42 },
+      "OrphanScreen"
+    );
+    function findTextValues(node: typeof doc.screen.root): string[] {
+      const values: string[] = [];
+      if (node.type === "Text" && node.text?.value) values.push(node.text.value);
+      for (const c of node.children ?? []) values.push(...findTextValues(c));
+      return values;
+    }
+    const texts = findTextValues(doc.screen.root);
+    // NOTICES[0]=System Maintenance, [1]=New Feature: Wishlist, [2]=Terms Update
+    // 이전 버그: 첫 요소(System Maintenance)가 3번 반복됨
+    const hasNotice1 = texts.some(t => t.includes("System Maintenance"));
+    const hasNotice2 = texts.some(t => t.includes("New Feature: Wishlist") || t.includes("Wishlist"));
+    const hasNotice3 = texts.some(t => t.includes("Terms Update") || t.includes("Terms"));
+    expect(hasNotice1).toBe(true);
+    expect(hasNotice2).toBe(true);
+    expect(hasNotice3).toBe(true);
+  });
 });

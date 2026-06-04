@@ -20,3 +20,6 @@ packages/*/src/**/*.d.ts
 packages/*/src/**/*.d.ts.map
 !packages/*/src/**/__tests__/
 tmp/
+
+# Integration test output (should never be committed)
+packages/*/test-out-integration/
