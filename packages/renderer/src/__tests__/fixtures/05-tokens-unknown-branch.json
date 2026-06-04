@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "0.1",
+  "screen": {
+    "id": "TokensUnknownBranch",
+    "sourceRef": { "file": "lib/complex.dart", "line": 10 },
+    "device": "pixel-8",
+    "discovery": "candidate",
+    "confidence": 0.6,
+    "root": {
+      "type": "Column",
+      "confidence": 1.0,
+      "layout": {
+        "mainAxis": "start",
+        "crossAxis": "stretch",
+        "width": "fill",
+        "height": "fill",
+        "padding": [16, 16, 16, 16],
+        "gap": 12
+      },
+      "style": { "background": "token:surface" },
+      "children": [
+        {
+          "type": "Text",
+          "confidence": 1.0,
+          "text": { "value": "Design Token Demo", "color": "token:primary" }
+        },
+        {
+          "type": "Box",
+          "confidence": 0.9,
+          "layout": { "width": "fill", "padding": [12, 12, 12, 12] },
+          "style": { "background": "token:surfaceVariant", "borderRadius": 8 },
+          "children": [
+            {
+              "type": "Text",
+              "confidence": 0.9,
+              "text": { "value": "Uses surfaceVariant token", "color": "token:onSurfaceVariant" }
+            }
+          ]
+        },
+        {
+          "type": "Unknown",
+          "confidence": 0.2,
+          "text": { "value": "CustomWidget" },
+          "layout": { "width": "fill", "height": 80 }
+        },
+        {
+          "type": "Branch",
+          "confidence": 0.5,
+          "layout": { "width": "fill" },
+          "children": [
+            {
+              "type": "Box",
+              "confidence": 0.8,
+              "layout": { "width": "fill", "height": 60, "padding": [8, 16, 8, 16] },
+              "style": { "background": "token:primary", "borderRadius": 8 },
+              "children": [
+                {
+                  "type": "Text",
+                  "confidence": 1.0,
+                  "text": { "value": "Variant A (default)", "color": "#FFFFFF" }
+                }
+              ]
+            },
+            {
+              "type": "Box",
+              "confidence": 0.8,
+              "layout": { "width": "fill", "height": 60, "padding": [8, 16, 8, 16] },
+              "style": { "background": "token:error", "borderRadius": 8 },
+              "children": [
+                {
+                  "type": "Text",
+                  "confidence": 1.0,
+                  "text": { "value": "Variant B (error state)", "color": "#FFFFFF" }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Slot",
+          "confidence": 0.3,
+          "layout": { "width": "fill", "height": 40 }
+        },
+        {
+          "type": "Grid",
+          "confidence": 0.7,
+          "layout": {
+            "width": "fill",
+            "gap": 8
+          },
+          "children": [
+            {
+              "type": "Box",
+              "confidence": 0.8,
+              "layout": { "height": 60 },
+              "style": { "background": "#E8EAF6", "borderRadius": 4 },
+              "children": [
+                { "type": "Text", "confidence": 1.0, "text": { "value": "Grid 1" } }
+              ]
+            },
+            {
+              "type": "Box",
+              "confidence": 0.8,
+              "layout": { "height": 60 },
+              "style": { "background": "#E8F5E9", "borderRadius": 4 },
+              "children": [
+                { "type": "Text", "confidence": 1.0, "text": { "value": "Grid 2" } }
+              ]
+            },
+            {
+              "type": "Box",
+              "confidence": 0.8,
+              "layout": { "height": 60 },
+              "style": { "background": "#FFF3E0", "borderRadius": 4 },
+              "children": [
+                { "type": "Text", "confidence": 1.0, "text": { "value": "Grid 3" } }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "designTokens": {
+    "colors": {
+      "surface": "#FFFBFE",
+      "primary": "#6750A4",
+      "surfaceVariant": "#E7E0EC",
+      "onSurfaceVariant": "#49454F",
+      "error": "#B3261E"
+    },
+    "spacing": {
+      "sm": 8,
+      "md": 16,
+      "lg": 24
+    }
+  },
+  "diagnostics": [
+    { "level": "warn", "code": "UNRESOLVED_COMPONENT", "message": "CustomWidget could not be resolved", "sourceRef": { "file": "lib/complex.dart", "line": 20 } },
+    { "level": "info", "code": "DYNAMIC_DATA_MOCKED", "message": "Branch condition evaluated to first variant" }
+  ]
+}

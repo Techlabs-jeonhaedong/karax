@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand palette — referenced by Theme.kt lightColorScheme -->
+    <color name="brand_primary">#FF6200EE</color>
+    <color name="brand_primary_variant">#FF3700B3</color>
+    <color name="brand_secondary">#FF03DAC5</color>
+    <color name="brand_secondary_variant">#FF018786</color>
+
+    <!-- Surface / background -->
+    <color name="surface_light">#FFFFFFFF</color>
+    <color name="surface_variant_light">#FFE7E0EC</color>
+    <color name="background_light">#FFFEF7FF</color>
+
+    <!-- On-colors (foreground) -->
+    <color name="on_primary">#FFFFFFFF</color>
+    <color name="on_secondary">#FF000000</color>
+    <color name="on_surface">#FF1C1B1F</color>
+    <color name="on_surface_variant">#FF49454F</color>
+    <color name="on_background">#FF1C1B1F</color>
+
+    <!-- Error -->
+    <color name="error">#FFB00020</color>
+    <color name="on_error">#FFFFFFFF</color>
+
+    <!-- Accent chips used in ProductCard -->
+    <color name="price_tag_background">#FFEEF2FF</color>
+    <color name="price_tag_text">#FF3D5AFE</color>
+</resources>

@@ -1,0 +1,16 @@
+name: on_generate_route_fixture
+description: A fixture Flutter app using onGenerateRoute.
+publish_to: none
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

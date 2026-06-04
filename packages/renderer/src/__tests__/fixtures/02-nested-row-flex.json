@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "0.1",
+  "screen": {
+    "id": "NestedRowFlex",
+    "sourceRef": { "file": "lib/row_flex.dart", "line": 1 },
+    "device": "pixel-8",
+    "discovery": "route",
+    "confidence": 0.9,
+    "root": {
+      "type": "Column",
+      "confidence": 1.0,
+      "layout": {
+        "mainAxis": "start",
+        "crossAxis": "stretch",
+        "width": "fill",
+        "height": "fill",
+        "gap": 0
+      },
+      "style": { "background": "#F5F5F5" },
+      "children": [
+        {
+          "type": "Row",
+          "confidence": 1.0,
+          "layout": {
+            "mainAxis": "spaceBetween",
+            "crossAxis": "center",
+            "width": "fill",
+            "padding": [12, 16, 12, 16]
+          },
+          "style": { "background": "#1976D2" },
+          "children": [
+            {
+              "type": "Text",
+              "confidence": 1.0,
+              "text": { "value": "My App", "color": "#FFFFFF" }
+            },
+            {
+              "type": "Icon",
+              "confidence": 1.0,
+              "layout": { "width": 24, "height": 24 },
+              "text": { "value": "more_vert" }
+            }
+          ]
+        },
+        {
+          "type": "Row",
+          "confidence": 0.9,
+          "layout": {
+            "mainAxis": "start",
+            "crossAxis": "stretch",
+            "width": "fill",
+            "height": 200,
+            "gap": 8,
+            "padding": [8, 8, 8, 8]
+          },
+          "children": [
+            {
+              "type": "Box",
+              "confidence": 0.9,
+              "layout": { "flex": 1, "height": "fill" },
+              "style": { "background": "#FFFFFF", "borderRadius": 8, "shadow": { "offsetX": 0, "offsetY": 2, "blur": 4, "color": "rgba(0,0,0,0.1)" } },
+              "children": [
+                {
+                  "type": "Text",
+                  "confidence": 1.0,
+                  "layout": { "padding": [12, 12, 12, 12] },
+                  "text": { "value": "Card A", "color": "#333333" }
+                }
+              ]
+            },
+            {
+              "type": "Spacer",
+              "confidence": 1.0,
+              "layout": { "width": 8 }
+            },
+            {
+              "type": "Box",
+              "confidence": 0.9,
+              "layout": { "flex": 1, "height": "fill" },
+              "style": { "background": "#FFFFFF", "borderRadius": 8, "shadow": { "offsetX": 0, "offsetY": 2, "blur": 4, "color": "rgba(0,0,0,0.1)" } },
+              "children": [
+                {
+                  "type": "Text",
+                  "confidence": 1.0,
+                  "layout": { "padding": [12, 12, 12, 12] },
+                  "text": { "value": "Card B", "color": "#333333" }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "designTokens": {},
+  "diagnostics": []
+}
