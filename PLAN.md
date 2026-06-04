@@ -318,7 +318,7 @@ export function captureAll(opts: AnalyzeOptions & { outDir: string }):
 - **Tier 2 노드 단위**: 표준 위젯 매핑 1.0 / 인라인 해석 0.7 / mock 바인딩 0.5 / Unknown 0.2
 - **화면 단위**: 노드 confidence를 면적/노드수 가중 집계 × discovery 가중(route 1.0 / candidate 0.6)
 - **프로젝트 단위**: 화면 평균 + 커버리지(해석 노드/전체 노드 비율)
-- **diagnostics 코드**로 설명 가능성 확보: `UNRESOLVED_COMPONENT`, `THEME_DEFAULTED`, `DYNAMIC_DATA_MOCKED`, `COMPILE_FALLBACK`
+- **diagnostics 코드**로 설명 가능성 확보: `UNRESOLVED_COMPONENT`, `THEME_DEFAULTED`, `DYNAMIC_DATA_MOCKED`, `COMPILE_FALLBACK`, `BRANCH_VARIANT_EXPANDED` (Branch 분기 전개), `ENRICHED` (LLM 보강 적용), `ENRICH_REJECTED` (LLM 보강 응답 스키마 위반으로 거부)
 - 노출 채널: `AnalysisReport.overallConfidence`, PNG별 사이드카 `*.report.json`, MCP `get_analysis_report`, (옵션) 낮은 신뢰 노드 하이라이트 오버레이 모드
 - README에 한계 고정 문구: Tier 2는 픽셀 퍼펙트 아님 / 동적 데이터·차트·지도·애니메이션은 placeholder·근사 / 코드생성 의존 UI 누락 가능
 

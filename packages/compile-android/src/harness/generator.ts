@@ -246,6 +246,10 @@ export async function generateHarness(opts: GenerateHarnessOpts): Promise<Harnes
     .slice(0, 12);
   const workDir = opts.workDir ?? path.join(os.tmpdir(), `sfc-android-${hash}`);
 
+  // 멱등성 보장: 이전 실행의 구버전 소스가 혼입되지 않도록 항상 새로 생성한다.
+  if (fs.existsSync(workDir)) {
+    fs.rmSync(workDir, { recursive: true, force: true });
+  }
   fs.mkdirSync(workDir, { recursive: true });
 
   // gradle wrapper 디렉토리
@@ -430,9 +434,7 @@ function copyDirRecursive(src: string, dest: string): void {
         if (stat.isDirectory()) {
           copyDirRecursive(srcFull, destFull);
         } else {
-          if (!fs.existsSync(destFull)) {
-            fs.copyFileSync(srcFull, destFull);
-          }
+          fs.copyFileSync(srcFull, destFull);
         }
       } catch {
         // 파일 접근 실패 무시

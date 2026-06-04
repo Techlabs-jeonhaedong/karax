@@ -67,12 +67,11 @@ function pngToBase64(pngPath: string): string {
 }
 
 // ── 사이드카 경로 ─────────────────────────────────────────────────────
-// captureEngine은 사이드카를 outDir/<screenId>.report.json으로 기록한다.
-// pngPath는 디바이스 접미사가 붙어(e.g. HomeScreen_iphone-15.png) screenId와 다를 수 있으므로
-// screenId를 직접 사용해 outDir/<screenId>.report.json을 계산한다.
+// captureEngine은 사이드카를 outDir/<screenId>_<device>.report.json으로 기록한다.
+// PNG 파일명({screenId}_{device}.png)과 접미사를 통일해 디바이스별 덮어쓰기를 방지한다.
 
-function sidecarPath(pngPath: string, screenId: string): string {
-  return path.join(path.dirname(pngPath), `${screenId}.report.json`);
+function sidecarPath(pngPath: string, screenId: string, device: string): string {
+  return path.join(path.dirname(pngPath), `${screenId}_${device}.report.json`);
 }
 
 // ── McpServer 팩토리 ──────────────────────────────────────────────────
@@ -84,7 +83,10 @@ export function createMcpServer(): McpServer {
       capabilities: { tools: {} },
       instructions:
         "소스코드를 분석해 앱 화면 스크린샷을 추출하는 MCP 서버. " +
-        "Flutter(M4까지 구현), 향후 RN/iOS/Android 지원 예정.",
+        "Flutter/React Native/Android Compose/iOS SwiftUI 4개 프레임워크를 지원한다. " +
+        "2-티어 캡처(Tier 1: 부분 컴파일, Tier 2: 정적 IR→Chromium) 전략으로 동작하며, " +
+        "captureMode(auto/compile/static), variant 전개, overlay(confidence 시각화), " +
+        "enrich(LLM 보강) 옵션을 제공한다.",
     }
   );
 
@@ -232,7 +234,8 @@ export function createMcpServer(): McpServer {
         });
 
         const base64 = pngToBase64(result.pngPath);
-        const sidecar = sidecarPath(result.pngPath, result.screenId);
+        const resolvedDevice = (device as string | undefined) ?? "iphone-15";
+        const sidecar = sidecarPath(result.pngPath, result.screenId, resolvedDevice);
         const sidecarExists = fs.existsSync(sidecar);
 
         const summary = {
@@ -307,6 +310,7 @@ export function createMcpServer(): McpServer {
                 report: {
                   overallConfidence: report.overallConfidence,
                   limitations: report.limitations,
+                  failures: report.failures,
                 },
               },
               null,
@@ -382,7 +386,16 @@ export function createMcpServer(): McpServer {
 
 export async function startStdioServer(): Promise<void> {
   if (process.env.SFC_SKIP_ENSURE !== "1") {
-    await ensureDependencies();
+    try {
+      await ensureDependencies();
+    } catch (e) {
+      // 의존성 설치 실패 시 서버는 계속 기동한다.
+      // 네트워크 불필요 도구(detect_framework/doctor/list_screens/get_screen_ir)는 정상 동작하며,
+      // 캡처 도구 호출 시점에 ensureDependencies가 재시도된다.
+      process.stderr.write(
+        `[sfc-mcp] 경고: 의존성 자동 설치 실패 — 캡처 시 재시도됨. 원인: ${e instanceof Error ? e.message : String(e)}\n`
+      );
+    }
   }
 
   const { StdioServerTransport } = await import(

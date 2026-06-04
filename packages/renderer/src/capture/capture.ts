@@ -33,7 +33,7 @@ export interface RenderResult {
 
 // ── confidence 오버레이 ──────────────────────────────────────────────
 
-interface NodeInfo {
+export interface NodeInfo {
   idx: number;
   confidence: number;
   isUnknown: boolean;
@@ -41,13 +41,29 @@ interface NodeInfo {
 }
 
 /**
+ * renderNode에서 children을 순회하는 컨테이너 타입 목록.
+ * 이 타입만 children을 재귀 순회한다(leaf 타입은 children을 렌더링하지 않음).
+ * irToHtml.ts의 renderNode/renderFlex/renderAppBar/renderTabBar와 동기화할 것.
+ */
+const CONTAINER_TYPES = new Set([
+  "Column", "Row", "Box", "Stack", "Scroll", "Grid", "List", "Button",
+  // renderAppBar/renderTabBar도 children 순회
+  // (Box의 role=appbar|tabbar도 여기에 포함됨)
+]);
+
+/**
  * IR 트리를 irToHtmlWithIdx의 renderNode와 동일한 순서로 순회하여
  * 각 DOM 요소에 심어진 data-sfc-idx와 대응하는 NodeInfo 목록을 반환한다.
  *
  * Branch는 첫 번째 child만 렌더링하므로(DOM 요소 생성 없음) 건너뛰고,
  * Branch의 첫 child가 다음 idx를 받는다.
+ *
+ * Leaf 타입(Text/Image/Icon/Spacer/Divider/Unknown/Slot/Input)은
+ * children이 있어도 렌더링하지 않으므로 순회하지 않는다.
+ *
+ * @internal 테스트에서 직접 검증 가능하도록 export한다.
  */
-function collectNodeInfoWithIdx(root: IRNode): NodeInfo[] {
+export function collectNodeInfoWithIdx(root: IRNode): NodeInfo[] {
   const result: NodeInfo[] = [];
   let idx = 0;
 
@@ -71,7 +87,9 @@ function collectNodeInfoWithIdx(root: IRNode): NodeInfo[] {
       hasLowConfidence: node.confidence < 0.5,
     });
 
-    if (node.children) {
+    // 컨테이너 타입만 children을 순회한다.
+    // Leaf 타입은 children이 있어도 renderNode가 무시하므로 여기서도 건너뛴다.
+    if (node.children && CONTAINER_TYPES.has(node.type)) {
       for (const child of node.children) {
         visit(child);
       }

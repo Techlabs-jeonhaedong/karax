@@ -170,7 +170,11 @@ export async function ensureDependencies(): Promise<void> {
   _ensurePromise = (async () => {
     const { doctorFix: fix } = await import("@sfc/doctor");
     await fix();
-  })();
+  })().catch((err) => {
+    // 실패 시 리셋해 다음 호출에서 재시도 가능하게 한다
+    _ensurePromise = null;
+    throw err;
+  });
 
   return _ensurePromise;
 }
@@ -505,6 +509,7 @@ export async function captureScreen(
     framework: frameworkId,
     device: opts.device,
     mockSeed: opts.mockSeed,
+    maxInlineDepth: opts.maxInlineDepth,
     includeCandidates: true,
   };
 

@@ -192,7 +192,7 @@ describe("captureScreenWithTiers — static 모드", () => {
 // ── 사이드카 report.json 테스트 ───────────────────────────────────
 
 describe("captureScreenWithTiers — 사이드카 report.json", () => {
-  it("outDir에 <screenId>.report.json을 생성해야 한다", async () => {
+  it("outDir에 <screenId>_<device>.report.json을 생성해야 한다", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-test-"));
     const fakePng = path.join(tmpDir, "HomeScreen_iphone-15.png");
     fs.writeFileSync(fakePng, "");
@@ -213,7 +213,8 @@ describe("captureScreenWithTiers — 사이드카 report.json", () => {
 
     await captureScreenWithTiers(deps, opts);
 
-    const reportPath = path.join(tmpDir, "HomeScreen.report.json");
+    // [중간-5] PNG와 동일한 device 접미사: HomeScreen_iphone-15.report.json
+    const reportPath = path.join(tmpDir, "HomeScreen_iphone-15.report.json");
     expect(fs.existsSync(reportPath)).toBe(true);
 
     const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
@@ -226,7 +227,7 @@ describe("captureScreenWithTiers — 사이드카 report.json", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("compile 티어 캡처 후에도 report.json이 생성돼야 한다", async () => {
+  it("compile 티어 캡처 후에도 <screenId>_<device>.report.json이 생성돼야 한다", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-test-"));
     const fakePng = path.join(tmpDir, "HomeScreen.png");
     fs.writeFileSync(fakePng, "");
@@ -249,11 +250,45 @@ describe("captureScreenWithTiers — 사이드카 report.json", () => {
 
     await captureScreenWithTiers(deps, opts);
 
-    const reportPath = path.join(tmpDir, "HomeScreen.report.json");
+    // device 기본값 "iphone-15"가 makeOpts에 설정됨
+    const reportPath = path.join(tmpDir, "HomeScreen_iphone-15.report.json");
     expect(fs.existsSync(reportPath)).toBe(true);
 
     const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
     expect(report.tierUsed).toBe("compile");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("device별로 별도 report.json이 생성돼 덮어쓰지 않는다 (중간-5 회귀)", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-test-"));
+
+    const fakePngA = path.join(tmpDir, "HomeScreen_iphone-15.png");
+    const fakePngB = path.join(tmpDir, "HomeScreen_pixel-8.png");
+    fs.writeFileSync(fakePngA, "");
+    fs.writeFileSync(fakePngB, "");
+
+    // device=iphone-15 캡처
+    await captureScreenWithTiers(
+      makeDeps({ renderScreenshot: vi.fn().mockResolvedValue({ pngPath: fakePngA, width: 390, height: 844 }) }),
+      makeOpts({ captureMode: "static", outDir: tmpDir, device: "iphone-15" })
+    );
+
+    // device=pixel-8 캡처
+    await captureScreenWithTiers(
+      makeDeps({ renderScreenshot: vi.fn().mockResolvedValue({ pngPath: fakePngB, width: 412, height: 915 }) }),
+      makeOpts({ captureMode: "static", outDir: tmpDir, device: "pixel-8" })
+    );
+
+    const reportA = path.join(tmpDir, "HomeScreen_iphone-15.report.json");
+    const reportB = path.join(tmpDir, "HomeScreen_pixel-8.report.json");
+    expect(fs.existsSync(reportA)).toBe(true);
+    expect(fs.existsSync(reportB)).toBe(true);
+
+    const parsedA = JSON.parse(fs.readFileSync(reportA, "utf-8"));
+    const parsedB = JSON.parse(fs.readFileSync(reportB, "utf-8"));
+    expect(parsedA.device).toBe("iphone-15");
+    expect(parsedB.device).toBe("pixel-8");
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

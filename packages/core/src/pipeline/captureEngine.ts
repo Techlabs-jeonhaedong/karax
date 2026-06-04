@@ -104,14 +104,16 @@ function isCompileCaptureError(e: unknown): boolean {
   );
 }
 
-/** 사이드카 report.json을 outDir/<screenId>.report.json에 작성한다 */
+/** 사이드카 report.json을 outDir/<screenId>_<device>.report.json에 작성한다.
+ * PNG 파일명({screenId}_{device}.png)과 접미사를 통일해 덮어쓰기를 방지한다. */
 function writeSidecarReport(
   screenId: string,
+  device: string,
   outDir: string,
   report: object
 ): void {
   fs.mkdirSync(outDir, { recursive: true });
-  const reportPath = path.join(outDir, `${screenId}.report.json`);
+  const reportPath = path.join(outDir, `${screenId}_${device}.report.json`);
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf-8");
 }
 
@@ -247,7 +249,7 @@ export async function captureScreenWithTiers(
   }
 
   // ── 사이드카 report.json 작성 ─────────────────────────────────
-  writeSidecarReport(screen.id, outDir, {
+  writeSidecarReport(screen.id, device, outDir, {
     screenId: screen.id,
     tierUsed: tierUsed!,
     confidence: confidence!,

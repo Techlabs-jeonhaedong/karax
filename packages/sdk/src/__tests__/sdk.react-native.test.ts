@@ -58,7 +58,8 @@ describe("react-native-basic fixture — detectFramework + listScreens + capture
 
       for (const screen of result.screens) {
         expect(fs.existsSync(screen.pngPath)).toBe(true);
-        const reportPath = path.join(tmpDir, `${screen.screenId}.report.json`);
+        // [중간-5] report.json은 device 접미사 포함: {screenId}_{device}.report.json
+        const reportPath = path.join(tmpDir, `${screen.screenId}_iphone-15.report.json`);
         expect(fs.existsSync(reportPath)).toBe(true);
       }
     } finally {

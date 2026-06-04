@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
@@ -192,8 +192,9 @@ describe("captureAll — static 모드 (SFC_SKIP_ENSURE=1 필요)", () => {
       // 각 화면에 PNG+report.json이 있어야 한다
       for (const screen of result.screens) {
         expect(fs.existsSync(screen.pngPath)).toBe(true);
-        // report.json 확인
-        const reportPath = path.join(tmpDir, `${screen.screenId}.report.json`);
+        // [중간-5] report.json은 device 접미사 포함: {screenId}_{device}.report.json
+        // captureAll의 기본 device: iphone-15
+        const reportPath = path.join(tmpDir, `${screen.screenId}_iphone-15.report.json`);
         expect(fs.existsSync(reportPath)).toBe(true);
       }
 
