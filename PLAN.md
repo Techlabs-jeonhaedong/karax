@@ -1,7 +1,7 @@
 # PLAN.md — 소스코드 기반 앱 스크린샷 추출 도구
 
 > **이 문서는 자기완결적 계획서다.** 새 세션에서 이 문서만 읽어도 구현을 이어갈 수 있도록 작성됐다.
-> 마지막 갱신: 2026-06-04 / 상태: M0~M8 완료 (4개 프레임워크 지원), M9 미착수
+> 마지막 갱신: 2026-06-04 / 상태: M0~M9 전체 완료 — 최종 검수 단계
 
 ---
 
@@ -293,7 +293,7 @@ export function captureAll(opts: AnalyzeOptions & { outDir: string }):
 - [x] **M6 — React Native**: 화면 발견 + Tier 2 + react-native-web 컴파일 백엔드 (M2~M4 패턴 복제)
 - [x] **M7 — Android Compose**: 화면 발견 + Tier 2 + Paparazzi 백엔드
 - [x] **M8 — iOS SwiftUI**: 화면 발견 + Tier 2 + 시뮬레이터 스냅샷 백엔드 (macOS 한정)
-- [ ] **M9 — 보강**: UIKit(Storyboard/XIB)·Android XML 레거시, LLM enrich 플러그인, Branch variant 렌더 옵션, confidence 노출 강화
+- [x] **M9 — 보강**: UIKit(Storyboard/XIB)·Android XML 레거시, LLM enrich 플러그인, Branch variant 렌더 옵션, confidence 노출 강화
 
 ---
 

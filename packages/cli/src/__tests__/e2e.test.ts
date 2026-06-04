@@ -316,6 +316,47 @@ describe("sfc capture --mode static", () => {
     expect(j1.tierUsed).toBe(j2.tierUsed);
     expect(j1.confidence).toBe(j2.confidence);
   });
+
+  it(
+    "--variants 플래그가 에러 없이 실행된다 (Tier2 단일 화면)",
+    async () => {
+      const outDir = path.join(os.tmpdir(), "cli-e2e-variants");
+      const { code } = await runCli([
+        "capture",
+        FLUTTER_FIXTURE,
+        "--screen",
+        "ListScreen",
+        "--mode",
+        "static",
+        "--variants",
+        "--out",
+        outDir,
+      ]);
+      // Tier 2 캡처이므로 성공해야 함 (Branch 없어도 에러 없음)
+      expect(code).toBe(0);
+    },
+    30_000
+  );
+
+  it(
+    "--overlay 플래그가 에러 없이 실행된다 (Tier2 단일 화면)",
+    async () => {
+      const outDir = path.join(os.tmpdir(), "cli-e2e-overlay");
+      const { code } = await runCli([
+        "capture",
+        FLUTTER_FIXTURE,
+        "--screen",
+        "HomeScreen",
+        "--mode",
+        "static",
+        "--overlay",
+        "--out",
+        outDir,
+      ]);
+      expect(code).toBe(0);
+    },
+    30_000
+  );
 });
 
 // ─── sfc mcp-config / sfc mcp install-config ───────────────────────

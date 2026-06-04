@@ -118,4 +118,100 @@ describe("renderScreenshot — Playwright Chromium 캡처", () => {
     },
     60_000,
   );
-}, );
+
+  it(
+    "overlay=confidence: __overlay.png가 별도 생성됨",
+    async () => {
+      // fixture 05는 Unknown(confidence=0.2), Branch(confidence=0.5), Slot(confidence=0.3) 보유
+      const ir = loadFixture("05-tokens-unknown-branch.json");
+      const result = await renderScreenshot(ir, {
+        device: "iphone-15",
+        outDir: TMP_OUT,
+        overlay: "confidence",
+      });
+
+      expect(result.overlayPngPath).toBeDefined();
+      expect(result.overlayPngPath).toMatch(/__overlay\.png$/);
+      expect(existsSync(result.overlayPngPath!)).toBe(true);
+    },
+    60_000,
+  );
+
+  it(
+    "overlay=confidence: 원본 PNG도 정상 생성됨",
+    async () => {
+      const ir = loadFixture("05-tokens-unknown-branch.json");
+      const result = await renderScreenshot(ir, {
+        device: "iphone-15",
+        outDir: TMP_OUT,
+        overlay: "confidence",
+      });
+
+      expect(existsSync(result.pngPath)).toBe(true);
+    },
+    60_000,
+  );
+
+  it(
+    "overlay=confidence: 오버레이 PNG와 원본 PNG는 서로 다른 파일 경로",
+    async () => {
+      const ir = loadFixture("05-tokens-unknown-branch.json");
+      const result = await renderScreenshot(ir, {
+        device: "iphone-15",
+        outDir: TMP_OUT,
+        overlay: "confidence",
+      });
+
+      expect(result.pngPath).not.toBe(result.overlayPngPath);
+    },
+    60_000,
+  );
+
+  it(
+    "overlay=confidence: 오버레이 PNG가 원본 PNG와 실제로 다름 (마킹이 그려졌음을 검증)",
+    async () => {
+      const { PNG } = await import("pngjs");
+      const pixelmatch = (await import("pixelmatch")).default;
+
+      // fixture 05: Unknown(conf=0.2), Slot(conf=0.3) 등 저신뢰 노드 다수
+      const ir = loadFixture("05-tokens-unknown-branch.json");
+      const result = await renderScreenshot(ir, {
+        device: "iphone-15",
+        outDir: TMP_OUT,
+        overlay: "confidence",
+      });
+
+      const origBuf = readFileSync(result.pngPath);
+      const overlayBuf = readFileSync(result.overlayPngPath!);
+
+      const orig = PNG.sync.read(origBuf);
+      const overlay = PNG.sync.read(overlayBuf);
+
+      expect(orig.width).toBe(overlay.width);
+      expect(orig.height).toBe(overlay.height);
+
+      const diffPixels = pixelmatch(orig.data, overlay.data, undefined, orig.width, orig.height, {
+        threshold: 0.1,
+        includeAA: true,
+      });
+
+      // 저신뢰 노드에 테두리+라벨이 그려졌으므로 픽셀 차이가 반드시 존재해야 한다
+      expect(diffPixels).toBeGreaterThan(0);
+    },
+    60_000,
+  );
+
+  it(
+    "overlay 미지정: overlayPngPath가 undefined",
+    async () => {
+      const ir = loadFixture("01-simple-column-text.json");
+      const result = await renderScreenshot(ir, {
+        device: "iphone-15",
+        outDir: TMP_OUT,
+      });
+
+      expect(result.overlayPngPath).toBeUndefined();
+    },
+    60_000,
+  );
+});

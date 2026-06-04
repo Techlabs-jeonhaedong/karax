@@ -26,3 +26,6 @@ export type {
   CaptureEngineOptions,
   CaptureEngineResult,
 } from "./pipeline/captureEngine.js";
+
+export { expandVariants } from "./ir/expandVariants.js";
+export type { VariantDoc } from "./ir/expandVariants.js";

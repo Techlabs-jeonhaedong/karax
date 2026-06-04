@@ -104,6 +104,10 @@ export interface CaptureArgs {
   out?: string;
   seed?: number;
   json: boolean;
+  /** Branch 분기별 variant PNG 추가 생성 (Tier 2 전용) */
+  variants: boolean;
+  /** confidence 오버레이 PNG 추가 생성 */
+  overlay: boolean;
 }
 
 const VALID_MODES: CaptureMode[] = ["auto", "compile", "static"];
@@ -117,6 +121,8 @@ export function parseCaptureArgs(argv: string[]): CaptureArgs {
   prog.option("--out <dir>", "출력 디렉토리");
   prog.option("--seed <n>", "mock 결정론 시드 (숫자)");
   prog.option("--json", "JSON 형식으로 출력", false);
+  prog.option("--variants", "Branch 분기별 variant PNG 추가 생성 (Tier 2 전용)", false);
+  prog.option("--overlay", "confidence < 0.5 노드 하이라이트 오버레이 PNG 생성", false);
   prog.parse(["node", "capture", ...argv]);
 
   const opts = prog.opts<{
@@ -126,6 +132,8 @@ export function parseCaptureArgs(argv: string[]): CaptureArgs {
     out?: string;
     seed?: string;
     json: boolean;
+    variants: boolean;
+    overlay: boolean;
   }>();
 
   if (!VALID_MODES.includes(opts.mode as CaptureMode)) {
@@ -144,6 +152,8 @@ export function parseCaptureArgs(argv: string[]): CaptureArgs {
     out: opts.out,
     seed,
     json: opts.json,
+    variants: opts.variants,
+    overlay: opts.overlay,
   };
 }
 

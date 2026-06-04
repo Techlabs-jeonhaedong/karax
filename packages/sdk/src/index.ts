@@ -22,7 +22,7 @@ import type {
 } from "@sfc/adapter-api";
 import { detectFramework as coreDetectFramework } from "@sfc/core";
 import type { DetectResult } from "@sfc/core";
-import { computeProjectConfidence } from "@sfc/core";
+import { computeProjectConfidence, expandVariants } from "@sfc/core";
 import { captureScreenWithTiers } from "@sfc/core";
 import { runDoctor, doctorFix as coreDoctorFix } from "@sfc/doctor";
 import type { DoctorReport } from "@sfc/doctor";
@@ -35,6 +35,33 @@ export const SDK_VERSION = "0.0.1" as const;
 
 export type { DetectResult, DoctorReport, ScreenSummary, CaptureResult, IRDocument };
 export type { FrameworkId, DeviceProfileId, CaptureMode };
+
+// ── EnrichmentPlugin 인터페이스 (enrich-llm 타입 의존 없이 직접 정의) ────
+// @sfc/enrich-llm의 EnrichmentPlugin과 구조적으로 호환된다.
+
+export interface EnrichPatch {
+  nodePath: string;
+  replacement: IRDocument["screen"]["root"];
+}
+
+export interface EnrichDiagnostic {
+  level: "info" | "warn" | "error";
+  code: "ENRICHED" | "ENRICH_REJECTED";
+  message: string;
+  nodePath?: string;
+}
+
+export interface EnrichResult {
+  patches: EnrichPatch[];
+  diagnostics: EnrichDiagnostic[];
+}
+
+export interface EnrichmentPlugin {
+  enrich(
+    doc: IRDocument,
+    targets: Array<{ nodePath: string; node: IRDocument["screen"]["root"] }>
+  ): Promise<EnrichResult>;
+}
 
 // ── 어댑터/백엔드 lazy 로더 ───────────────────────────────────────
 //
@@ -158,7 +185,8 @@ export interface AnalyzeOptions {
   maxInlineDepth?: number;
   mockSeed?: number;
   includeCandidates?: boolean;
-  enrich?: unknown; // EnrichmentPlugin — M9에서 구체화
+  /** LLM 보강 플러그인 — Tier 2 경로에서 IR 생성 후 적용 */
+  enrich?: EnrichmentPlugin;
 }
 
 // ── AnalysisReport ─────────────────────────────────────────────────
@@ -219,6 +247,153 @@ function makeRenderFn(device?: DeviceProfileId) {
       outDir: opts.outDir,
     });
   };
+}
+
+/**
+ * enrich 플러그인이 있을 때 adapter.buildScreenIR 결과에 LLM 보강을 적용하는 래퍼.
+ * captureEngine deps의 adapter를 교체하는 방식으로 주입한다.
+ */
+function makeEnrichAdapter(
+  adapter: FrameworkAdapter,
+  enrich: EnrichmentPlugin
+): FrameworkAdapter {
+  return {
+    ...adapter,
+    buildScreenIR: async (ctx, screenId) => {
+      const doc = await adapter.buildScreenIR(ctx, screenId);
+
+      // Unknown/저신뢰 노드를 수집해 enrich 대상으로 전달
+      const targets = collectEnrichTargets(doc.screen.root);
+
+      if (targets.length === 0) return doc;
+
+      const result = await enrich.enrich(doc, targets);
+
+      const enrichedDoc = applyEnrichPatches(doc, result.patches);
+
+      // ENRICHED/ENRICH_REJECTED diagnostics를 사이드카에 추가
+      const newDiags = result.diagnostics.map((d) => ({
+        level: d.level,
+        code: d.code,
+        message: d.message,
+        ...(d.nodePath ? { sourceRef: { file: doc.screen.sourceRef?.file ?? "", symbol: d.nodePath } } : {}),
+      }));
+
+      return {
+        ...enrichedDoc,
+        diagnostics: [...(enrichedDoc.diagnostics ?? []), ...newDiags],
+      };
+    },
+  };
+}
+
+/**
+ * EnrichPatch를 IRDocument에 적용한다.
+ * enrich-llm의 applyPatches와 동일 로직 — @sfc/enrich-llm 의존 없이 사용.
+ */
+function applyEnrichPatches(doc: IRDocument, patches: EnrichPatch[]): IRDocument {
+  if (patches.length === 0) return doc;
+
+  let current: IRDocument = JSON.parse(JSON.stringify(doc)) as IRDocument;
+
+  for (const patch of patches) {
+    current = applySingleEnrichPatch(current, patch);
+  }
+
+  return current;
+}
+
+function applySingleEnrichPatch(doc: IRDocument, patch: EnrichPatch): IRDocument {
+  const segments = patch.nodePath.split(".").reduce<Array<string | number>>((acc, part) => {
+    const m = part.match(/^(.+)\[(\d+)\]$/);
+    if (m) {
+      if (m[1]) acc.push(m[1]);
+      acc.push(parseInt(m[2], 10));
+    } else {
+      acc.push(part);
+    }
+    return acc;
+  }, []);
+
+  if (segments[0] !== "root") return doc;
+
+  const remaining = segments.slice(1);
+  if (remaining.length === 0) {
+    return { ...doc, screen: { ...doc.screen, root: patch.replacement } };
+  }
+
+  const newRoot = replaceAtEnrichPath(
+    doc.screen.root as unknown as Record<string, unknown>,
+    remaining,
+    patch.replacement as unknown
+  );
+
+  if (!newRoot) return doc;
+
+  return { ...doc, screen: { ...doc.screen, root: newRoot as unknown as IRDocument["screen"]["root"] } };
+}
+
+function replaceAtEnrichPath(
+  obj: Record<string, unknown>,
+  path: Array<string | number>,
+  value: unknown
+): Record<string, unknown> | null {
+  const [head, ...tail] = path;
+
+  if (tail.length === 0) {
+    if (typeof head === "string") return { ...obj, [head]: value };
+    return null;
+  }
+
+  if (typeof head === "string") {
+    const child = obj[head];
+
+    if (Array.isArray(child)) {
+      const [idx, ...rest] = tail;
+      if (typeof idx !== "number" || idx < 0 || idx >= child.length) return null;
+      const newArr = [...child];
+      if (rest.length === 0) {
+        newArr[idx] = value;
+      } else {
+        const replaced = replaceAtEnrichPath(child[idx] as Record<string, unknown>, rest, value);
+        if (!replaced) return null;
+        newArr[idx] = replaced;
+      }
+      return { ...obj, [head]: newArr };
+    }
+
+    if (child !== null && typeof child === "object") {
+      const replaced = replaceAtEnrichPath(child as Record<string, unknown>, tail, value);
+      if (!replaced) return null;
+      return { ...obj, [head]: replaced };
+    }
+  }
+
+  return null;
+}
+
+/** IR 트리에서 confidence < 0.5인 노드를 BFS로 수집 */
+function collectEnrichTargets(
+  root: IRDocument["screen"]["root"]
+): Array<{ nodePath: string; node: typeof root }> {
+  const targets: Array<{ nodePath: string; node: typeof root }> = [];
+  const queue: Array<{ node: typeof root; path: string }> = [{ node: root, path: "root" }];
+
+  while (queue.length > 0) {
+    const { node, path } = queue.shift()!;
+
+    if (node.confidence < 0.5) {
+      targets.push({ nodePath: path, node });
+    }
+
+    if (node.children) {
+      for (let i = 0; i < node.children.length; i++) {
+        queue.push({ node: node.children[i], path: `${path}.children[${i}]` });
+      }
+    }
+  }
+
+  return targets;
 }
 
 // ── 공개 API ──────────────────────────────────────────────────────
@@ -300,15 +475,30 @@ export async function buildScreenIR(
 
 /**
  * 특정 화면을 캡처한다.
+ *
+ * variants?: boolean — true면 화면 내 Branch 분기별로 추가 PNG를 생성한다.
+ *   생성 파일명: <screenId>__<variantLabel>.png (Tier 2 전용)
+ * overlay?: "confidence" — confidence 오버레이 PNG를 추가 생성한다.
+ *   생성 파일명: <screenId>__overlay.png
  */
 export async function captureScreen(
-  opts: AnalyzeOptions & { screenId: string; outDir?: string }
-): Promise<CaptureResult> {
+  opts: AnalyzeOptions & {
+    screenId: string;
+    outDir?: string;
+    variants?: boolean;
+    overlay?: "confidence";
+  }
+): Promise<CaptureResult & { variantPngPaths?: string[]; overlayPngPath?: string }> {
   await ensureDependencies();
 
   const frameworkId = await resolveFrameworkId(opts);
-  const adapter = await getAdapter(frameworkId);
+  let adapter = await getAdapter(frameworkId);
   const compileBackend = await loadCompileBackend(frameworkId);
+
+  // enrich 배선: adapter를 래핑
+  if (opts.enrich) {
+    adapter = makeEnrichAdapter(adapter, opts.enrich);
+  }
 
   const ctx: AdapterContext = {
     projectPath: opts.projectPath,
@@ -343,7 +533,7 @@ export async function captureScreen(
     }
   );
 
-  return {
+  const base: CaptureResult = {
     screenId: engineResult.screenId,
     pngPath: engineResult.pngPath,
     width: engineResult.width,
@@ -351,13 +541,58 @@ export async function captureScreen(
     tierUsed: engineResult.tierUsed,
     confidence: engineResult.confidence,
   };
+
+  // variants 옵션: Tier 2에서만 동작, Tier 1은 무시
+  let variantPngPaths: string[] | undefined;
+  if (opts.variants && engineResult.tierUsed === "static") {
+    const ir = await adapter.buildScreenIR(ctx, opts.screenId);
+    const variantDocs = expandVariants(ir);
+    variantPngPaths = [];
+
+    for (const { label, doc } of variantDocs) {
+      const variantDoc = {
+        ...doc,
+        screen: { ...doc.screen, id: `${opts.screenId}__${label}` },
+      };
+      const result = await renderScreenshot(variantDoc, {
+        device: opts.device ?? "iphone-15",
+        outDir,
+      });
+      variantPngPaths.push(result.pngPath);
+    }
+  }
+
+  // overlay 옵션
+  let overlayPngPath: string | undefined;
+  if (opts.overlay === "confidence") {
+    const ir = await adapter.buildScreenIR(ctx, opts.screenId);
+    const overlayResult = await renderScreenshot(ir, {
+      device: opts.device ?? "iphone-15",
+      outDir,
+      overlay: "confidence",
+    });
+    overlayPngPath = overlayResult.overlayPngPath;
+  }
+
+  return {
+    ...base,
+    ...(variantPngPaths !== undefined ? { variantPngPaths } : {}),
+    ...(overlayPngPath !== undefined ? { overlayPngPath } : {}),
+  };
 }
 
 /**
  * 전체 화면을 캡처하고 AnalysisReport를 반환한다.
+ *
+ * variants?: boolean — Branch 분기별 추가 PNG 생성 (Tier 2 전용)
+ * overlay?: "confidence" — 각 화면에 confidence 오버레이 PNG 추가 생성
  */
 export async function captureAll(
-  opts: AnalyzeOptions & { outDir: string }
+  opts: AnalyzeOptions & {
+    outDir: string;
+    variants?: boolean;
+    overlay?: "confidence";
+  }
 ): Promise<{ screens: CaptureResult[]; report: AnalysisReport }> {
   if (!opts.outDir) {
     throw new Error("captureAll: outDir은 필수입니다");
@@ -366,8 +601,13 @@ export async function captureAll(
   await ensureDependencies();
 
   const frameworkId = await resolveFrameworkId(opts);
-  const adapter = await getAdapter(frameworkId);
+  let adapter = await getAdapter(frameworkId);
   const compileBackend = await loadCompileBackend(frameworkId);
+
+  // enrich 배선
+  if (opts.enrich) {
+    adapter = makeEnrichAdapter(adapter, opts.enrich);
+  }
 
   const ctx: AdapterContext = {
     projectPath: opts.projectPath,
@@ -415,6 +655,41 @@ export async function captureAll(
       for (const diag of engineResult.diagnostics) {
         if (diag.code === "COMPILE_FALLBACK") {
           extraLimitations.push(`${screen.id}: ${diag.message}`);
+        }
+      }
+
+      // variants: Tier 2에서만 Branch 분기별 추가 PNG 생성
+      if (opts.variants && engineResult.tierUsed === "static") {
+        try {
+          const ir = await adapter.buildScreenIR(ctx, screen.id);
+          const variantDocs = expandVariants(ir);
+          for (const { label, doc } of variantDocs) {
+            const variantDoc = {
+              ...doc,
+              screen: { ...doc.screen, id: `${screen.id}__${label}` },
+            };
+            await renderScreenshot(variantDoc, {
+              device: opts.device ?? "iphone-15",
+              outDir: opts.outDir,
+            });
+          }
+        } catch {
+          // variant 생성 실패는 경고만, 전체 캡처 실패로 처리하지 않음
+          extraLimitations.push(`${screen.id}: variant 생성 실패`);
+        }
+      }
+
+      // overlay: 각 화면의 confidence 오버레이 PNG 생성
+      if (opts.overlay === "confidence") {
+        try {
+          const ir = await adapter.buildScreenIR(ctx, screen.id);
+          await renderScreenshot(ir, {
+            device: opts.device ?? "iphone-15",
+            outDir: opts.outDir,
+            overlay: "confidence",
+          });
+        } catch {
+          extraLimitations.push(`${screen.id}: overlay 생성 실패`);
         }
       }
     } catch (e) {

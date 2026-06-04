@@ -183,6 +183,8 @@ program
   .option("--out <dir>", "출력 디렉토리", "/tmp/sfc-out")
   .option("--seed <n>", "mock 결정론 시드 (숫자)")
   .option("--json", "JSON 형식으로 출력", false)
+  .option("--variants", "Branch 분기별 variant PNG 추가 생성 (Tier 2 전용)", false)
+  .option("--overlay", "confidence < 0.5 노드 오버레이 PNG 추가 생성", false)
   .action(
     async (
       pathArg: string,
@@ -193,6 +195,8 @@ program
         out: string;
         seed?: string;
         json: boolean;
+        variants: boolean;
+        overlay: boolean;
       }
     ) => {
       try {
@@ -207,6 +211,8 @@ program
           opts.out,
           ...(opts.seed !== undefined ? ["--seed", opts.seed] : []),
           ...(opts.json ? ["--json"] : []),
+          ...(opts.variants ? ["--variants"] : []),
+          ...(opts.overlay ? ["--overlay"] : []),
         ]);
 
         const { captureScreen, captureAll } = await import("@sfc/sdk");
@@ -221,6 +227,8 @@ program
             captureMode: args.mode,
             outDir,
             mockSeed: args.seed,
+            variants: args.variants,
+            overlay: args.overlay ? "confidence" : undefined,
           });
 
           if (args.json) {
@@ -244,6 +252,8 @@ program
             outDir,
             mockSeed: args.seed,
             includeCandidates: true,
+            variants: args.variants,
+            overlay: args.overlay ? "confidence" : undefined,
           });
 
           // 실제 캡처 실패가 있을 때만 PARTIAL_FAILURE (exit 2)

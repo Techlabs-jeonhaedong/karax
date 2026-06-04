@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">XML Fixture App</string>
+    <string name="btn_primary">Get Started</string>
+    <string name="btn_secondary">Learn More</string>
+    <string name="search_hint">Search…</string>
+    <string name="detail_title">Detail Screen</string>
+    <string name="detail_body">This is the detail description body text.</string>
+    <string name="btn_action">Confirm</string>
+</resources>

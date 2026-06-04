@@ -1,0 +1,16 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildXmlScreenIR — IR 스냅샷 > activity_main IR 구조가 스냅샷과 일치한다 1`] = `"Column"`;
+
+exports[`buildXmlScreenIR — IR 스냅샷 > activity_main IR 구조가 스냅샷과 일치한다 2`] = `"fill"`;
+
+exports[`buildXmlScreenIR — IR 스냅샷 > activity_main IR 구조가 스냅샷과 일치한다 3`] = `"fill"`;
+
+exports[`buildXmlScreenIR — IR 스냅샷 > activity_main IR 구조가 스냅샷과 일치한다 4`] = `
+{
+  "background": "#FFFFFF",
+  "brand_primary": "#6200EE",
+  "text_primary": "#212121",
+  "text_secondary": "#757575",
+}
+`;

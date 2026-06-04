@@ -210,8 +210,12 @@ export function createMcpServer(): McpServer {
       captureMode: z.enum(["auto", "compile", "static"]).optional().default("auto"),
       outDir: z.string().optional(),
       mockSeed: z.number().int().optional(),
+      /** Branch 분기별 variant PNG 추가 생성 (Tier 2 전용) */
+      variants: z.boolean().optional().default(false),
+      /** confidence < 0.5 노드 오버레이 PNG 추가 생성 */
+      overlay: z.enum(["confidence"]).optional(),
     },
-    async ({ projectPath, screenId, device, captureMode, outDir, mockSeed }) => {
+    async ({ projectPath, screenId, device, captureMode, outDir, mockSeed, variants, overlay }) => {
       try {
         validateProjectPath(projectPath);
         const resolvedOutDir = outDir ?? "/tmp/sfc-out";
@@ -223,6 +227,8 @@ export function createMcpServer(): McpServer {
           captureMode: captureMode as CaptureMode,
           outDir: resolvedOutDir,
           mockSeed,
+          variants,
+          overlay: overlay as "confidence" | undefined,
         });
 
         const base64 = pngToBase64(result.pngPath);
@@ -263,8 +269,12 @@ export function createMcpServer(): McpServer {
       captureMode: z.enum(["auto", "compile", "static"]).optional().default("auto"),
       includeCandidates: z.boolean().optional().default(true),
       mockSeed: z.number().int().optional(),
+      /** Branch 분기별 variant PNG 추가 생성 (Tier 2 전용) */
+      variants: z.boolean().optional().default(false),
+      /** confidence < 0.5 노드 오버레이 PNG 추가 생성 */
+      overlay: z.enum(["confidence"]).optional(),
     },
-    async ({ projectPath, outDir, device, captureMode, includeCandidates, mockSeed }) => {
+    async ({ projectPath, outDir, device, captureMode, includeCandidates, mockSeed, variants, overlay }) => {
       try {
         validateProjectPath(projectPath);
 
@@ -275,6 +285,8 @@ export function createMcpServer(): McpServer {
           captureMode: captureMode as CaptureMode,
           includeCandidates,
           mockSeed,
+          variants,
+          overlay: overlay as "confidence" | undefined,
         });
 
         // 이미지 다수: content 배열로 반환
