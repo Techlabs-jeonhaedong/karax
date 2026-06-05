@@ -5,8 +5,8 @@ import type {
   FrameworkEvidence,
   AdapterContext,
   ScreenSummary,
-} from "@sfc/adapter-api";
-import type { IRDocument } from "@sfc/core";
+} from "@karax/adapter-api";
+import type { IRDocument } from "@karax/core";
 import { readPackageName, hasFlutterDependency } from "./parse/pubspec.js";
 import { buildSymbolTable } from "./parse/scanner.js";
 import { discoverRouteGraph } from "./discover/routeGraph.js";

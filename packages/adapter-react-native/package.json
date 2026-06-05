@@ -1,5 +1,5 @@
 {
-  "name": "@sfc/adapter-react-native",
+  "name": "@karax/adapter-react-native",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -17,11 +17,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sfc/adapter-api": "workspace:*",
-    "@sfc/core": "workspace:*"
+    "@karax/adapter-api": "workspace:*",
+    "@karax/core": "workspace:*"
   },
   "devDependencies": {
-    "@sfc/renderer": "workspace:*",
+    "@karax/renderer": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/pngjs": "^6.0.5",
     "pixelmatch": "^6.0.0",

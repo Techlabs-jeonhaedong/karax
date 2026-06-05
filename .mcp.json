@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "sfc": {
+    "karax": {
       "command": "node",
       "args": ["scripts/mcp-launcher.mjs"]
     }

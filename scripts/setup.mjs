@@ -94,7 +94,7 @@ async function main() {
   if (steps.includes("build")) {
     info("2/3  전체 빌드 중 (pnpm -r build)...");
     // core를 먼저 단독 빌드해 의존 패키지들의 타입 선언을 확보
-    runStep(pnpmCmd.cmd, [...pnpmCmd.args, "--filter", "@sfc/core", "build"]);
+    runStep(pnpmCmd.cmd, [...pnpmCmd.args, "--filter", "@karax/core", "build"]);
     runStep(pnpmCmd.cmd, [...pnpmCmd.args, "-r", "build"]);
     info("     완료");
   } else {

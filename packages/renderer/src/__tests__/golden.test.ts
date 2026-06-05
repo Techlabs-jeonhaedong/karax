@@ -15,7 +15,7 @@ import { fileURLToPath } from "url";
 import { describe, expect, it, afterEach } from "vitest";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
-import type { IRDocument } from "@sfc/core";
+import type { IRDocument } from "@karax/core";
 import { renderScreenshot } from "../capture/capture.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

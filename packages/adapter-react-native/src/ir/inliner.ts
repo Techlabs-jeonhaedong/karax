@@ -7,9 +7,9 @@
  * - 해석 실패 시 Unknown 노드 + UNRESOLVED_COMPONENT diagnostic
  */
 
-import type { SyntaxNode } from "@sfc/adapter-api";
-import type { IRNode } from "@sfc/core";
-import { NODE_CONFIDENCE } from "@sfc/core";
+import type { SyntaxNode } from "@karax/adapter-api";
+import type { IRNode } from "@karax/core";
+import { NODE_CONFIDENCE } from "@karax/core";
 import type { SymbolTable, ParsedFile } from "../parse/scanner.js";
 import { findNodes, findChild } from "../parse/scanner.js";
 import { parseStyleSheet } from "./componentMapper.js";

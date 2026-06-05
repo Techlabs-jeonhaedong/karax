@@ -200,7 +200,7 @@ async function main() {
         log(`pnpm -r build 실행 중...`);
         // core를 먼저 단독 빌드해 의존 패키지들의 타입 선언을 확보한 후 전체 빌드
         // pnpm -r build가 workspace 의존성 순서를 항상 보장하지 않는 환경 대비
-        runSync(pnpmCmd.cmd, [...pnpmCmd.args, "--filter", "@sfc/core", "build"], ROOT);
+        runSync(pnpmCmd.cmd, [...pnpmCmd.args, "--filter", "@karax/core", "build"], ROOT);
         runSync(pnpmCmd.cmd, [...pnpmCmd.args, "-r", "build"], ROOT);
         log("빌드 완료");
       }
