@@ -31,19 +31,19 @@ export async function runAgent(
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT;
   const resultJsonPath = path.join(screenshotsDir, "result.json");
 
-  const attempt = async (inv: AgentInvocation): Promise<AgentResult | null> => {
-    await execAgent(inv, timeoutMs);
-    return readAndValidateResult(resultJsonPath);
-  };
-
   // 1차 시도
-  const first = await attempt(invocation);
-  if (first) return first;
+  await execAgent(invocation, timeoutMs);
+  const firstResult = readAndValidateResult(resultJsonPath);
+  if (firstResult.data) return firstResult.data;
 
-  // 2차 시도 (검증 오류 첨부)
-  const retryInvocation = buildRetryInvocation(invocation, opts.retryPromptSuffix);
-  const second = await attempt(retryInvocation);
-  if (second) return second;
+  // 2차 시도: opts.retryPromptSuffix가 명시되면 override, 없으면 zod 에러 메시지로 자동 구성
+  const retrySuffix =
+    opts.retryPromptSuffix ??
+    buildValidationErrorSuffix(firstResult.zodError);
+  const retryInvocation = buildRetryInvocation(invocation, retrySuffix);
+  await execAgent(retryInvocation, timeoutMs);
+  const secondResult = readAndValidateResult(resultJsonPath);
+  if (secondResult.data) return secondResult.data;
 
   throw new E2eError(
     "AGENT_OUTPUT_INVALID",
@@ -77,37 +77,50 @@ async function execAgent(
       );
     }
 
-    // stderr를 에러 메시지에 포함할 때 API 키를 redact한다
+    // stderr가 있으면 API 키를 redact해서 details에 포함한다
     if (err.stderr) {
-      const safeSterr = sanitizeStderr(String(err.stderr));
-      // details에만 포함 (외부 노출 최소화)
-      // E2eError는 details 필드를 가지므로 안전하게 전달
-      const _ = safeSterr; // 향후 E2eError details에 포함 가능
+      const safeStderr = sanitizeStderr(String(err.stderr));
+      throw new E2eError(
+        "AGENT_OUTPUT_INVALID",
+        `에이전트가 비정상 종료했습니다: ${invocation.bin}`,
+        safeStderr
+      );
     }
 
     // 비정상 종료코드는 result.json 검증으로 처리 (에이전트가 fail 결과를 파일에 썼을 수 있음)
   }
 }
 
-function readAndValidateResult(resultJsonPath: string): AgentResult | null {
-  if (!fs.existsSync(resultJsonPath)) return null;
+interface ValidateResult {
+  data: AgentResult | null;
+  zodError: string | null;
+}
+
+function readAndValidateResult(resultJsonPath: string): ValidateResult {
+  if (!fs.existsSync(resultJsonPath)) return { data: null, zodError: null };
 
   try {
     const raw = JSON.parse(fs.readFileSync(resultJsonPath, "utf-8"));
     const parsed = AgentResultSchema.safeParse(raw);
-    if (parsed.success) return parsed.data;
-    return null;
+    if (parsed.success) return { data: parsed.data, zodError: null };
+    return { data: null, zodError: parsed.error.message };
   } catch {
-    return null;
+    return { data: null, zodError: null };
   }
+}
+
+/** zod 검증 실패 메시지를 재시도 prompt suffix로 변환한다 */
+function buildValidationErrorSuffix(zodError: string | null): string {
+  if (!zodError) {
+    return "이전 응답의 result.json이 유효하지 않습니다. 스키마에 맞는 result.json을 다시 생성해주세요.";
+  }
+  return `이전 응답의 result.json이 스키마 검증에 실패했습니다.\n검증 오류: ${zodError}\n스키마에 맞는 result.json을 다시 생성해주세요.`;
 }
 
 function buildRetryInvocation(
   original: AgentInvocation,
-  suffix?: string
+  suffix: string
 ): AgentInvocation {
-  if (!suffix) return original;
-
   // prompt는 args에서 마지막 '-p' 다음 인수
   const args = [...original.args];
   const pIdx = args.lastIndexOf("-p");

@@ -13,10 +13,21 @@ import { parseSimctlDevices, selectBestSimulator } from "./parse.js";
 import type { DeviceManager, DeviceInfo } from "./types.js";
 
 const SIMCTL_TIMEOUT = 60_000;
-const BOOT_TIMEOUT = 120_000;
-const BOOT_POLL_INTERVAL = 2_000;
+const BOOT_TIMEOUT_DEFAULT = 120_000;
+const BOOT_POLL_INTERVAL_DEFAULT = 2_000;
 
-export function createIosDeviceManager(): DeviceManager {
+// ── 옵션 타입 ────────────────────────────────────────────────────────────
+
+export interface IosDeviceManagerOptions {
+  /** 시뮬레이터 부팅 폴링 타임아웃 (ms). 기본값: 120000 */
+  bootTimeoutMs?: number;
+  /** 부팅 폴링 간격 (ms). 기본값: 2000 */
+  pollIntervalMs?: number;
+}
+
+export function createIosDeviceManager(options: IosDeviceManagerOptions = {}): DeviceManager {
+  const bootTimeoutMs = options.bootTimeoutMs ?? BOOT_TIMEOUT_DEFAULT;
+  const pollIntervalMs = options.pollIntervalMs ?? BOOT_POLL_INTERVAL_DEFAULT;
   return {
     platform: "ios",
 
@@ -72,13 +83,15 @@ export function createIosDeviceManager(): DeviceManager {
       // bootstatus -b 로 부팅 완료 대기
       try {
         await execa("xcrun", ["simctl", "bootstatus", targetUdid, "-b"], {
-          timeout: BOOT_TIMEOUT,
+          timeout: bootTimeoutMs,
         });
       } catch {
         // bootstatus 실패 시 폴링으로 fallback
-        const deadline = Date.now() + BOOT_TIMEOUT;
+        const deadline = Date.now() + bootTimeoutMs;
+        let bootConfirmed = false;
+
         while (Date.now() < deadline) {
-          await sleep(BOOT_POLL_INTERVAL);
+          await sleep(pollIntervalMs);
           const listResult = await execa("xcrun", ["simctl", "list", "devices", "available"], {
             timeout: SIMCTL_TIMEOUT,
           }).catch(() => null);
@@ -86,14 +99,17 @@ export function createIosDeviceManager(): DeviceManager {
 
           const entries = parseSimctlDevices(String(listResult.stdout));
           const booted = entries.find((e) => e.udid === targetUdid && e.state === "Booted");
-          if (booted) break;
-
-          if (Date.now() >= deadline) {
-            throw new E2eError(
-              "EMULATOR_BOOT_TIMEOUT",
-              `iOS 시뮬레이터 부팅 타임아웃 (${BOOT_TIMEOUT / 1000}s)`
-            );
+          if (booted) {
+            bootConfirmed = true;
+            break;
           }
+        }
+
+        if (!bootConfirmed) {
+          throw new E2eError(
+            "EMULATOR_BOOT_TIMEOUT",
+            `iOS 시뮬레이터 부팅 타임아웃 (${bootTimeoutMs / 1000}s)`
+          );
         }
       }
 

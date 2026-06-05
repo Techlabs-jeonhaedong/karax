@@ -33,6 +33,8 @@ interface NavLinkInfo {
   label: string | undefined;
   /** NavigationLink 키워드 시작 위치의 1-based 라인 */
   line: number;
+  /** destination이 소문자 시작(변수명/표현식) = 동적 */
+  isDynamic?: boolean;
 }
 
 /**
@@ -61,9 +63,12 @@ function extractNavigationLinks(source: string): NavLinkInfo[] {
       // 목적지가 Screen/View/Page가 아닌 경우 - 일반 struct도 허용
       const destAny = /^\s*(\w+)\s*\(/.exec(afterKeyword);
       if (!destAny) continue;
-      // 소문자로 시작하면 변수명이므로 무시
       const name = destAny[1]!;
-      if (/^[a-z]/.test(name)) continue;
+      if (/^[a-z]/.test(name)) {
+        // 소문자 시작 = 변수명/표현식 → 동적 표현식으로 기록
+        results.push({ destination: name, label: undefined, line: linkLine, isDynamic: true });
+        continue;
+      }
     }
 
     const destName = destMatch
@@ -148,15 +153,36 @@ export async function discoverIOSNavGraph(
     const links = extractNavigationLinks(parsedFile.source);
 
     for (const link of links) {
-      // 목적지가 심볼 테이블에 있는지 확인
-      const destName = symbolTable.aliasMap.get(link.destination) ?? link.destination;
-      const destExists = symbolTable.structs.has(destName);
-
       // elementRef: NavigationLink 위젯 위치 (parsedFile.filePath + line)
       const elementRef: TriggerInfo["elementRef"] = {
         file: parsedFile.filePath,
         line: link.line,
       };
+
+      // 동적 표현식(소문자 시작 변수명) → DYNAMIC_NAV
+      if (link.isDynamic) {
+        edges.push({
+          from: structName,
+          to: null,
+          action: "push",
+          trigger: {
+            kind: "navlink",
+            elementRef,
+          },
+          confidence: 0.3,
+          diagnostics: [
+            {
+              code: "DYNAMIC_NAV",
+              message: `NavigationLink 목적지 '${link.destination}'가 동적 표현식이라 정적 해석 불가`,
+            },
+          ],
+        });
+        continue;
+      }
+
+      // 목적지가 심볼 테이블에 있는지 확인
+      const destName = symbolTable.aliasMap.get(link.destination) ?? link.destination;
+      const destExists = symbolTable.structs.has(destName);
 
       edges.push({
         from: structName,
