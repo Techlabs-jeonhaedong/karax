@@ -13,7 +13,7 @@ import type { E2eReport } from "../report/schema.js";
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-e2e-report-test-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-e2e-report-test-"));
 });
 
 afterEach(() => {

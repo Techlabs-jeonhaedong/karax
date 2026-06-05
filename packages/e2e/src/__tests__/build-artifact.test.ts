@@ -44,7 +44,7 @@ describe("extractIosBundleId", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-e2e-test-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-e2e-test-"));
   });
 
   afterEach(() => {

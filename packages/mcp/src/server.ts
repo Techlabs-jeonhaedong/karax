@@ -402,7 +402,7 @@ export function createMcpServer(): McpServer {
       try {
         validateProjectPath(projectPath);
 
-        const { runE2eTest } = await import("@sfc/e2e");
+        const { runE2eTest } = await import("@karax/e2e");
 
         const result = await runE2eTest({
           projectPath,

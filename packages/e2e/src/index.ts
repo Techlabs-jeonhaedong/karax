@@ -1,5 +1,5 @@
 /**
- * @sfc/e2e — public API
+ * @karax/e2e — public API
  *
  * 파이프라인:
  * detect framework → parse scenario → ensureBooted → build → install+launch
@@ -39,7 +39,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     agent = "claude",
     apiKey,
     deviceId,
-    outDir = "/tmp/sfc-e2e-out",
+    outDir = "/tmp/karax-e2e-out",
     timeoutMs = 900_000,
     maxSteps = 20,
     keepBooted = false,

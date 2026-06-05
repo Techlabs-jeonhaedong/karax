@@ -1,4 +1,4 @@
-# E2E 테스트 자동화 기능 (`sfc test`) 구현 계획
+# E2E 테스트 자동화 기능 (`karax test`) 구현 계획
 
 > 프로젝트 규칙에 따라 구현 시작 시 이 계획을 `./plans/build-tester_plan.md`로 복사한다.
 
@@ -10,11 +10,11 @@ karax는 현재 "빌드 없이" 정적 분석으로 스크린샷을 추출하는
 - **확정 결정 1 — 에이전트 CLI 단일 경로**: 자체 API tool-use 루프를 만들지 않는다. `claude -p` / `codex exec` / `gemini -p` 헤드리스 CLI를 spawn. 구독 사용자는 기존 CLI 로그인 그대로, API 토큰 사용자는 env(`ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GEMINI_API_KEY`) 주입으로 같은 경로 사용.
 - **확정 결정 2 — 4종 프레임워크 전체 지원**: Flutter / RN / Android 네이티브 / iOS 네이티브(macOS 한정), Android 에뮬레이터 + iOS 시뮬레이터 모두.
 
-기존 코드에 디바이스 라이프사이클·풀 앱 빌드·에이전트 spawn 인프라는 **전무**하므로 신규 패키지 `@sfc/e2e`를 만들고, doctor/cli/mcp/sdk를 확장한다.
+기존 코드에 디바이스 라이프사이클·풀 앱 빌드·에이전트 spawn 인프라는 **전무**하므로 신규 패키지 `@karax/e2e`를 만들고, doctor/cli/mcp/sdk를 확장한다.
 
 ## 핵심 설계
 
-### 패키지 레이아웃 — 신규 `packages/e2e` (`@sfc/e2e`) 단일 패키지
+### 패키지 레이아웃 — 신규 `packages/e2e` (`@karax/e2e`) 단일 패키지
 
 ```
 packages/e2e/
@@ -105,10 +105,10 @@ CLI 종료 코드: 테스트 자체 실패(outcome:"fail") → `PARTIAL_FAILURE(
 ### 표면 (수정되는 기존 파일)
 
 - **doctor**: 신규 체크 `checks/adb.ts`, `checks/emulator.ts`(emulator+avdmanager+AVD 존재), `checks/agentClis.ts`(claude/codex/gemini `--version`). `checks/index.ts`, `src/index.ts`(runAllChecks)에 와이어링. `tiers.ts`는 건드리지 않음(E2E는 캡처 티어 모델과 직교 — 주석 명시).
-- **cli**: `commands.ts`에 `parseTestArgs`, `bin.ts`에 `test <path>` 커맨드. 옵션: `--platform <android|ios>`(필수), `--scenario <file>`, `--agent <claude|codex|gemini>`(기본 claude), `--api-key`, `--device <id>`, `--out <dir>`, `--timeout <ms>`, `--max-steps <n>`, `--json`, `--keep-booted`. lazy `await import("@sfc/e2e")`. 한국어 설명/에러.
+- **cli**: `commands.ts`에 `parseTestArgs`, `bin.ts`에 `test <path>` 커맨드. 옵션: `--platform <android|ios>`(필수), `--scenario <file>`, `--agent <claude|codex|gemini>`(기본 claude), `--api-key`, `--device <id>`, `--out <dir>`, `--timeout <ms>`, `--max-steps <n>`, `--json`, `--keep-booted`. lazy `await import("@karax/e2e")`. 한국어 설명/에러.
 - **mcp**: `server.ts`에 8번째 툴 `run_e2e_test` (장시간 소요 명시, 응답은 요약 텍스트 + 리포트 경로 + 최종 스크린샷 소량만 base64).
 - **sdk**: `runE2eTest` 및 타입 재노출 (sdk가 public API 집약점이라는 관례 유지).
-- 각 package.json에 `@sfc/e2e` 의존성 + tsconfig references 추가.
+- 각 package.json에 `@karax/e2e` 의존성 + tsconfig references 추가.
 
 ## 구현 순서 (TDD — 각 유닛 테스트 파일 먼저, Red→Green→Refactor)
 
@@ -124,13 +124,13 @@ CLI 종료 코드: 테스트 자체 실패(outcome:"fail") → `PARTIAL_FAILURE(
 | 7 | `agent/prompt.ts` | deviceId/appId/screenshotsDir/maxSteps/출력 계약 포함 여부, 시나리오 vs 탐색 분기 | S |
 | 8 | `agent/resultSchema.ts` + `report/schema.ts` | zod valid/invalid 케이스 | S |
 | 9 | `report/write.ts` + `session.ts` | temp 세션 디렉토리에 report.json/md 라운드트립 | S |
-| 10 | `device/android.ts`·`ios.ts`·`index.ts` | execa mock — 명령/인자 검증, 부팅 폴링 타임아웃→EMULATOR_BOOT_TIMEOUT. 실기기 경로는 `SFC_E2E_REAL` env 가드(CI skip) | L |
+| 10 | `device/android.ts`·`ios.ts`·`index.ts` | execa mock — 명령/인자 검증, 부팅 폴링 타임아웃→EMULATOR_BOOT_TIMEOUT. 실기기 경로는 `KARAX_E2E_REAL` env 가드(CI skip) | L |
 | 11 | `build/*.ts` 빌더 4종 + `index.ts` | execa mock — 명령/env, COCOAPODS_REQUIRED preflight, 아티팩트 연결 | L |
 | 12 | `agent/runner.ts` | execa mock + temp result.json — 성공/스키마위반→재시도→AGENT_OUTPUT_INVALID/타임아웃/CLI부재 | M |
 | 13 | `src/index.ts` `runE2eTest` 오케스트레이션 | mock 주입 seam으로 파이프라인 순서·outcome 매핑·에러 전파 | M |
 | 14 | doctor 체크 3종 + 와이어링 | 체크별 execa mock 테스트 | M |
 | 15 | CLI `parseTestArgs` + `test` 커맨드 + sdk 재노출 | commands.test.ts에 파싱/검증 케이스 추가 | M |
-| 16 | MCP `run_e2e_test` 툴 | server.test.ts에 등록·핸들러 검증(@sfc/e2e mock) | S |
+| 16 | MCP `run_e2e_test` 툴 | server.test.ts에 등록·핸들러 검증(@karax/e2e mock) | S |
 
 파이프라인: detect framework → parse scenario → ensureBooted → preflight+build → install+launch → spawnAgent(검증/재시도) → report 작성 → (옵션) shutdown.
 

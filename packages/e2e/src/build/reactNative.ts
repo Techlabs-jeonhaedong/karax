@@ -65,7 +65,7 @@ export class RnIosBuilder implements AppBuilder {
   private derivedDataPath: string;
 
   constructor(derivedDataPath?: string) {
-    this.derivedDataPath = derivedDataPath ?? path.join(os.tmpdir(), `sfc-rn-ios-${Date.now()}`);
+    this.derivedDataPath = derivedDataPath ?? path.join(os.tmpdir(), `karax-rn-ios-${Date.now()}`);
   }
 
   async build(projectPath: string): Promise<BuildResult> {

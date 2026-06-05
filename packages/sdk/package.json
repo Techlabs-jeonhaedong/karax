@@ -28,7 +28,7 @@
     "@sfc/compile-react-native": "workspace:*",
     "@sfc/core": "workspace:*",
     "@sfc/doctor": "workspace:*",
-    "@sfc/e2e": "workspace:*",
+    "@karax/e2e": "workspace:*",
     "@sfc/renderer": "workspace:*"
   },
   "devDependencies": {

@@ -154,7 +154,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@sfc/e2e':
+      '@karax/e2e':
         specifier: workspace:*
         version: link:../e2e
       '@sfc/sdk':
@@ -346,12 +346,12 @@ importers:
 
   packages/mcp:
     dependencies:
+      '@karax/e2e':
+        specifier: workspace:*
+        version: link:../e2e
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.0
         version: 1.29.0(zod@3.25.76)
-      '@sfc/e2e':
-        specifier: workspace:*
-        version: link:../e2e
       '@sfc/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -399,6 +399,9 @@ importers:
 
   packages/sdk:
     dependencies:
+      '@karax/e2e':
+        specifier: workspace:*
+        version: link:../e2e
       '@sfc/adapter-android':
         specifier: workspace:*
         version: link:../adapter-android
@@ -432,9 +435,6 @@ importers:
       '@sfc/doctor':
         specifier: workspace:*
         version: link:../doctor
-      '@sfc/e2e':
-        specifier: workspace:*
-        version: link:../e2e
       '@sfc/renderer':
         specifier: workspace:*
         version: link:../renderer

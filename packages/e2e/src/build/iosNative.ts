@@ -20,7 +20,7 @@ export class IosNativeBuilder implements AppBuilder {
   private derivedDataPath: string;
 
   constructor(derivedDataPath?: string) {
-    this.derivedDataPath = derivedDataPath ?? path.join(os.tmpdir(), `sfc-ios-${Date.now()}`);
+    this.derivedDataPath = derivedDataPath ?? path.join(os.tmpdir(), `karax-ios-${Date.now()}`);
   }
 
   async build(projectPath: string): Promise<BuildResult> {

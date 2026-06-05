@@ -93,9 +93,9 @@ describe("createIosDeviceManager", () => {
     });
   });
 
-  describe("실기기 경로 (SFC_E2E_REAL 가드)", () => {
-    it("SFC_E2E_REAL 없으면 ensureBooted 실기기 테스트를 skip", () => {
-      if (process.env["SFC_E2E_REAL"]) return;
+  describe("실기기 경로 (KARAX_E2E_REAL 가드)", () => {
+    it("KARAX_E2E_REAL 없으면 ensureBooted 실기기 테스트를 skip", () => {
+      if (process.env["KARAX_E2E_REAL"]) return;
       expect(true).toBe(true);
     });
   });

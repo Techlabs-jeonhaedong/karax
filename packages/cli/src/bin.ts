@@ -363,7 +363,7 @@ program
   .option("--agent <agent>", "LLM 에이전트: claude|codex|gemini", "claude")
   .option("--api-key <key>", "에이전트 API 키 (없으면 CLI 로그인 사용)")
   .option("--device <id>", "디바이스/에뮬레이터 ID")
-  .option("--out <dir>", "결과 출력 디렉토리", "/tmp/sfc-e2e-out")
+  .option("--out <dir>", "결과 출력 디렉토리", "/tmp/karax-e2e-out")
   .option("--timeout <ms>", "에이전트 전체 타임아웃 (ms)", "900000")
   .option("--max-steps <n>", "에이전트 최대 스텝 수", "20")
   .option("--json", "JSON 형식으로 출력", false)
@@ -399,7 +399,7 @@ program
           ...(opts.keepBooted ? ["--keep-booted"] : []),
         ]);
 
-        const { runE2eTest } = await import("@sfc/e2e");
+        const { runE2eTest } = await import("@karax/e2e");
 
         console.log(`\nE2E 테스트 시작: ${args.path} (플랫폼: ${args.platform}, 에이전트: ${args.agent})\n`);
 

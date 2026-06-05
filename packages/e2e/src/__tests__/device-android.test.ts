@@ -116,9 +116,9 @@ describe("createAndroidDeviceManager", () => {
     });
   });
 
-  describe("실기기 경로 (SFC_E2E_REAL 가드)", () => {
-    it("SFC_E2E_REAL 없으면 ensureBooted 테스트를 skip", () => {
-      if (process.env["SFC_E2E_REAL"]) return;
+  describe("실기기 경로 (KARAX_E2E_REAL 가드)", () => {
+    it("KARAX_E2E_REAL 없으면 ensureBooted 테스트를 skip", () => {
+      if (process.env["KARAX_E2E_REAL"]) return;
       // 실기기 없이는 ensureBooted 테스트 수행 안 함
       expect(true).toBe(true);
     });

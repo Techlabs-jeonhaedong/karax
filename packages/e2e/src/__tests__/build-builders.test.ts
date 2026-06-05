@@ -28,7 +28,7 @@ let tmpDir: string;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-e2e-build-test-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-e2e-build-test-"));
 });
 
 afterEach(() => {
