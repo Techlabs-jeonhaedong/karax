@@ -57,7 +57,7 @@ pnpm bootstrap
 # 방법 1: claude mcp add 명령
 claude mcp add karax -- node "$(pwd)/scripts/mcp-launcher.mjs"
 
-# 방법 2: sfc mcp-config로 스니펫 생성
+# 방법 2: karax mcp-config로 스니펫 생성
 node packages/cli/dist/bin.js mcp-config
 ```
 
