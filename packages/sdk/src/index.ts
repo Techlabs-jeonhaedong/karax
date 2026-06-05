@@ -28,6 +28,8 @@ import { runDoctor, doctorFix as coreDoctorFix } from "@sfc/doctor";
 import type { DoctorReport } from "@sfc/doctor";
 import { renderScreenshot } from "@sfc/renderer";
 import type { IRDocument } from "@sfc/core";
+export { generateAppMap, renderAppMapMarkdown } from "./appMap.js";
+export type { GenerateAppMapOptions, AppMap, AppMapDocument, AppMapRenderOptions } from "./appMap.js";
 
 export const SDK_VERSION = "0.0.1" as const;
 

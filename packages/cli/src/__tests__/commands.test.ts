@@ -12,6 +12,7 @@ import {
   parseListArgs,
   parseCaptureArgs,
   parseMcpConfigArgs,
+  parseMapArgs,
   EXIT_CODES,
 } from "../commands.js";
 
@@ -149,6 +150,37 @@ describe("parseMcpConfigArgs", () => {
   it("인수 없이도 파싱된다", () => {
     const result = parseMcpConfigArgs([]);
     expect(result).toBeDefined();
+  });
+});
+
+// ─── map ───────────────────────────────────────────────────────────
+
+describe("parseMapArgs", () => {
+  it("경로 인수를 파싱한다", () => {
+    const result = parseMapArgs(["/some/project"]);
+    expect(result.path).toBe("/some/project");
+    expect(result.out).toBeUndefined();
+    expect(result.maxChars).toBeUndefined();
+    expect(result.json).toBe(false);
+  });
+
+  it("--out 옵션을 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--out", "/tmp/map-out"]);
+    expect(result.out).toBe("/tmp/map-out");
+  });
+
+  it("--max-chars 옵션을 파싱한다 (숫자 변환)", () => {
+    const result = parseMapArgs(["/p", "--max-chars", "3000"]);
+    expect(result.maxChars).toBe(3000);
+  });
+
+  it("--json 플래그를 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--json"]);
+    expect(result.json).toBe(true);
+  });
+
+  it("경로가 없으면 에러를 던진다", () => {
+    expect(() => parseMapArgs([])).toThrow();
   });
 });
 

@@ -5,6 +5,7 @@ import type {
   FrameworkEvidence,
   AdapterContext,
   ScreenSummary,
+  NavigationGraph,
 } from "@sfc/adapter-api";
 import type { IRDocument } from "@sfc/core";
 import { buildSwiftSymbolTable } from "./parse/scanner.js";
@@ -12,6 +13,7 @@ import { discoverSwiftRouteGraph } from "./discover/routeGraph.js";
 import { findSwiftHeuristicCandidates } from "./discover/heuristic.js";
 import { buildSwiftScreenIR } from "./ir/builder.js";
 import { detectUIKit, discoverUIKitScreens, buildUIKitScreenIR } from "./legacy/storyboardParser.js";
+import { discoverIOSNavGraph, readIOSAppName } from "./discover/navGraph.js";
 
 // ── 유틸 ─────────────────────────────────────────────────────────────────────
 
@@ -182,6 +184,15 @@ export const iosAdapter: FrameworkAdapter = {
     }
 
     return buildSwiftScreenIR(ctx, screenId);
+  },
+
+  async discoverNavigation(ctx: AdapterContext): Promise<NavigationGraph> {
+    const symbolTable = await buildSwiftSymbolTable(ctx.projectPath);
+    return discoverIOSNavGraph(ctx.projectPath, symbolTable);
+  },
+
+  async readAppName(ctx: AdapterContext): Promise<string | undefined> {
+    return readIOSAppName(ctx.projectPath);
   },
 };
 

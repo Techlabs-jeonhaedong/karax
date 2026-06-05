@@ -1,4 +1,4 @@
-import type { IRDocument } from "@sfc/core";
+import type { IRDocument, NavigationGraph } from "@sfc/core";
 
 // ── 공유 기본 타입 ──────────────────────────────────────────────
 
@@ -98,6 +98,18 @@ export interface FrameworkAdapter {
    * 특정 화면의 UI IR을 정적 분석으로 빌드한다.
    */
   buildScreenIR(ctx: AdapterContext, screenId: string): Promise<IRDocument>;
+
+  /**
+   * 화면 간 네비게이션 그래프를 정적 분석으로 추출한다. (선택 구현)
+   * 미구현 시 SDK가 빈 그래프 + NAV_UNSUPPORTED 진단을 생성한다.
+   */
+  discoverNavigation?(ctx: AdapterContext): Promise<NavigationGraph>;
+
+  /**
+   * 앱 이름을 추출한다. (선택 구현)
+   * 미구현 시 SDK가 basename(projectPath) fallback을 사용한다.
+   */
+  readAppName?(ctx: AdapterContext): Promise<string | undefined>;
 }
 
 // ── CompileBackend 인터페이스 ───────────────────────────────────

@@ -19,6 +19,7 @@ import {
   captureScreen,
   captureAll,
   ensureDependencies,
+  generateAppMap,
 } from "@sfc/sdk";
 import type { FrameworkId, DeviceProfileId, CaptureMode } from "@sfc/sdk";
 
@@ -375,6 +376,36 @@ export function createMcpServer(): McpServer {
         };
       } catch (e) {
         return errorContent(wrapError(e));
+      }
+    }
+  );
+
+  // ── 8. generate_app_map ───────────────────────────────────────────
+
+  server.tool(
+    "generate_app_map",
+    "프로젝트의 화면 구조와 네비게이션 그래프를 분석해 AppMap을 반환한다",
+    {
+      projectPath: z.string().min(1),
+      framework: z.enum(["flutter", "react-native", "ios", "android"]).optional(),
+    },
+    async ({ projectPath, framework }) => {
+      try {
+        validateProjectPath(projectPath);
+        const appMap = await generateAppMap({
+          projectPath,
+          ...(framework ? { framework: framework as FrameworkId } : {}),
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ appMap }, null, 2),
+            },
+          ],
+        };
+      } catch (e) {
+        return errorContent(`generate_app_map 오류: ${wrapError(e)}`);
       }
     }
   );

@@ -29,3 +29,29 @@ export type {
 
 export { expandVariants } from "./ir/expandVariants.js";
 export type { VariantDoc } from "./ir/expandVariants.js";
+
+export {
+  AppMapSchema,
+  NavigationEdgeSchema,
+  NavigationGraphSchema,
+  ScreenNodeSchema,
+  MapElementSchema,
+  TriggerInfoSchema,
+  DiagnosticEntrySchema,
+  sanitizeAppName,
+} from "./appmap/schema.js";
+export type {
+  AppMap,
+  NavigationEdge,
+  NavigationGraph,
+  ScreenNode,
+  MapElement,
+  TriggerInfo,
+  DiagnosticEntry as AppMapDiagnosticEntry,
+} from "./appmap/schema.js";
+
+export { assembleAppMap } from "./appmap/assemble.js";
+export type { AssembleOptions, ScreenSummary as AppMapScreenSummary } from "./appmap/assemble.js";
+
+export { renderAppMapMarkdown } from "./appmap/markdown.js";
+export type { AppMapDocument, RenderOptions as AppMapRenderOptions } from "./appmap/markdown.js";

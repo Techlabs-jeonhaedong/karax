@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@sfc/sdk": "workspace:*",
+    "@sfc/core": "workspace:*",
     "commander": "^13.0.0"
   },
   "devDependencies": {
