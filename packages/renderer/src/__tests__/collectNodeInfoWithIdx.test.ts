@@ -6,7 +6,7 @@
  * irToHtmlWithIdx와 동일 순서로 idx를 부여하는지도 검증한다.
  */
 import { describe, it, expect } from "vitest";
-import type { IRDocument, IRNode } from "@sfc/core";
+import type { IRDocument, IRNode } from "@karax/core";
 import { irToHtmlWithIdx } from "../html/irToHtml.js";
 import { getDeviceProfile } from "../devices/profiles.js";
 import { collectNodeInfoWithIdx } from "../capture/capture.js";
@@ -25,14 +25,14 @@ function makeDoc(root: IRNode): IRDocument {
   };
 }
 
-/** HTML에서 data-sfc-idx 속성의 개수를 센다 */
+/** HTML에서 data-karax-idx 속성의 개수를 센다 */
 function countIdxAttrs(html: string): number {
-  return (html.match(/data-sfc-idx="\d+"/g) ?? []).length;
+  return (html.match(/data-karax-idx="\d+"/g) ?? []).length;
 }
 
-/** HTML에서 data-sfc-idx 값 목록을 정렬해 반환한다 */
+/** HTML에서 data-karax-idx 값 목록을 정렬해 반환한다 */
 function extractIdxValues(html: string): number[] {
-  const matches = html.matchAll(/data-sfc-idx="(\d+)"/g);
+  const matches = html.matchAll(/data-karax-idx="(\d+)"/g);
   return Array.from(matches, (m) => parseInt(m[1], 10)).sort((a, b) => a - b);
 }
 
@@ -208,7 +208,7 @@ describe("collectNodeInfoWithIdx — leaf children 불변식 (중간-4 회귀)",
     expect(html).toContain("VariantA");
     expect(html).not.toContain("VariantB");
 
-    // data-sfc-idx: 0(Column), 2(VariantA Text), 3(after Text) = 3개
+    // data-karax-idx: 0(Column), 2(VariantA Text), 3(after Text) = 3개
     // Branch는 DOM에 심기지 않으므로 idx=1 없음
     const idxValues = extractIdxValues(html);
     expect(idxValues).toEqual([0, 2, 3]);

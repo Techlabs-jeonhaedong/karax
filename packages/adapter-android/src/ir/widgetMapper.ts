@@ -25,9 +25,9 @@
  * - 알 수 없는 → Unknown (confidence 0.2)
  */
 
-import type { IRNode } from "@sfc/core";
-import { NODE_CONFIDENCE } from "@sfc/core";
-import type { MockProvider } from "@sfc/core";
+import type { IRNode } from "@karax/core";
+import { NODE_CONFIDENCE } from "@karax/core";
+import type { MockProvider } from "@karax/core";
 import type { SymbolTable, ParsedFile } from "../parse/scanner.js";
 import type { ResourceMap } from "../parse/resources.js";
 import {

@@ -13,8 +13,8 @@
  *   View (divider) → Divider
  */
 
-import type { IRNode } from "@sfc/core";
-import { NODE_CONFIDENCE } from "@sfc/core";
+import type { IRNode } from "@karax/core";
+import { NODE_CONFIDENCE } from "@karax/core";
 
 // ── 속성 파싱 유틸 ─────────────────────────────────────────────────────────────
 

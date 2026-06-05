@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 import path from "path";
 import { fileURLToPath } from "url";
 import { androidAdapter } from "../index.js";
-import type { AdapterContext } from "@sfc/adapter-api";
-import type { IRNode } from "@sfc/core";
-import { safeParseIRDocument } from "@sfc/core";
+import type { AdapterContext } from "@karax/adapter-api";
+import type { IRNode } from "@karax/core";
+import { safeParseIRDocument } from "@karax/core";
 
 /** 노드 트리에서 모든 Text 노드의 value를 수집한다 */
 function collectTextValues(node: IRNode): string[] {

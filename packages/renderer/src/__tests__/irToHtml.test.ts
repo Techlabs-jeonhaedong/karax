@@ -2,7 +2,7 @@ import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
-import type { IRDocument } from "@sfc/core";
+import type { IRDocument } from "@karax/core";
 import { irToHtml } from "../html/irToHtml.js";
 import { getDeviceProfile } from "../devices/profiles.js";
 

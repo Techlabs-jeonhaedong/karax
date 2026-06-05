@@ -11,7 +11,7 @@ import { fileURLToPath } from "url";
 import { describe, expect, it, afterEach } from "vitest";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
-import { renderScreenshot } from "@sfc/renderer";
+import { renderScreenshot } from "@karax/renderer";
 import { buildUIKitScreenIR } from "../legacy/storyboardParser.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -73,7 +73,7 @@ describe("UIKit Storyboard 화면 골든 이미지 (Tier 2)", () => {
     if (!existsSync(goldenPath)) {
       throw new Error(
         `골든 이미지 없음: ${goldenPath}\n` +
-          `생성하려면: UPDATE_GOLDENS=1 pnpm test --filter @sfc/adapter-ios`
+          `생성하려면: UPDATE_GOLDENS=1 pnpm test --filter @karax/adapter-ios`
       );
     }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { IRDocument, IRNode } from "@sfc/core";
+import type { IRDocument, IRNode } from "@karax/core";
 import {
   createLlmEnrichmentPlugin,
   anthropicComplete,
@@ -255,7 +255,7 @@ describe("유효 패치 적용", () => {
       { nodePath: "root.children[0]", node },
     ]);
 
-    const { IRDocumentSchema } = await import("@sfc/core");
+    const { IRDocumentSchema } = await import("@karax/core");
     const applied = applyPatches(doc, result.patches);
     expect(() => IRDocumentSchema.parse(applied)).not.toThrow();
   });
@@ -408,7 +408,7 @@ describe("결정론 보장", () => {
 
   it("plugin 없이 IRDocument는 그대로 유지된다 (applyPatches 빈 배열)", async () => {
     const { applyPatches } = await import("../index.js");
-    const { IRDocumentSchema } = await import("@sfc/core");
+    const { IRDocumentSchema } = await import("@karax/core");
     const doc = makeDoc();
 
     const applied = applyPatches(doc, []);
@@ -627,7 +627,7 @@ describe("엣지 케이스", () => {
 
   it("applyPatches — 존재하지 않는 nodePath는 조용히 무시", async () => {
     const { applyPatches } = await import("../index.js");
-    const { IRDocumentSchema } = await import("@sfc/core");
+    const { IRDocumentSchema } = await import("@karax/core");
     const doc = makeDoc();
 
     const replacement: IRNode = { type: "Box", confidence: 0.6, children: [] };

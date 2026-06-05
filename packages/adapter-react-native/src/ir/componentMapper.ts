@@ -18,10 +18,10 @@
  * - .map() → 3회 반복
  */
 
-import type { SyntaxNode } from "@sfc/adapter-api";
-import type { IRNode } from "@sfc/core";
-import { NODE_CONFIDENCE } from "@sfc/core";
-import type { MockProvider } from "@sfc/core";
+import type { SyntaxNode } from "@karax/adapter-api";
+import type { IRNode } from "@karax/core";
+import { NODE_CONFIDENCE } from "@karax/core";
+import type { MockProvider } from "@karax/core";
 import type { SymbolTable } from "../parse/scanner.js";
 import { findNodes, findChild, filterChildren } from "../parse/scanner.js";
 import { tryInlineComponent } from "./inliner.js";

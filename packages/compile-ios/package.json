@@ -1,5 +1,5 @@
 {
-  "name": "@sfc/compile-ios",
+  "name": "@karax/compile-ios",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sfc/adapter-api": "workspace:*",
+    "@karax/adapter-api": "workspace:*",
     "execa": "^9.0.0"
   },
   "devDependencies": {

@@ -44,7 +44,7 @@ describe("detectFramework", () => {
   });
 
   it("미지원 프레임워크 경로에서 flutter가 1위 아닌 경우 빈 배열 가능", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-sdk-test-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-sdk-test-"));
     const result = await detectFramework(tmpDir);
     // 에러가 아닌 빈 배열(또는 낮은 confidence)를 반환해야 함
     expect(Array.isArray(result.frameworks)).toBe(true);
@@ -73,7 +73,7 @@ describe("doctorFix", () => {
   it("DoctorReport를 받아 재진단 리포트를 반환해야 한다", async () => {
     // doctorFix는 autoInstallable 항목(Chromium)을 실제 설치 시도할 수 있다.
     // 테스트에서는 overallOk=true 상태의 mock report를 넘겨 설치 경로를 우회한다.
-    const mockReport: import("@sfc/doctor").DoctorReport = {
+    const mockReport: import("@karax/doctor").DoctorReport = {
       checks: [
         { id: "node", label: "Node.js", status: "ok", version: "20.0.0", autoInstallable: false, hint: "" },
       ],
@@ -159,10 +159,10 @@ describe("buildScreenIR", () => {
 
 // ── captureAll (mode:static) ────────────────────────────────────────
 
-describe("captureAll — static 모드 (SFC_SKIP_ENSURE=1 필요)", () => {
+describe("captureAll — static 모드 (KARAX_SKIP_ENSURE=1 필요)", () => {
   it("flutter-basic fixture에서 PNG+report.json+AnalysisReport 생성", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-sdk-captureAll-"));
-    process.env.SFC_SKIP_ENSURE = "1";
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-sdk-captureAll-"));
+    process.env.KARAX_SKIP_ENSURE = "1";
 
     try {
       const result = await captureAll({
@@ -202,7 +202,7 @@ describe("captureAll — static 모드 (SFC_SKIP_ENSURE=1 필요)", () => {
       expect(result.report.overallConfidence).toBeGreaterThanOrEqual(0);
       expect(result.report.overallConfidence).toBeLessThanOrEqual(1);
     } finally {
-      delete process.env.SFC_SKIP_ENSURE;
+      delete process.env.KARAX_SKIP_ENSURE;
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
@@ -217,8 +217,8 @@ describe("captureAll — static 모드 (SFC_SKIP_ENSURE=1 필요)", () => {
 
 describe("captureScreen — static 모드", () => {
   it("특정 screenId PNG를 생성해야 한다", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-sdk-cap-"));
-    process.env.SFC_SKIP_ENSURE = "1";
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-sdk-cap-"));
+    process.env.KARAX_SKIP_ENSURE = "1";
 
     try {
       const screens = await listScreens({
@@ -241,23 +241,23 @@ describe("captureScreen — static 모드", () => {
       expect(result.width).toBeGreaterThan(0);
       expect(result.height).toBeGreaterThan(0);
     } finally {
-      delete process.env.SFC_SKIP_ENSURE;
+      delete process.env.KARAX_SKIP_ENSURE;
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 });
 
-// ── captureScreen — Tier 1 통합 (SFC_FLUTTER_INTEGRATION=1 가드) ──
+// ── captureScreen — Tier 1 통합 (KARAX_FLUTTER_INTEGRATION=1 가드) ──
 
 describe("captureScreen — Tier 1 실제 실행 (flutter 설치 필요)", () => {
-  const RUN = process.env.SFC_FLUTTER_INTEGRATION === "1";
+  const RUN = process.env.KARAX_FLUTTER_INTEGRATION === "1";
 
   it.skipIf(!RUN)(
     "flutter fixture에서 Tier 1 캡처 성공 (1건)",
     async () => {
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-sdk-tier1-"));
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-sdk-tier1-"));
       // ensureChromium npx CLI 의존 방지 — Playwright Node API 탐지가 정상이므로 ensure 불필요
-      process.env.SFC_SKIP_ENSURE = "1";
+      process.env.KARAX_SKIP_ENSURE = "1";
       try {
         const screens = await listScreens({
           projectPath: FLUTTER_FIXTURE,
@@ -275,7 +275,7 @@ describe("captureScreen — Tier 1 실제 실행 (flutter 설치 필요)", () =>
         expect(result.tierUsed).toBe("compile");
         expect(fs.existsSync(result.pngPath)).toBe(true);
       } finally {
-        delete process.env.SFC_SKIP_ENSURE;
+        delete process.env.KARAX_SKIP_ENSURE;
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }
     }
@@ -284,8 +284,8 @@ describe("captureScreen — Tier 1 실제 실행 (flutter 설치 필요)", () =>
   it.skipIf(!RUN)(
     "flutter 없는 화면(깨진 화면) auto → static fallback",
     async () => {
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-sdk-tier1-fb-"));
-      process.env.SFC_SKIP_ENSURE = "1";
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-sdk-tier1-fb-"));
+      process.env.KARAX_SKIP_ENSURE = "1";
       try {
         // orphan_screen: candidate discovery, 하니스 파라미터 주입 어려울 수 있음
         const result = await captureScreen({
@@ -300,7 +300,7 @@ describe("captureScreen — Tier 1 실제 실행 (flutter 설치 필요)", () =>
         expect(fs.existsSync(result.pngPath)).toBe(true);
         expect(["compile", "static"] as const).toContain(result.tierUsed);
       } finally {
-        delete process.env.SFC_SKIP_ENSURE;
+        delete process.env.KARAX_SKIP_ENSURE;
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }
     }

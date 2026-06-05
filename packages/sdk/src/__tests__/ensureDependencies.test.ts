@@ -10,8 +10,8 @@ describe("ensureDependencies — 거부 후 재시도", () => {
   beforeEach(() => {
     // 모듈 캐시를 초기화해 _ensurePromise 싱글턴 리셋
     vi.resetModules();
-    // SFC_SKIP_ENSURE가 설정돼 있으면 early return되므로 제거
-    delete process.env.SFC_SKIP_ENSURE;
+    // KARAX_SKIP_ENSURE가 설정돼 있으면 early return되므로 제거
+    delete process.env.KARAX_SKIP_ENSURE;
   });
 
   it("첫 호출 실패 후 두 번째 호출은 재시도한다 (영구 차단 안 됨)", async () => {
@@ -22,7 +22,7 @@ describe("ensureDependencies — 거부 후 재시도", () => {
       // 두 번째 호출은 성공
     });
 
-    vi.doMock("@sfc/doctor", () => ({
+    vi.doMock("@karax/doctor", () => ({
       doctorFix: mockFix,
     }));
 
@@ -42,7 +42,7 @@ describe("ensureDependencies — 거부 후 재시도", () => {
   it("첫 호출 성공 후 두 번째 호출은 캐시를 재사용한다 (doctorFix 1회만 호출)", async () => {
     const mockFix = vi.fn().mockResolvedValue(undefined);
 
-    vi.doMock("@sfc/doctor", () => ({
+    vi.doMock("@karax/doctor", () => ({
       doctorFix: mockFix,
     }));
 
@@ -61,7 +61,7 @@ describe("ensureDependencies — 거부 후 재시도", () => {
       if (callCount < 3) throw new Error(`fail #${callCount}`);
     });
 
-    vi.doMock("@sfc/doctor", () => ({
+    vi.doMock("@karax/doctor", () => ({
       doctorFix: mockFix,
     }));
 
