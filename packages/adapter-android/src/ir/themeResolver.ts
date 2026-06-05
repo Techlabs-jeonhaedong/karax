@@ -243,6 +243,8 @@ export async function resolveTheme(projectPath: string): Promise<ThemeResult> {
 
     const parsed = await parseKotlinFile(themeFile, projectPath);
     const source = parsed.source;
+    // ParsedFile의 root(SyntaxNode)는 themeResolver에서 사용하지 않으므로 즉시 해제
+    parsed.disposeTree();
 
     // 색상 변수 맵 빌드
     const colorVarMap = buildColorVariableMap(source);

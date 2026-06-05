@@ -140,141 +140,144 @@ export async function buildScreenIR(
   } catch { /* 패키지명 없어도 진행 */ }
 
   const symbolTable = await buildSymbolTable(projectPath, packageName);
+  try {
+    // 2. 화면 발견 — discovery 판단
+    const { routes } = await discoverRouteGraph(projectPath, symbolTable);
+    const routeClassSet = new Set(routes.map(r => r.className));
+    const candidates = findHeuristicCandidates(symbolTable, routeClassSet);
+    const candidateClassSet = new Set(candidates.map(c => c.className));
 
-  // 2. 화면 발견 — discovery 판단
-  const { routes } = await discoverRouteGraph(projectPath, symbolTable);
-  const routeClassSet = new Set(routes.map(r => r.className));
-  const candidates = findHeuristicCandidates(symbolTable, routeClassSet);
-  const candidateClassSet = new Set(candidates.map(c => c.className));
+    const isRoute = routeClassSet.has(screenId);
+    const isCandidate = candidateClassSet.has(screenId);
+    const discovery: "route" | "candidate" = isRoute ? "route" : "candidate";
 
-  const isRoute = routeClassSet.has(screenId);
-  const isCandidate = candidateClassSet.has(screenId);
-  const discovery: "route" | "candidate" = isRoute ? "route" : "candidate";
+    // 화면 클래스 존재 확인
+    const classInfo = symbolTable.classes.get(screenId);
+    if (!classInfo) {
+      // UNRESOLVED_COMPONENT: 존재하지 않는 screenId
+      const doc: IRDocument = {
+        schemaVersion: "0.1",
+        screen: {
+          id: screenId,
+          discovery: "candidate",
+          confidence: 0,
+          root: {
+            type: "Unknown",
+            confidence: NODE_CONFIDENCE.unknown,
+            role: `component:${screenId}`,
+          },
+        },
+        designTokens: undefined,
+        diagnostics: [{
+          level: "warn",
+          code: "UNRESOLVED_COMPONENT",
+          message: `화면 클래스 '${screenId}'를 심볼 테이블에서 찾을 수 없음`,
+        }],
+      };
+      return parseIRDocument(doc);
+    }
 
-  // 화면 클래스 존재 확인
-  const classInfo = symbolTable.classes.get(screenId);
-  if (!classInfo) {
-    // UNRESOLVED_COMPONENT: 존재하지 않는 screenId
-    const doc: IRDocument = {
+    // 3. ThemeResolver
+    const themeResult = await resolveTheme(projectPath);
+    for (const d of themeResult.diagnostics) {
+      diagnostics.push(d);
+    }
+
+    // 4. 화면 클래스 AST에서 build() return 노드 추출
+    const parsedFile = symbolTable.fileByClass.get(screenId);
+    if (!parsedFile) {
+      return buildFallbackDocument(screenId, discovery, diagnostics);
+    }
+
+    const classDefs = findAllNodes(parsedFile.root, "class_definition");
+    const classNode = classDefs.find(c => {
+      const id = findChild(c, "identifier");
+      return id?.text === screenId;
+    });
+
+    if (!classNode) {
+      return buildFallbackDocument(screenId, discovery, diagnostics);
+    }
+
+    let returnNode = extractBuildReturnNode(classNode);
+
+    // StatefulWidget 처리: build()가 없으면 createState() → State 클래스에서 build() 찾기
+    if (!returnNode) {
+      const stateClassName = extractStateClassName(classNode);
+      if (stateClassName) {
+        const stateClassNode = findClassNode(parsedFile.root, stateClassName);
+        if (stateClassNode) {
+          returnNode = extractBuildReturnNode(stateClassNode);
+        }
+      }
+    }
+
+    if (!returnNode) {
+      return buildFallbackDocument(screenId, discovery, diagnostics);
+    }
+
+    // 5. widgetMapper로 IR 변환
+    const mapCtx: MapContext = {
+      depth: 0,
+      maxDepth: maxInlineDepth,
+      visited: new Set([screenId]),
+      symbolTable,
+      projectPath,
+      themeTokens: themeResult.colors,
+      mockProvider: mock,
+      diagnostics,
+      currentFileRoot: parsedFile.root,
+      currentFile: parsedFile.filePath,
+    };
+
+    let rootNode: IRNode;
+    try {
+      const mapped = await mapWidget(returnNode, mock, mapCtx);
+      rootNode = mapped ?? {
+        type: "Unknown",
+        confidence: NODE_CONFIDENCE.unknown,
+        role: `component:${screenId}`,
+      };
+    } catch {
+      rootNode = {
+        type: "Unknown",
+        confidence: NODE_CONFIDENCE.unknown,
+        role: `component:${screenId}`,
+      };
+    }
+
+    // 6. confidence 집계
+    const confidence = aggregateScreenConfidence(rootNode, discovery);
+
+    // 7. IRDocument 조립
+    const rawDoc = {
       schemaVersion: "0.1",
       screen: {
         id: screenId,
-        discovery: "candidate",
-        confidence: 0,
-        root: {
-          type: "Unknown",
-          confidence: NODE_CONFIDENCE.unknown,
-          role: `component:${screenId}`,
+        sourceRef: {
+          file: classInfo.file,
+          line: classInfo.line,
+          symbol: screenId,
         },
+        device: "iphone-15",
+        discovery,
+        confidence,
+        root: rootNode,
       },
-      designTokens: undefined,
-      diagnostics: [{
-        level: "warn",
-        code: "UNRESOLVED_COMPONENT",
-        message: `화면 클래스 '${screenId}'를 심볼 테이블에서 찾을 수 없음`,
-      }],
-    };
-    return parseIRDocument(doc);
-  }
-
-  // 3. ThemeResolver
-  const themeResult = await resolveTheme(projectPath);
-  for (const d of themeResult.diagnostics) {
-    diagnostics.push(d);
-  }
-
-  // 4. 화면 클래스 AST에서 build() return 노드 추출
-  const parsedFile = symbolTable.fileByClass.get(screenId);
-  if (!parsedFile) {
-    return buildFallbackDocument(screenId, discovery, diagnostics);
-  }
-
-  const classDefs = findAllNodes(parsedFile.root, "class_definition");
-  const classNode = classDefs.find(c => {
-    const id = findChild(c, "identifier");
-    return id?.text === screenId;
-  });
-
-  if (!classNode) {
-    return buildFallbackDocument(screenId, discovery, diagnostics);
-  }
-
-  let returnNode = extractBuildReturnNode(classNode);
-
-  // StatefulWidget 처리: build()가 없으면 createState() → State 클래스에서 build() 찾기
-  if (!returnNode) {
-    const stateClassName = extractStateClassName(classNode);
-    if (stateClassName) {
-      const stateClassNode = findClassNode(parsedFile.root, stateClassName);
-      if (stateClassNode) {
-        returnNode = extractBuildReturnNode(stateClassNode);
-      }
-    }
-  }
-
-  if (!returnNode) {
-    return buildFallbackDocument(screenId, discovery, diagnostics);
-  }
-
-  // 5. widgetMapper로 IR 변환
-  const mapCtx: MapContext = {
-    depth: 0,
-    maxDepth: maxInlineDepth,
-    visited: new Set([screenId]),
-    symbolTable,
-    projectPath,
-    themeTokens: themeResult.colors,
-    mockProvider: mock,
-    diagnostics,
-    currentFileRoot: parsedFile.root,
-    currentFile: parsedFile.filePath,
-  };
-
-  let rootNode: IRNode;
-  try {
-    const mapped = await mapWidget(returnNode, mock, mapCtx);
-    rootNode = mapped ?? {
-      type: "Unknown",
-      confidence: NODE_CONFIDENCE.unknown,
-      role: `component:${screenId}`,
-    };
-  } catch {
-    rootNode = {
-      type: "Unknown",
-      confidence: NODE_CONFIDENCE.unknown,
-      role: `component:${screenId}`,
-    };
-  }
-
-  // 6. confidence 집계
-  const confidence = aggregateScreenConfidence(rootNode, discovery);
-
-  // 7. IRDocument 조립
-  const rawDoc = {
-    schemaVersion: "0.1",
-    screen: {
-      id: screenId,
-      sourceRef: {
-        file: classInfo.file,
-        line: classInfo.line,
-        symbol: screenId,
+      designTokens: {
+        colors: themeResult.colors,
       },
-      device: "iphone-15",
-      discovery,
-      confidence,
-      root: rootNode,
-    },
-    designTokens: {
-      colors: themeResult.colors,
-    },
-    diagnostics: diagnostics.map(d => ({
-      level: d.level as "info" | "warn" | "error",
-      code: d.code,
-      message: d.message,
-    })),
-  };
+      diagnostics: diagnostics.map(d => ({
+        level: d.level as "info" | "warn" | "error",
+        code: d.code,
+        message: d.message,
+      })),
+    };
 
-  return parseIRDocument(rawDoc);
+    return parseIRDocument(rawDoc);
+  } finally {
+    symbolTable.dispose();
+  }
 }
 
 // ── 폴백 문서 ─────────────────────────────────────────────────────────────────
