@@ -46,7 +46,7 @@ export interface CaptureEngineDeps {
     buildScreenIR(ctx: LocalAdapterContext, screenId: string): Promise<IRDocument>;
   };
   compileBackend?: {
-    isAvailable(env: Record<string, unknown>): Promise<boolean>;
+    isAvailable(env: Record<string, unknown>, projectPath?: string): Promise<boolean>;
     capture(
       ctx: LocalAdapterContext,
       screen: LocalScreenSummary,
@@ -216,7 +216,7 @@ export async function captureScreenWithTiers(
       usedTier2 = true;
       fallbackReason = "compileBackend 미제공";
     } else {
-      const available = await deps.compileBackend.isAvailable({});
+      const available = await deps.compileBackend.isAvailable({}, opts.projectPath);
       if (!available) {
         usedTier2 = true;
         fallbackReason = "툴체인 미감지";

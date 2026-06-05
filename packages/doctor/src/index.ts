@@ -28,10 +28,10 @@ export interface DoctorReport {
 
 /**
  * 전체 환경을 진단하고 DoctorReport를 반환한다.
- * @param _projectPath 미래 확장을 위한 옵셔널 프로젝트 경로 (현재 미사용)
+ * @param projectPath 프로젝트 경로 — FVM SDK 감지에 사용 (optional)
  */
-export async function runDoctor(_projectPath?: string): Promise<DoctorReport> {
-  const checks = await runAllChecks();
+export async function runDoctor(projectPath?: string): Promise<DoctorReport> {
+  const checks = await runAllChecks(projectPath);
   const tiersAvailable = computeTiers(checks);
 
   // overallOk: autoInstallable이 아닌 필수(non-optional) 항목에 missing이 없으면 true
@@ -76,14 +76,14 @@ export async function doctorFix(report?: DoctorReport): Promise<DoctorReport> {
   return runDoctor();
 }
 
-async function runAllChecks(): Promise<CheckResult[]> {
+async function runAllChecks(projectPath?: string): Promise<CheckResult[]> {
   // checkAgentClis를 선행 await 없이 단일 Promise.all에 포함해 병렬 실행한다.
   // agentChecks는 배열을 반환하므로 flat()으로 펼친다.
   const results = await Promise.all([
     checkNode(),
     checkPlaywrightChromium(),
-    checkFlutter(),
-    checkDart(),
+    checkFlutter({ projectPath }),
+    checkDart({ projectPath }),
     checkJava(),
     checkGradle(),
     checkXcodebuild(),
