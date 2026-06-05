@@ -114,11 +114,11 @@ function formatEdgeDest(
   return "❓ 미확인";
 }
 
-/** 호출 위치 셀: `file:line` 코드 표기 */
+/** 호출 위치 셀: `file:line` 코드 표기 (경로도 분석 대상 입력이므로 이스케이프) */
 function formatFromRef(edge: NavigationEdge): string {
   if (!edge.fromRef?.file) return "-";
   const line = edge.fromRef.line !== undefined ? `:${edge.fromRef.line}` : "";
-  return `\`${edge.fromRef.file}${line}\``;
+  return `\`${escapeMarkdownCell(`${edge.fromRef.file}${line}`)}\``;
 }
 
 // ── Mermaid 렌더 ──────────────────────────────────────────────────────

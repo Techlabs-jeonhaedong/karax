@@ -53,6 +53,8 @@ export async function collectDartFiles(projectPath: string): Promise<string[]> {
   }
 
   await walk(libDir);
+  // 결정론 보장: readdir 순서는 OS/파일시스템 의존이므로 정렬한다
+  results.sort();
   return results;
 }
 

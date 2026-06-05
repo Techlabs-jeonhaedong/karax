@@ -132,12 +132,16 @@ export interface ChainPair {
  *   → [{method:"of", args:(context)}, {method:"pushNamed", args:('/x')}]
  * 예) _goHome() → [{method: undefined, args:()}]
  */
+/** 비정상적으로 깊은 selector 체인 방어 (자원 고갈 방지) */
+const MAX_CHAIN_DEPTH = 64;
+
 export function chainPairs(idNode: SyntaxNode): ChainPair[] {
   const pairs: ChainPair[] = [];
   let pending: string | undefined;
   let cur: SyntaxNode | null = idNode.nextSibling;
+  let depth = 0;
 
-  while (cur && cur.type === "selector") {
+  while (cur && cur.type === "selector" && depth++ < MAX_CHAIN_DEPTH) {
     const uas = findChild(cur, "unconditional_assignable_selector");
     const methodId = uas ? findChild(uas, "identifier") : undefined;
     const ap = findChild(cur, "argument_part");

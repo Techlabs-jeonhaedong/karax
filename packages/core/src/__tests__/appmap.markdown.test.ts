@@ -731,3 +731,15 @@ describe("renderAppMapMarkdown — Mermaid pop 노드 유효성", () => {
     expect(all).toContain("__back__");
   });
 });
+
+describe("renderAppMapMarkdown — fromRef 경로 이스케이핑 (마크다운 인젝션 방지)", () => {
+  it("파일 경로에 파이프가 있어도 테이블이 깨지지 않는다", () => {
+    const appMap = makeAppMap();
+    appMap.screens[0]!.outgoing[0]!.fromRef = { file: "lib/evil|path.dart", line: 1 };
+    const docs = renderAppMapMarkdown(appMap);
+    const all = docs.map((d) => d.content).join("\n");
+    // 파이프가 이스케이프되어야 함
+    expect(all).toContain("evil\\|path");
+    expect(all).not.toContain("| `lib/evil|path.dart:1` |");
+  });
+});

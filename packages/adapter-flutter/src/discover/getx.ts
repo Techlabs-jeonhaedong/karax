@@ -7,7 +7,7 @@
  * - `GetMaterialApp(initialRoute: 상수)` → entry 화면 결정
  *
  * 전략: getPages 참조를 따라가는 대신 프로젝트 전체 파일에서 GetPage 호출을
- * 직접 스캔한다 (더 견고하고 결정론적 — 파일 순회 순서는 SymbolTable 삽입 순서).
+ * 직접 스캔한다 (더 견고하고 결정론적 — 파일 순회는 정렬된 경로 순서).
  */
 
 import type { SyntaxNode } from "@karax/adapter-api";
