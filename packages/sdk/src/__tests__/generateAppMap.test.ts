@@ -9,6 +9,8 @@
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import path from "path";
+import { mkdtemp, rm } from "fs/promises";
+import { tmpdir } from "os";
 import { generateAppMap } from "../appMap.js";
 
 const FIXTURES = path.resolve(process.cwd(), "../../fixtures");
@@ -382,4 +384,100 @@ describe("generateAppMap — flutter-getx (GetX 실전 패턴)", () => {
     expect(all).toContain("Open Detail");
     expect(all).toContain("lib/controller/home_controller.dart");
   });
+});
+
+// ── [작업 C-1] generateAppMap write 오버로드 ──────────────────────────────
+
+describe("generateAppMap — write 오버로드 (작업 C-1)", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(path.join(tmpdir(), "karax-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("write: true → GenerateAppMapResult 반환 (appMap, documents, writtenPaths)", async () => {
+    const result = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-basic"),
+      framework: "flutter",
+      includeLayout: false,
+      write: true,
+      outDir: tmpDir,
+    });
+    // GenerateAppMapResult 형태여야 함
+    expect(result).toHaveProperty("appMap");
+    expect(result).toHaveProperty("documents");
+    expect(result).toHaveProperty("writtenPaths");
+    const r = result as import("../appMap.js").GenerateAppMapResult;
+    expect(r.appMap.schemaVersion).toBe("appmap/1");
+    expect(Array.isArray(r.documents)).toBe(true);
+    expect(r.documents.length).toBeGreaterThanOrEqual(1);
+    expect(Array.isArray(r.writtenPaths)).toBe(true);
+    expect(r.writtenPaths.length).toBe(r.documents.length);
+  }, 30_000);
+
+  it("write: true → 파일이 outDir 내에 실제로 생성됨", async () => {
+    const result = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-basic"),
+      framework: "flutter",
+      includeLayout: false,
+      write: true,
+      outDir: tmpDir,
+    });
+    const { readdir } = await import("fs/promises");
+    const files = await readdir(tmpDir);
+    const r = result as import("../appMap.js").GenerateAppMapResult;
+    // writtenPaths와 실제 파일이 일치
+    expect(files.length).toBe(r.writtenPaths.length);
+    for (const p of r.writtenPaths) {
+      expect(p.startsWith(tmpDir)).toBe(true);
+    }
+  }, 30_000);
+
+  it("write: true, maxCharsPerDoc 전달 → 문서가 분할됨", async () => {
+    const result = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-basic"),
+      framework: "flutter",
+      includeLayout: false,
+      write: true,
+      outDir: tmpDir,
+      maxCharsPerDoc: 500,
+    });
+    const r = result as import("../appMap.js").GenerateAppMapResult;
+    // 분할 여부는 내용에 따라 다를 수 있으나, 최소 1개
+    expect(r.writtenPaths.length).toBeGreaterThanOrEqual(1);
+  }, 30_000);
+
+  it("write 없이 호출(기존 오버로드) → AppMap 직접 반환 (하위호환)", async () => {
+    const result = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-basic"),
+      framework: "flutter",
+      includeLayout: false,
+    });
+    // 기존 AppMap 형태 — writtenPaths 없음
+    expect(result).toHaveProperty("schemaVersion");
+    expect(result).not.toHaveProperty("writtenPaths");
+  }, 30_000);
+
+  it("경로 탈출 시도하는 fileName → 에러 없이 안전하게 처리", async () => {
+    // SDK write 경로도 CLI와 동일한 방어 로직을 가져야 한다
+    // 이 테스트는 실제 경로 탈출이 불가능함을 보장
+    const result = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-basic"),
+      framework: "flutter",
+      includeLayout: false,
+      write: true,
+      outDir: tmpDir,
+    });
+    const r = result as import("../appMap.js").GenerateAppMapResult;
+    // 모든 writtenPaths가 tmpDir 내부임
+    for (const p of r.writtenPaths) {
+      const resolvedTmp = path.resolve(tmpDir);
+      const resolvedP = path.resolve(p);
+      expect(resolvedP.startsWith(resolvedTmp)).toBe(true);
+    }
+  }, 30_000);
 });

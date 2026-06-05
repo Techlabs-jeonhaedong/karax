@@ -281,6 +281,51 @@ describe("parseMapArgs", () => {
     expect(result.layout).toBe(false);
     expect(result.json).toBe(true);
   });
+
+  // ── [작업 C-2] --framework / --stdout 옵션 ────────────────────────
+
+  it("--framework flutter 옵션을 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--framework", "flutter"]);
+    expect(result.framework).toBe("flutter");
+  });
+
+  it("--framework react-native 옵션을 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--framework", "react-native"]);
+    expect(result.framework).toBe("react-native");
+  });
+
+  it("--framework android 옵션을 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--framework", "android"]);
+    expect(result.framework).toBe("android");
+  });
+
+  it("--framework ios 옵션을 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--framework", "ios"]);
+    expect(result.framework).toBe("ios");
+  });
+
+  it("잘못된 --framework 값이면 에러를 던진다", () => {
+    expect(() => parseMapArgs(["/p", "--framework", "xamarin"])).toThrow(/framework/);
+  });
+
+  it("--stdout 플래그를 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--stdout"]);
+    expect(result.stdout).toBe(true);
+  });
+
+  it("--stdout 미지정 시 false", () => {
+    const result = parseMapArgs(["/p"]);
+    expect(result.stdout).toBe(false);
+  });
+
+  it("framework 미지정 시 undefined", () => {
+    const result = parseMapArgs(["/p"]);
+    expect(result.framework).toBeUndefined();
+  });
+
+  it("--stdout과 --out 동시 지정 시 에러를 던진다", () => {
+    expect(() => parseMapArgs(["/p", "--stdout", "--out", "/tmp/out"])).toThrow(/stdout.*out|out.*stdout/i);
+  });
 });
 
 // ─── EXIT_CODES ────────────────────────────────────────────────────

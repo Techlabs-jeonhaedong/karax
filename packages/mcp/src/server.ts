@@ -20,9 +20,9 @@ import {
   captureAll,
   ensureDependencies,
   generateAppMap,
+  renderAppMapMarkdown,
   resetParserState,
 } from "@karax/sdk";
-import { renderAppMapMarkdown } from "@karax/core";
 import type { FrameworkId, DeviceProfileId, CaptureMode } from "@karax/sdk";
 
 // ── 입력 스키마 (zod) ────────────────────────────────────────────────
@@ -467,22 +467,64 @@ export function createMcpServer(): McpServer {
   server.tool(
     "generate_app_map",
     "프로젝트의 화면 구조와 네비게이션 그래프를 분석해 AppMap을 반환한다. " +
-    "includeLayout=false로 Chromium 기반 좌표 측정을 비활성화할 수 있다 (기본 true).",
+    "includeLayout=false로 Chromium 기반 좌표 측정을 비활성화할 수 있다 (기본 true). " +
+    "write=true + outDir 지정 시 파일로 저장하고 writtenPaths만 반환한다 (응답 크기 절약).",
     {
       projectPath: z.string().min(1),
       framework: z.enum(["flutter", "react-native", "ios", "android"]).optional(),
       includeLayout: z.boolean().optional(),
+      maxCharsPerDoc: z.number().int().positive().optional(),
+      write: z.boolean().optional(),
+      outDir: z.string().optional(),
     },
-    async ({ projectPath, framework, includeLayout }) => {
+    async ({ projectPath, framework, includeLayout, maxCharsPerDoc, write, outDir }) => {
       try {
         validateProjectPath(projectPath);
+
+        // write=true인데 outDir 누락
+        if (write === true && !outDir) {
+          return errorContent("write=true로 파일을 저장하려면 outDir을 지정해야 합니다.");
+        }
+
+        if (write === true && outDir) {
+          // write 오버로드: 파일 저장 후 writtenPaths + 요약만 반환 (문서 본문 미포함)
+          const result = await generateAppMap({
+            projectPath,
+            ...(framework ? { framework: framework as FrameworkId } : {}),
+            ...(includeLayout !== undefined ? { includeLayout } : {}),
+            write: true,
+            outDir,
+            ...(maxCharsPerDoc !== undefined ? { maxCharsPerDoc } : {}),
+          });
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(
+                  {
+                    appMap: result.appMap,
+                    writtenPaths: result.writtenPaths,
+                    fileCount: result.writtenPaths.length,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        }
+
+        // 기존 동작: AppMap + 문서 본문 모두 반환
         const appMap = await generateAppMap({
           projectPath,
           ...(framework ? { framework: framework as FrameworkId } : {}),
           ...(includeLayout !== undefined ? { includeLayout } : {}),
         });
 
-        const docs = renderAppMapMarkdown(appMap);
+        const docs = renderAppMapMarkdown(appMap, {
+          ...(maxCharsPerDoc !== undefined ? { maxChars: maxCharsPerDoc } : {}),
+        });
         const summaryContent = {
           type: "text" as const,
           text: JSON.stringify(

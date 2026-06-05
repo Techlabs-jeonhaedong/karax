@@ -10,6 +10,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createMcpServer } from "../server.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FLUTTER_FIXTURE = path.resolve(__dirname, "../../../../fixtures/flutter-basic");
@@ -1104,4 +1106,115 @@ describe("MCP 서버 — run_e2e_test screenshot path traversal 방어", () => {
       await srv.close();
     }
   });
+});
+
+// ── [작업 C-3] generate_app_map — maxCharsPerDoc / write / outDir 파라미터 ─
+
+describe("MCP 서버 — generate_app_map 신규 파라미터 (작업 C-3)", () => {
+  let client: Client;
+  let server: Awaited<ReturnType<typeof makeClientServer>>["server"];
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    ({ client, server } = await makeClientServer());
+    tmpDir = await mkdtemp(path.join(tmpdir(), "karax-mcp-test-"));
+  });
+
+  afterEach(async () => {
+    await client.close();
+    await server.close();
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("maxCharsPerDoc 전달 → AppMap 반환 (에러 없음)", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: {
+        projectPath: FLUTTER_FIXTURE,
+        includeLayout: false,
+        maxCharsPerDoc: 1000,
+      },
+    }, undefined, { timeout: 30_000 });
+
+    expect(result.isError).toBeFalsy();
+    const contents = result.content as Array<{ type: string; text: string }>;
+    const parsed = JSON.parse(contents[0]!.text);
+    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+  }, 30_000);
+
+  it("write=true + outDir → writtenPaths 반환, 문서 본문 미포함", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: {
+        projectPath: FLUTTER_FIXTURE,
+        includeLayout: false,
+        write: true,
+        outDir: tmpDir,
+      },
+    }, undefined, { timeout: 30_000 });
+
+    expect(result.isError).toBeFalsy();
+    const contents = result.content as Array<{ type: string; text: string }>;
+    // write=true → 단 1개의 content (요약만, 문서 본문 없음)
+    expect(contents).toHaveLength(1);
+    const parsed = JSON.parse(contents[0]!.text);
+    expect(parsed.writtenPaths).toBeDefined();
+    expect(Array.isArray(parsed.writtenPaths)).toBe(true);
+    expect(parsed.writtenPaths.length).toBeGreaterThanOrEqual(1);
+    // 문서 본문은 포함되지 않아야 함
+    expect(parsed.documents).toBeUndefined();
+  }, 30_000);
+
+  it("write=true + outDir + maxCharsPerDoc → 파일 분할 후 writtenPaths 반환", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: {
+        projectPath: FLUTTER_FIXTURE,
+        includeLayout: false,
+        write: true,
+        outDir: tmpDir,
+        maxCharsPerDoc: 500,
+      },
+    }, undefined, { timeout: 30_000 });
+
+    expect(result.isError).toBeFalsy();
+    const contents = result.content as Array<{ type: string; text: string }>;
+    const parsed = JSON.parse(contents[0]!.text);
+    expect(Array.isArray(parsed.writtenPaths)).toBe(true);
+    expect(parsed.writtenPaths.length).toBeGreaterThanOrEqual(1);
+  }, 30_000);
+
+  it("write=true인데 outDir 누락 → isError 응답", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: {
+        projectPath: FLUTTER_FIXTURE,
+        includeLayout: false,
+        write: true,
+        // outDir 누락
+      },
+    }, undefined, { timeout: 30_000 });
+
+    expect(result.isError).toBe(true);
+    const contents = result.content as Array<{ type: string; text: string }>;
+    const errorText = contents[0]!.text;
+    expect(errorText).toMatch(/outDir/i);
+  }, 30_000);
+
+  it("write=false (기본) → 기존 동작 유지 (문서 본문 반환)", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: {
+        projectPath: FLUTTER_FIXTURE,
+        includeLayout: false,
+      },
+    }, undefined, { timeout: 30_000 });
+
+    expect(result.isError).toBeFalsy();
+    const contents = result.content as Array<{ type: string; text: string }>;
+    // write 안 함 → 문서 content가 2개 이상 (요약 + 마크다운)
+    expect(contents.length).toBeGreaterThanOrEqual(2);
+    const combined = contents.map((c) => c.text).join("\n");
+    expect(combined).toContain("```mermaid");
+  }, 30_000);
 });

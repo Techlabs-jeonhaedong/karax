@@ -159,6 +159,9 @@ export function parseCaptureArgs(argv: string[]): CaptureArgs {
 
 // ── map ───────────────────────────────────────────────────────────
 
+const VALID_FRAMEWORK_IDS = ["flutter", "react-native", "android", "ios"] as const;
+type ValidFrameworkId = (typeof VALID_FRAMEWORK_IDS)[number];
+
 export interface MapArgs {
   path: string;
   out?: string;
@@ -166,6 +169,10 @@ export interface MapArgs {
   json: boolean;
   /** 정적 좌표 측정 활성화 여부 (기본 true, --no-layout으로 비활성화) */
   layout: boolean;
+  /** 프레임워크 강제 지정 */
+  framework?: ValidFrameworkId;
+  /** 파일 저장 없이 렌더된 마크다운을 stdout으로 출력 */
+  stdout: boolean;
 }
 
 export function parseMapArgs(argv: string[]): MapArgs {
@@ -175,9 +182,27 @@ export function parseMapArgs(argv: string[]): MapArgs {
   prog.option("--max-chars <n>", "문서 분할 기준 최대 글자 수");
   prog.option("--json", "JSON 형식으로 AppMap 출력", false);
   prog.option("--no-layout", "정적 좌표 측정 비활성화 (Chromium 미사용)");
+  prog.option(
+    "--framework <id>",
+    `프레임워크 강제 지정: ${VALID_FRAMEWORK_IDS.join("|")}`
+  );
+  prog.option("--stdout", "파일 저장 없이 마크다운을 stdout으로 출력", false);
   prog.parse(["node", "map", ...argv]);
 
-  const opts = prog.opts<{ out?: string; maxChars?: string; json: boolean; layout: boolean }>();
+  const opts = prog.opts<{
+    out?: string;
+    maxChars?: string;
+    json: boolean;
+    layout: boolean;
+    framework?: string;
+    stdout: boolean;
+  }>();
+
+  // --stdout과 --out 동시 지정 금지
+  if (opts.stdout && opts.out !== undefined) {
+    throw new Error("--stdout과 --out은 동시에 지정할 수 없습니다. 하나만 선택하세요.");
+  }
+
   let maxChars: number | undefined;
   if (opts.maxChars !== undefined) {
     const parsed = parseInt(opts.maxChars, 10);
@@ -187,12 +212,24 @@ export function parseMapArgs(argv: string[]): MapArgs {
     maxChars = parsed;
   }
 
+  let framework: ValidFrameworkId | undefined;
+  if (opts.framework !== undefined) {
+    if (!(VALID_FRAMEWORK_IDS as readonly string[]).includes(opts.framework)) {
+      throw new Error(
+        `잘못된 --framework 값: '${opts.framework}'. 허용: ${VALID_FRAMEWORK_IDS.join(", ")}`
+      );
+    }
+    framework = opts.framework as ValidFrameworkId;
+  }
+
   return {
     path: prog.args[0],
     out: opts.out,
     maxChars,
     json: opts.json,
     layout: opts.layout,
+    framework,
+    stdout: opts.stdout,
   };
 }
 

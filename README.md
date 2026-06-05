@@ -127,7 +127,9 @@ karax capture <path>                     전체 화면 캡처
   --json                               JSON 형식 출력
 karax map <path>                         앱 지도(App Map) 마크다운 생성
   --out <dir>                          출력 디렉토리 (기본: ./)
+  --framework <id>                     프레임워크 강제 지정: flutter|react-native|android|ios
   --max-chars <n>                      문서 분할 기준 최대 글자 수
+  --stdout                             파일 저장 없이 마크다운을 stdout으로 출력 (--out과 동시 지정 불가)
   --no-layout                          정적 좌표 측정 비활성화 (Chromium 미사용)
   --json                               AppMap JSON 출력
 karax test <path>                        LLM 에이전트 E2E 테스트 (실기기 빌드·설치)
@@ -293,7 +295,7 @@ await captureScreen({ projectPath: "./my-app", screenId: "HomeScreen", outDir: "
 | `capture_screen` | 화면 캡처 (image content + 사이드카 JSON) |
 | `capture_all` | 전체 화면 캡처 |
 | `get_analysis_report` | 프로젝트 전체 분석 리포트 |
-| `generate_app_map` | 앱 지도 — 네비 그래프 + 트리거 상세 (`includeLayout` 옵션) |
+| `generate_app_map` | 앱 지도 — 네비 그래프 + 트리거 상세 (`includeLayout`, `maxCharsPerDoc`, `write`+`outDir` 옵션) |
 | `run_e2e_test` | 실기기 E2E 테스트 (수 분 소요) |
 
 `capture_screen` / `capture_all` 공통 옵션:
