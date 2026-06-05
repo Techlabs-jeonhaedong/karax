@@ -110,6 +110,8 @@ export function createAndroidDeviceManager(
     },
 
     async ensureBooted(preferredId?: string): Promise<DeviceInfo> {
+      // preferredId가 지정된 경우 먼저 검증 (adb -s / emulator -avd 인자로 흘러가므로)
+      if (preferredId !== undefined) validateDeviceId(preferredId);
       // 이미 부팅된 디바이스 재사용
       const running = await this.list();
       if (running.length > 0) {
@@ -214,6 +216,7 @@ export function createAndroidDeviceManager(
     },
 
     async screenshot(deviceId: string, destPngPath: string): Promise<void> {
+      validateDeviceId(deviceId);
       const result = await execa(
         ...adbArgs(deviceId, "exec-out", "screencap", "-p")
       );
@@ -224,6 +227,7 @@ export function createAndroidDeviceManager(
     },
 
     async shutdown(deviceId: string): Promise<void> {
+      validateDeviceId(deviceId);
       try {
         await execa(...adbArgs(deviceId, "emu", "kill"));
       } catch {

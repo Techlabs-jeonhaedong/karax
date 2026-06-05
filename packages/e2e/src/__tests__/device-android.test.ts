@@ -282,6 +282,46 @@ describe("createAndroidDeviceManager", () => {
       expect(mockProcessKill).not.toHaveBeenCalled();
     });
 
+    it("ensureBooted — preferredId에 셸 메타문자 포함 시 INVALID_ARGUMENT", async () => {
+      // 이미 부팅된 기기 있는 상태에서 preferredId 검증
+      mockExeca.mockResolvedValueOnce({
+        stdout: "List of devices attached\nemulator-5554\tdevice\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.ensureBooted("emulator-5554; rm -rf /")).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    });
+
+    it("ensureBooted — preferredId에 공백 포함 시 INVALID_ARGUMENT", async () => {
+      mockExeca.mockResolvedValueOnce({
+        stdout: "List of devices attached\nemulator-5554\tdevice\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.ensureBooted("emulator 5554")).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    });
+
+    it("ensureBooted — preferredId에 백틱 포함 시 INVALID_ARGUMENT", async () => {
+      mockExeca.mockResolvedValueOnce({
+        stdout: "List of devices attached\nemulator-5554\tdevice\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.ensureBooted("emulator`evil`")).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    });
+
     it("이미 부팅된 기기가 있으면 에뮬레이터를 새로 시작하지 않는다", async () => {
       // list → 이미 부팅된 기기 있음
       mockExeca.mockResolvedValueOnce({

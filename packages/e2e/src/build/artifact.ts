@@ -117,6 +117,11 @@ function findFirstApk(dir: string): string | null {
 /**
  * 디렉토리를 재귀 탐색해 특정 확장자 파일/디렉토리 중 최신 mtime 항목을 반환한다.
  * .app은 디렉토리이므로 isDirectory 케이스도 처리한다.
+ *
+ * 설계 의도: .app도 .apk와 동일하게 최신 mtime 선택 (계획 §80: *.apk/*.app 모두
+ * 최신 mtime 재귀 fallback). 이전의 첫 매칭 방식(findFirstApk)은 readdir 순서에
+ * 의존해 비결정론적이었음 — 동일 디렉토리에 복수 빌드 결과물이 있을 때
+ * 실행마다 다른 파일을 선택할 수 있었다.
  */
 function findNewestByExtension(dir: string, ext: string): string | null {
   let newestPath: string | null = null;

@@ -36,10 +36,10 @@ export async function runAgent(
   const firstResult = readAndValidateResult(resultJsonPath);
   if (firstResult.data) return firstResult.data;
 
-  // 2차 시도: opts.retryPromptSuffix가 명시되면 override, 없으면 zod 에러 메시지로 자동 구성
+  // 2차 시도: opts.retryPromptSuffix가 명시되면 override, 없으면 zod issues로 자동 구성
   const retrySuffix =
     opts.retryPromptSuffix ??
-    buildValidationErrorSuffix(firstResult.zodError);
+    buildValidationErrorSuffix(firstResult.zodIssues);
   const retryInvocation = buildRetryInvocation(invocation, retrySuffix);
   await execAgent(retryInvocation, timeoutMs);
   const secondResult = readAndValidateResult(resultJsonPath);
@@ -93,34 +93,59 @@ async function execAgent(
 
 interface ValidateResult {
   data: AgentResult | null;
-  zodError: string | null;
+  zodIssues: import("zod").ZodIssue[] | null;
 }
 
 function readAndValidateResult(resultJsonPath: string): ValidateResult {
-  if (!fs.existsSync(resultJsonPath)) return { data: null, zodError: null };
+  if (!fs.existsSync(resultJsonPath)) return { data: null, zodIssues: null };
 
   try {
     const raw = JSON.parse(fs.readFileSync(resultJsonPath, "utf-8"));
     const parsed = AgentResultSchema.safeParse(raw);
-    if (parsed.success) return { data: parsed.data, zodError: null };
-    return { data: null, zodError: parsed.error.message };
+    if (parsed.success) return { data: parsed.data, zodIssues: null };
+    return { data: null, zodIssues: parsed.error.issues };
   } catch {
-    return { data: null, zodError: null };
+    return { data: null, zodIssues: null };
   }
 }
 
-/** zod 검증 실패 메시지를 재시도 prompt suffix로 변환한다 */
-function buildValidationErrorSuffix(zodError: string | null): string {
-  if (!zodError) {
-    return "이전 응답의 result.json이 유효하지 않습니다. 스키마에 맞는 result.json을 다시 생성해주세요.";
+const VALIDATION_SUFFIX_MAX_LEN = 500;
+
+/**
+ * zod 검증 실패 issues에서 path·code·expected만 추출해 고정 포맷 suffix를 구성한다.
+ *
+ * 보안: received 원문 값과 message 자유 텍스트는 포함하지 않는다.
+ * LLM이 쓴 result.json의 received 값(예: invalid_enum_value의 실제 값)이
+ * 프롬프트에 그대로 들어가면 프롬프트 인젝션 벡터가 된다.
+ * suffix 전체 길이 상한(500자)을 두어 초과분을 절단한다.
+ */
+function buildValidationErrorSuffix(zodIssues: import("zod").ZodIssue[] | null): string {
+  const header = "이전 응답의 result.json이 스키마 검증에 실패했습니다.\n";
+  const footer = "스키마에 맞는 result.json을 다시 생성해주세요.";
+
+  if (!zodIssues || zodIssues.length === 0) {
+    const base = "이전 응답의 result.json이 유효하지 않습니다. 스키마에 맞는 result.json을 다시 생성해주세요.";
+    return base.slice(0, VALIDATION_SUFFIX_MAX_LEN);
   }
-  return `이전 응답의 result.json이 스키마 검증에 실패했습니다.\n검증 오류: ${zodError}\n스키마에 맞는 result.json을 다시 생성해주세요.`;
+
+  const issueLines = zodIssues.map((issue) => {
+    const pathStr = issue.path.length > 0 ? issue.path.join(".") : "(root)";
+    // expected는 enum·literal 등에만 존재하므로 타입 단언으로 안전 접근
+    const expected = (issue as { expected?: unknown }).expected;
+    const expectedStr = expected !== undefined ? ` expected=${String(expected)}` : "";
+    return `  - path=${pathStr} code=${issue.code}${expectedStr}`;
+  });
+
+  const body = issueLines.join("\n");
+  const full = `${header}검증 오류:\n${body}\n${footer}`;
+  return full.slice(0, VALIDATION_SUFFIX_MAX_LEN);
 }
 
 function buildRetryInvocation(
   original: AgentInvocation,
   suffix: string
 ): AgentInvocation {
+  // suffix는 호출자(runAgent)가 항상 전달 — 모듈-private, 유일 호출처 runAgent
   // prompt는 args에서 마지막 '-p' 다음 인수
   const args = [...original.args];
   const pIdx = args.lastIndexOf("-p");

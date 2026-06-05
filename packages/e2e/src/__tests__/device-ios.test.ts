@@ -210,6 +210,35 @@ describe("createIosDeviceManager", () => {
       expect(device.isBooted).toBe(true);
     });
 
+    it("ensureBooted — preferredId에 셸 메타문자 포함 시 INVALID_ARGUMENT", async () => {
+      // validateDeviceId가 list() 호출 전에 throw하므로 execa mock 불필요
+      const manager = createIosDeviceManager();
+      await expect(manager.ensureBooted("ABCD1234; rm -rf /")).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    });
+
+    it("ensureBooted — preferredId에 공백 포함 시 INVALID_ARGUMENT", async () => {
+      const manager = createIosDeviceManager();
+      await expect(manager.ensureBooted("ABCD 1234")).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    });
+
+    it("install — deviceId에 세미콜론 포함 시 INVALID_ARGUMENT", async () => {
+      const manager = createIosDeviceManager();
+      await expect(manager.install("UDID;evil", "/tmp/App.app")).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    });
+
+    it("launch — deviceId에 백슬래시 포함 시 INVALID_ARGUMENT", async () => {
+      const manager = createIosDeviceManager();
+      await expect(manager.launch("UDID\\evil", "com.example.app")).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    });
+
     it("사용 가능한 시뮬레이터 없으면 NO_DEVICE_AVAILABLE를 던진다", async () => {
       // list → 빈 결과
       mockExeca.mockResolvedValueOnce({ stdout: "== Devices ==\n", stderr: "", exitCode: 0 });
