@@ -49,6 +49,7 @@ function wrapError(e: unknown): string {
 /**
  * projectPath 존재 여부를 검증한다.
  * 빈 문자열, 비정상적인 경로도 여기서 탐지.
+ * 읽기 권한(R_OK)도 확인한다 (MEDIUM-4: 심볼릭 링크는 허용, 오탐 방지).
  */
 function validateProjectPath(projectPath: string): void {
   if (!projectPath || projectPath.trim().length === 0) {
@@ -56,6 +57,11 @@ function validateProjectPath(projectPath: string): void {
   }
   if (!fs.existsSync(projectPath)) {
     throw new Error(`경로를 찾을 수 없습니다: ${projectPath}`);
+  }
+  try {
+    fs.accessSync(projectPath, fs.constants.R_OK);
+  } catch {
+    throw new Error(`projectPath에 읽기 권한이 없습니다: ${projectPath}`);
   }
 }
 

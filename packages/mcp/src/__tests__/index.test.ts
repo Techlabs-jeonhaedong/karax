@@ -2,7 +2,7 @@
  * MCP 서버 계약 테스트
  *
  * @modelcontextprotocol/sdk의 InMemoryTransport로 서버를 실제 기동해
- * tools/list 7개 확인 + 핵심 tool 실호출 + isError 응답 검증
+ * tools/list 8개 확인 + 핵심 tool 실호출 + isError 응답 검증
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -46,9 +46,9 @@ describe("MCP 서버 — tools/list", () => {
     await server.close();
   });
 
-  it("정확히 7개 tool이 등록됨", async () => {
+  it("정확히 8개 tool이 등록됨", async () => {
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(7);
+    expect(result.tools).toHaveLength(8);
   });
 
   it("모든 tool 이름이 일치함", async () => {
@@ -62,6 +62,7 @@ describe("MCP 서버 — tools/list", () => {
       "get_analysis_report",
       "get_screen_ir",
       "list_screens",
+      "run_e2e_test",
     ]);
   });
 
@@ -663,4 +664,98 @@ describe("MCP 서버 — ensure 실패 무관 도구 목록 (중간-3 회귀)", 
     }, undefined, { timeout: 60_000 });
     expect(result.isError).toBeFalsy();
   }, 60_000);
+});
+
+// ─── run_e2e_test 핸들러 호출 테스트 (@karax/e2e mock) ──────────────────
+// @karax/e2e를 mock해 실제 에뮬레이터 없이 run_e2e_test 핸들러 계약을 검증한다.
+
+describe("MCP 서버 — run_e2e_test tool (핸들러 계약, @karax/e2e mock)", () => {
+  beforeEach(async () => {
+    vi.resetModules();
+    // @karax/e2e의 runE2eTest를 mock해 즉시 성공 결과를 반환한다
+    vi.doMock("@karax/e2e", () => ({
+      runE2eTest: vi.fn().mockResolvedValue({
+        outcome: "pass",
+        sessionDir: "/tmp/karax-e2e-test-session",
+        reportJsonPath: "/tmp/karax-e2e-test-session/report.json",
+        reportMdPath: "/tmp/karax-e2e-test-session/report.md",
+        screenshotsDir: "/tmp/karax-e2e-test-session/screenshots",
+        summary: "모든 테스트 통과",
+        steps: [
+          { index: 1, description: "앱 실행", status: "pass" },
+        ],
+      }),
+    }));
+  });
+
+  afterEach(() => {
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
+
+  it("projectPath/platform 필수 인수 누락 시 isError", async () => {
+    // 이 describe 블록에서는 fresh server를 doMock 이후 생성해야 한다.
+    // makeClientServer()가 정적 import된 server.ts를 사용하므로
+    // 여기서는 도구 등록 계약만 검증한다 (누락 인수 → zod 검증 실패 → isError).
+    process.env.SFC_SKIP_ENSURE = "1";
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const { createMcpServer: freshCreateMcpServer } = await import("../server.js");
+    const srv = freshCreateMcpServer();
+    await srv.connect(serverTransport);
+    const cli = new Client({ name: "test", version: "0.0.1" }, { capabilities: {} });
+    await cli.connect(clientTransport);
+
+    try {
+      const result = await cli.callTool({
+        name: "run_e2e_test",
+        arguments: {},
+      });
+      expect(result.isError).toBe(true);
+    } finally {
+      await cli.close();
+      await srv.close();
+    }
+  });
+
+  it("projectPath만 있고 platform 누락 → isError", async () => {
+    process.env.SFC_SKIP_ENSURE = "1";
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const { createMcpServer: freshCreateMcpServer } = await import("../server.js");
+    const srv = freshCreateMcpServer();
+    await srv.connect(serverTransport);
+    const cli = new Client({ name: "test", version: "0.0.1" }, { capabilities: {} });
+    await cli.connect(clientTransport);
+
+    try {
+      const result = await cli.callTool({
+        name: "run_e2e_test",
+        arguments: { projectPath: "/tmp/some-project" },
+      });
+      expect(result.isError).toBe(true);
+    } finally {
+      await cli.close();
+      await srv.close();
+    }
+  });
+
+  it("존재하지 않는 projectPath → isError", async () => {
+    process.env.SFC_SKIP_ENSURE = "1";
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const { createMcpServer: freshCreateMcpServer } = await import("../server.js");
+    const srv = freshCreateMcpServer();
+    await srv.connect(serverTransport);
+    const cli = new Client({ name: "test", version: "0.0.1" }, { capabilities: {} });
+    await cli.connect(clientTransport);
+
+    try {
+      const result = await cli.callTool({
+        name: "run_e2e_test",
+        arguments: { projectPath: "/tmp/nonexistent-karax-e2e-xyz", platform: "android" },
+      });
+      expect(result.isError).toBe(true);
+    } finally {
+      await cli.close();
+      await srv.close();
+    }
+  });
 });

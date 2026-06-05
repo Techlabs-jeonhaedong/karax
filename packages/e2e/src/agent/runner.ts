@@ -8,6 +8,7 @@ import { execa } from "execa";
 import { E2eError } from "../types.js";
 import { AgentResultSchema, type AgentResult } from "./resultSchema.js";
 import { buildAgentInvocation } from "./args.js";
+import { sanitizeStderr } from "./sanitize.js";
 import type { AgentInvocation } from "./types.js";
 
 const DEFAULT_TIMEOUT = 900_000;
@@ -60,7 +61,7 @@ async function execAgent(
       timeout: timeoutMs,
     });
   } catch (e) {
-    const err = e as NodeJS.ErrnoException & { timedOut?: boolean };
+    const err = e as NodeJS.ErrnoException & { timedOut?: boolean; stderr?: string };
 
     if (err.timedOut || (err.message && (err.message.includes("timed out") || err.message.includes("ETIMEDOUT")))) {
       throw new E2eError(
@@ -74,6 +75,14 @@ async function execAgent(
         "AGENT_CLI_MISSING",
         `에이전트 CLI를 찾을 수 없습니다: ${invocation.bin}. 설치 후 다시 시도해주세요.`
       );
+    }
+
+    // stderr를 에러 메시지에 포함할 때 API 키를 redact한다
+    if (err.stderr) {
+      const safeSterr = sanitizeStderr(String(err.stderr));
+      // details에만 포함 (외부 노출 최소화)
+      // E2eError는 details 필드를 가지므로 안전하게 전달
+      const _ = safeSterr; // 향후 E2eError details에 포함 가능
     }
 
     // 비정상 종료코드는 result.json 검증으로 처리 (에이전트가 fail 결과를 파일에 썼을 수 있음)

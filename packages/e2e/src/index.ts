@@ -52,6 +52,15 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
   let scenario: { body: string; exploratory: boolean; appId?: string; platform?: Platform } = { body: "", exploratory: true };
   if (scenarioPath) {
     try {
+      // 파일인지 확인 및 크기 상한(1MB) 검사
+      const stat = fs.statSync(scenarioPath);
+      if (!stat.isFile()) {
+        throw new E2eError("SCENARIO_PARSE_ERROR", `scenarioPath가 파일이 아닙니다: ${scenarioPath}`);
+      }
+      const MAX_SCENARIO_SIZE = 1 * 1024 * 1024; // 1MB
+      if (stat.size > MAX_SCENARIO_SIZE) {
+        throw new E2eError("SCENARIO_PARSE_ERROR", `시나리오 파일이 너무 큽니다 (최대 1MB): ${stat.size} bytes`);
+      }
       const content = fs.readFileSync(scenarioPath, "utf-8");
       scenario = parseScenario(content);
     } catch (e) {

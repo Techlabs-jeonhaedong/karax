@@ -77,8 +77,9 @@ export async function doctorFix(report?: DoctorReport): Promise<DoctorReport> {
 }
 
 async function runAllChecks(): Promise<CheckResult[]> {
-  const agentChecks = await checkAgentClis();
-  const checks = await Promise.all([
+  // checkAgentClis를 선행 await 없이 단일 Promise.all에 포함해 병렬 실행한다.
+  // agentChecks는 배열을 반환하므로 flat()으로 펼친다.
+  const results = await Promise.all([
     checkNode(),
     checkPlaywrightChromium(),
     checkFlutter(),
@@ -91,6 +92,8 @@ async function runAllChecks(): Promise<CheckResult[]> {
     // E2E 체크 (E2E 캡처 티어와 직교 — tiers.ts 영향 없음)
     checkAdb(),
     checkEmulator(),
+    // agentClis는 배열 반환 — Promise.all 결과가 중첩 배열이 되므로 flat()으로 처리
+    checkAgentClis(),
   ]);
-  return [...checks, ...agentChecks];
+  return results.flat();
 }

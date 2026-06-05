@@ -14,6 +14,46 @@ const ADB_TIMEOUT = 60_000;
 const EMULATOR_BOOT_TIMEOUT = 180_000;
 const EMULATOR_POLL_INTERVAL = 3_000;
 
+// ── 인자 검증 ────────────────────────────────────────────────────────────
+
+/** deviceId 유효성: 영숫자, '_', ':', '.', '-' 허용. '-'로 시작 금지. */
+const DEVICE_ID_RE = /^[A-Za-z0-9_][A-Za-z0-9_:.\-]*$/;
+/** appId 유효성: 영문자 시작, 영숫자·'_'·'.' 허용. */
+const APP_ID_RE = /^[A-Za-z][A-Za-z0-9_.]*$/;
+
+function validateDeviceId(deviceId: string): void {
+  if (!DEVICE_ID_RE.test(deviceId)) {
+    throw new E2eError(
+      "INVALID_ARGUMENT",
+      `유효하지 않은 deviceId: "${deviceId}". 영숫자·'_'·':'·'.'·'-'만 허용, '-'로 시작 불가.`
+    );
+  }
+}
+
+function validateAppId(appId: string): void {
+  if (!APP_ID_RE.test(appId)) {
+    throw new E2eError(
+      "INVALID_ARGUMENT",
+      `유효하지 않은 appId: "${appId}". 영문자 시작, 영숫자·'_'·'.'만 허용.`
+    );
+  }
+}
+
+function validateArtifactPath(artifactPath: string): void {
+  if (!path.isAbsolute(artifactPath)) {
+    throw new E2eError(
+      "INVALID_ARGUMENT",
+      `artifactPath는 절대경로여야 합니다: "${artifactPath}"`
+    );
+  }
+  if (path.basename(artifactPath).startsWith("-")) {
+    throw new E2eError(
+      "INVALID_ARGUMENT",
+      `artifactPath 파일명이 '-'로 시작할 수 없습니다: "${artifactPath}"`
+    );
+  }
+}
+
 export function createAndroidDeviceManager(sdkPath: string): DeviceManager & {
   listAvds(): Promise<string[]>;
 } {
@@ -78,12 +118,15 @@ export function createAndroidDeviceManager(sdkPath: string): DeviceManager & {
 
       const avdName = preferredId ?? avds[0]!;
 
-      // 에뮬레이터 비동기 시작 (detached)
-      execa(emulatorBin, ["-avd", avdName, "-no-snapshot", "-no-audio"], {
+      // 에뮬레이터 비동기 시작 (detached) — pid를 보관해 타임아웃 시 kill에 사용
+      let emulatorPid: number | undefined;
+      const emulatorProc = execa(emulatorBin, ["-avd", avdName, "-no-snapshot", "-no-audio"], {
         detached: true,
         stdio: "ignore",
         env: buildEnv(sdkPath),
-      }).unref();
+      });
+      emulatorPid = emulatorProc.pid;
+      emulatorProc.unref();
 
       // 부팅 완료 폴링
       const deadline = Date.now() + EMULATOR_BOOT_TIMEOUT;
@@ -114,6 +157,15 @@ export function createAndroidDeviceManager(sdkPath: string): DeviceManager & {
         }
       }
 
+      // 타임아웃 — 우리가 시작한 emulator 프로세스를 best-effort kill
+      if (emulatorPid !== undefined) {
+        try {
+          process.kill(emulatorPid);
+        } catch {
+          // 이미 종료됐거나 kill 권한 없으면 무시
+        }
+      }
+
       throw new E2eError(
         "EMULATOR_BOOT_TIMEOUT",
         `Android 에뮬레이터 부팅 타임아웃 (${EMULATOR_BOOT_TIMEOUT / 1000}s)`
@@ -121,6 +173,8 @@ export function createAndroidDeviceManager(sdkPath: string): DeviceManager & {
     },
 
     async install(deviceId: string, artifactPath: string): Promise<void> {
+      validateDeviceId(deviceId);
+      validateArtifactPath(artifactPath);
       const result = await execa(...adbArgs(deviceId, "install", "-r", "-t", artifactPath));
       if (result.exitCode !== 0) {
         throw new E2eError(
@@ -132,6 +186,8 @@ export function createAndroidDeviceManager(sdkPath: string): DeviceManager & {
     },
 
     async launch(deviceId: string, appId: string): Promise<void> {
+      validateDeviceId(deviceId);
+      validateAppId(appId);
       const result = await execa(
         ...adbArgs(deviceId, "shell", "monkey", "-p", appId, "-c", "android.intent.category.LAUNCHER", "1")
       );

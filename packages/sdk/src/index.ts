@@ -33,9 +33,26 @@ export const SDK_VERSION = "0.0.1" as const;
 
 // ── E2E 테스트 (재노출) ────────────────────────────────────────────
 // @karax/e2e의 public API를 sdk에서 재노출한다 (public API 집약점 관례).
-export { runE2eTest } from "@karax/e2e";
+// @karax/e2e는 무거운 디바이스/빌드 의존성을 가지므로 dynamic import로 lazy-load한다.
+// 정적 import 시 SDK를 사용하는 호스트 프로세스의 시작 시간 증가 및 불필요한 모듈 로드를 방지한다.
 export type { RunE2eTestOptions, E2eTestResult, Platform as E2ePlatform, AgentKind, E2eErrorCode } from "@karax/e2e";
-export { E2eError, E2E_ERROR_CODES } from "@karax/e2e";
+export type { E2eError } from "@karax/e2e";
+
+/**
+ * E2E 테스트를 실행한다. (@karax/e2e를 lazy dynamic import로 로드)
+ */
+export async function runE2eTest(
+  opts: import("@karax/e2e").RunE2eTestOptions
+): Promise<import("@karax/e2e").E2eTestResult> {
+  return (await import("@karax/e2e")).runE2eTest(opts);
+}
+
+/**
+ * E2E 에러 코드 맵을 반환한다. (@karax/e2e를 lazy dynamic import로 로드)
+ */
+export async function getE2eErrorCodes(): Promise<typeof import("@karax/e2e")["E2E_ERROR_CODES"]> {
+  return (await import("@karax/e2e")).E2E_ERROR_CODES;
+}
 
 // ── 타입 re-export ─────────────────────────────────────────────────
 

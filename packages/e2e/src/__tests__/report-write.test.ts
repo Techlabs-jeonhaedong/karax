@@ -8,6 +8,7 @@ import os from "os";
 import path from "path";
 import { createSessionDir } from "../session.js";
 import { writeReport } from "../report/write.js";
+import { sanitizeScreenshotPath } from "../report/sanitize.js";
 import type { E2eReport } from "../report/schema.js";
 
 let tmpDir: string;
@@ -111,5 +112,39 @@ describe("writeReport", () => {
     const result = writeReport(session.dir, report);
     const reparsed = JSON.parse(fs.readFileSync(result.reportJsonPath, "utf-8")) as E2eReport;
     expect(reparsed).toEqual(report);
+  });
+});
+
+// ── sanitizeScreenshotPath — path traversal 방어 ────────────────
+
+describe("sanitizeScreenshotPath", () => {
+  it("정상 파일명을 그대로 반환한다", () => {
+    const result = sanitizeScreenshotPath("/tmp/screenshots", "step_1.png");
+    expect(result).toBe(path.join("/tmp/screenshots", "step_1.png"));
+  });
+
+  it("../../etc/passwd 경로를 거부한다 (null 반환)", () => {
+    const result = sanitizeScreenshotPath("/tmp/screenshots", "../../etc/passwd");
+    expect(result).toBeNull();
+  });
+
+  it("절대경로를 거부한다 (null 반환)", () => {
+    const result = sanitizeScreenshotPath("/tmp/screenshots", "/etc/passwd");
+    expect(result).toBeNull();
+  });
+
+  it("../other/file.png 를 거부한다 (null 반환)", () => {
+    const result = sanitizeScreenshotPath("/tmp/screenshots", "../other/file.png");
+    expect(result).toBeNull();
+  });
+
+  it("하위 디렉토리 경로는 허용한다", () => {
+    const result = sanitizeScreenshotPath("/tmp/screenshots", "sub/step_1.png");
+    expect(result).toBe(path.join("/tmp/screenshots", "sub", "step_1.png"));
+  });
+
+  it("빈 문자열을 거부한다 (null 반환)", () => {
+    const result = sanitizeScreenshotPath("/tmp/screenshots", "");
+    expect(result).toBeNull();
   });
 });

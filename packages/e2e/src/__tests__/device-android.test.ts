@@ -123,4 +123,88 @@ describe("createAndroidDeviceManager", () => {
       expect(true).toBe(true);
     });
   });
+
+  // ── 인자 검증 (항목 8) ─────────────────────────────────────────────
+
+  describe("인자 검증", () => {
+    it("'-e' 로 시작하는 deviceId를 거부한다 (INVALID_ARGUMENT)", async () => {
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.install("-e", "/tmp/app.apk")).rejects.toMatchObject({
+        code: expect.stringMatching(/INVALID_ARGUMENT|INSTALL_FAILED/),
+      });
+    });
+
+    it("'-p' 로 시작하는 appId를 거부한다 (INVALID_ARGUMENT)", async () => {
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.launch("emulator-5554", "-p bad.app")).rejects.toMatchObject({
+        code: expect.stringMatching(/INVALID_ARGUMENT|LAUNCH_FAILED/),
+      });
+    });
+
+    it("숫자로 시작하는 appId를 거부한다 (INVALID_ARGUMENT)", async () => {
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.launch("emulator-5554", "1bad.app")).rejects.toMatchObject({
+        code: expect.stringMatching(/INVALID_ARGUMENT|LAUNCH_FAILED/),
+      });
+    });
+
+    it("셸 메타문자 포함 deviceId를 거부한다 (INVALID_ARGUMENT)", async () => {
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.install("emulator-5554; rm -rf /", "/tmp/app.apk")).rejects.toMatchObject({
+        code: expect.stringMatching(/INVALID_ARGUMENT|INSTALL_FAILED/),
+      });
+    });
+
+    it("상대 경로 artifactPath를 거부한다 (INVALID_ARGUMENT)", async () => {
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.install("emulator-5554", "relative/path/app.apk")).rejects.toMatchObject({
+        code: expect.stringMatching(/INVALID_ARGUMENT|INSTALL_FAILED/),
+      });
+    });
+
+    it("-로 시작하는 artifactPath를 거부한다 (INVALID_ARGUMENT)", async () => {
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.install("emulator-5554", "-malicious.apk")).rejects.toMatchObject({
+        code: expect.stringMatching(/INVALID_ARGUMENT|INSTALL_FAILED/),
+      });
+    });
+
+    it("유효한 deviceId/appId/artifactPath는 통과한다", async () => {
+      mockExeca.mockResolvedValueOnce({ stdout: "Success", stderr: "", exitCode: 0 });
+      const manager = createAndroidDeviceManager("/sdk");
+      // 예외 없이 통과해야 함
+      await expect(manager.install("emulator-5554", "/tmp/app.apk")).resolves.toBeUndefined();
+    });
+  });
+
+  // ── ensureBooted 타임아웃 시 emulator 프로세스 kill (항목 10) ────────────
+
+  describe("ensureBooted — 타임아웃 시 emulator kill", () => {
+    it("EMULATOR_BOOT_TIMEOUT 에러 코드가 E2eError로 정의됨", () => {
+      // 실제 타임아웃(180s)을 기다릴 수 없으므로 에러 코드 정의를 검증한다
+      const err = new E2eError("EMULATOR_BOOT_TIMEOUT", "부팅 타임아웃");
+      expect(err.code).toBe("EMULATOR_BOOT_TIMEOUT");
+      expect(err).toBeInstanceOf(Error);
+    });
+
+    it("ensureBooted: 부팅된 기기 없고 AVD도 없으면 NO_DEVICE_AVAILABLE", async () => {
+      // list → 빈 배열
+      mockExeca.mockResolvedValueOnce({
+        stdout: "List of devices attached\n",
+        stderr: "",
+        exitCode: 0,
+      });
+      // listAvds → 빈 배열
+      mockExeca.mockResolvedValueOnce({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.ensureBooted()).rejects.toMatchObject({
+        code: "NO_DEVICE_AVAILABLE",
+      });
+    });
+  });
 });

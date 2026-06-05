@@ -14,6 +14,7 @@ vi.mock("execa", () => ({
 
 import { execa } from "execa";
 import { runAgent } from "../agent/runner.js";
+import { sanitizeStderr } from "../agent/sanitize.js";
 
 const mockExeca = vi.mocked(execa);
 let tmpDir: string;
@@ -122,5 +123,43 @@ describe("runAgent", () => {
     await expect(
       runAgent({ bin: "claude", args: ["-p", "test"], env: {} }, tmpDir)
     ).rejects.toMatchObject({ code: "AGENT_OUTPUT_INVALID" });
+  });
+});
+
+// ── sanitizeStderr — API 키 redact (항목 9) ──────────────────────
+
+describe("sanitizeStderr", () => {
+  it("ANTHROPIC_API_KEY=<value> 를 [REDACTED]로 치환한다", () => {
+    const input = "Error: ANTHROPIC_API_KEY=sk-ant-realkey123 not accepted";
+    const result = sanitizeStderr(input);
+    expect(result).not.toContain("sk-ant-realkey123");
+    expect(result).toContain("[REDACTED]");
+  });
+
+  it("OPENAI_API_KEY=<value> 를 [REDACTED]로 치환한다", () => {
+    const input = "OPENAI_API_KEY=sk-openai-abc failed";
+    const result = sanitizeStderr(input);
+    expect(result).not.toContain("sk-openai-abc");
+    expect(result).toContain("[REDACTED]");
+  });
+
+  it("GEMINI_API_KEY=<value> 를 [REDACTED]로 치환한다", () => {
+    const input = "GEMINI_API_KEY=gemini-xyz-key error";
+    const result = sanitizeStderr(input);
+    expect(result).not.toContain("gemini-xyz-key");
+    expect(result).toContain("[REDACTED]");
+  });
+
+  it("sk- 로 시작하는 API 키 패턴을 [REDACTED]로 치환한다", () => {
+    const input = "Bearer sk-proj-abcdefghijklmn1234567890";
+    const result = sanitizeStderr(input);
+    expect(result).not.toContain("sk-proj-abcdefghijklmn1234567890");
+    expect(result).toContain("[REDACTED]");
+  });
+
+  it("API 키가 없는 평범한 에러 메시지는 변환하지 않는다", () => {
+    const input = "Error: connection refused to localhost:8080";
+    const result = sanitizeStderr(input);
+    expect(result).toBe(input);
   });
 });
