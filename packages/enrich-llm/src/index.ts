@@ -1,5 +1,5 @@
 /**
- * @sfc/enrich-llm — LLM 보강 플러그인 (PLAN.md 2절 [6], 8절)
+ * @karax/enrich-llm — LLM 보강 플러그인 (PLAN.md 2절 [6], 8절)
  *
  * - 코어는 LLM 없이 결정론적으로 동작 (이 패키지는 optional plugin)
  * - 특정 벤더 SDK 미의존: LLM 호출 함수는 주입형 (complete 인자)
@@ -7,8 +7,8 @@
  */
 
 import { z } from "zod";
-import { IRDocumentSchema } from "@sfc/core";
-import type { IRDocument, IRNode } from "@sfc/core";
+import { IRDocumentSchema } from "@karax/core";
+import type { IRDocument, IRNode } from "@karax/core";
 
 export const ENRICH_VERSION = "0.0.1" as const;
 

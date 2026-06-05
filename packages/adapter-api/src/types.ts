@@ -1,4 +1,4 @@
-import type { IRDocument } from "@sfc/core";
+import type { IRDocument } from "@karax/core";
 
 // ── 공유 기본 타입 ──────────────────────────────────────────────
 

@@ -9,8 +9,8 @@
 
 import { readFile } from "fs/promises";
 import path from "path";
-import { parseSource } from "@sfc/adapter-api";
-import type { SyntaxNode } from "@sfc/adapter-api";
+import { parseSource } from "@karax/adapter-api";
+import type { SyntaxNode } from "@karax/adapter-api";
 import type { SwiftSymbolTable } from "../parse/scanner.js";
 import { findAllNodes, findChild, filterChildren } from "../parse/scanner.js";
 

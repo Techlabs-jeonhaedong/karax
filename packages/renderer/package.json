@@ -1,5 +1,5 @@
 {
-  "name": "@sfc/renderer",
+  "name": "@karax/renderer",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -17,13 +17,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sfc/core": "workspace:*",
+    "@karax/core": "workspace:*",
     "pixelmatch": "^6.0.0",
     "playwright": "^1.50.0",
     "pngjs": "^7.0.0"
   },
   "devDependencies": {
-    "@sfc/adapter-flutter": "workspace:*",
+    "@karax/adapter-flutter": "workspace:*",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0",

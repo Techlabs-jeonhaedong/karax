@@ -10,7 +10,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 import * as crypto from "crypto";
-import type { ScreenSummary, DeviceProfileId } from "@sfc/adapter-api";
+import type { ScreenSummary, DeviceProfileId } from "@karax/adapter-api";
 
 export interface GenerateHarnessOpts {
   projectPath: string;
@@ -38,7 +38,7 @@ export function generateHarness(opts: GenerateHarnessOpts): HarnessProject {
     .update(`${projectPath}:${screen.id}:${device}:${mockSeed}`)
     .digest("hex")
     .slice(0, 12);
-  const workDir = opts.workDir ?? path.join(os.tmpdir(), `sfc-rn-${hash}`);
+  const workDir = opts.workDir ?? path.join(os.tmpdir(), `karax-rn-${hash}`);
   fs.mkdirSync(workDir, { recursive: true });
 
   // 화면 소스 절대 경로 (존재 확인)

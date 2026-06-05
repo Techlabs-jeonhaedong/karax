@@ -3,7 +3,7 @@ import * as path from "path";
 import type { IRDocument } from "../ir/schema.js";
 
 // ── 로컬 타입 (adapter-api 의존 없이 구조적 타이핑) ──────────────
-// core는 @sfc 내부 의존 0개를 유지해야 하므로
+// core는 @karax 내부 의존 0개를 유지해야 하므로
 // adapter-api 타입을 직접 임포트하지 않고 구조적으로 재정의한다.
 
 type DeviceProfileId = string;

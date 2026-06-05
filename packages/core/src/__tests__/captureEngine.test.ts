@@ -87,7 +87,7 @@ function makeOpts(overrides: Partial<CaptureEngineOptions> = {}): CaptureEngineO
   return {
     projectPath: "/fake/project",
     screen: SCREEN,
-    outDir: "/tmp/sfc-out",
+    outDir: "/tmp/karax-out",
     captureMode: "auto",
     device: "iphone-15",
     mockSeed: 42,
@@ -193,7 +193,7 @@ describe("captureScreenWithTiers — static 모드", () => {
 
 describe("captureScreenWithTiers — 사이드카 report.json", () => {
   it("outDir에 <screenId>_<device>.report.json을 생성해야 한다", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-test-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-test-"));
     const fakePng = path.join(tmpDir, "HomeScreen_iphone-15.png");
     fs.writeFileSync(fakePng, "");
 
@@ -228,7 +228,7 @@ describe("captureScreenWithTiers — 사이드카 report.json", () => {
   });
 
   it("compile 티어 캡처 후에도 <screenId>_<device>.report.json이 생성돼야 한다", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-test-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-test-"));
     const fakePng = path.join(tmpDir, "HomeScreen.png");
     fs.writeFileSync(fakePng, "");
 
@@ -261,7 +261,7 @@ describe("captureScreenWithTiers — 사이드카 report.json", () => {
   });
 
   it("device별로 별도 report.json이 생성돼 덮어쓰지 않는다 (중간-5 회귀)", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-test-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-test-"));
 
     const fakePngA = path.join(tmpDir, "HomeScreen_iphone-15.png");
     const fakePngB = path.join(tmpDir, "HomeScreen_pixel-8.png");

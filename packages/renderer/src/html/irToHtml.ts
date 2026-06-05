@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import type { IRDocument, IRNode } from "@sfc/core";
+import type { IRDocument, IRNode } from "@karax/core";
 import type { DeviceProfile } from "../devices/profiles.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -129,7 +129,7 @@ function buildLayoutCSS(
 }
 
 // ── idx counter ref ────────────────────────────────────────────────
-// renderNode가 DOM 요소를 생성할 때마다 data-sfc-idx 속성을 심어
+// renderNode가 DOM 요소를 생성할 때마다 data-karax-idx 속성을 심어
 // capture.ts의 confidence overlay가 해당 요소를 정확히 찾을 수 있게 한다.
 type IdxRef = { value: number };
 
@@ -145,7 +145,7 @@ function renderNode(
 
   // 이 노드가 DOM 요소를 직접 생성하는 경우 idx 할당
   const myIdx = idxRef !== undefined ? idxRef.value++ : undefined;
-  const idxAttr = myIdx !== undefined ? ` data-sfc-idx="${myIdx}"` : "";
+  const idxAttr = myIdx !== undefined ? ` data-karax-idx="${myIdx}"` : "";
 
   switch (node.type) {
     case "Column":
@@ -431,7 +431,7 @@ function renderFlex(
   const align = crossAxisToAlign(l?.crossAxis, direction);
   const baseCSS = buildLayoutCSS(node, designTokens);
   const positionCSS = isStackChild ? "position:absolute;top:0;left:0;right:0;bottom:0;" : "";
-  const idxAttr = myIdx !== undefined ? ` data-sfc-idx="${myIdx}"` : "";
+  const idxAttr = myIdx !== undefined ? ` data-karax-idx="${myIdx}"` : "";
 
   const children = (node.children ?? [])
     .map((c) => renderNode(c, designTokens, false, idxRef))
@@ -468,7 +468,7 @@ function renderAppBar(
   const paddingCSS = padding
     ? `padding:${padding[0]}px ${padding[1]}px ${padding[2]}px ${padding[3]}px;`
     : "padding:0;";
-  const idxAttr = myIdx !== undefined ? ` data-sfc-idx="${myIdx}"` : "";
+  const idxAttr = myIdx !== undefined ? ` data-karax-idx="${myIdx}"` : "";
   const children = (node.children ?? [])
     .map((c) => renderNode(c, designTokens, false, idxRef))
     .join("");
@@ -493,7 +493,7 @@ function renderTabBar(
   const borderCSS = border
     ? `border-top:${border.width ?? 1}px solid ${resolveToken(border.color ?? "#E0E0E0", designTokens)};`
     : "border-top:1px solid #E0E0E0;";
-  const idxAttr = myIdx !== undefined ? ` data-sfc-idx="${myIdx}"` : "";
+  const idxAttr = myIdx !== undefined ? ` data-karax-idx="${myIdx}"` : "";
   const children = (node.children ?? [])
     .map((c) => renderNode(c, designTokens, false, idxRef))
     .join("");
@@ -539,8 +539,8 @@ function escapeHtml(s: string): string {
 // ── 메인 변환 함수 ─────────────────────────────────────────────────
 
 /**
- * overlay 모드용: data-sfc-idx 속성을 심은 HTML을 반환한다.
- * capture.ts의 applyConfidenceOverlay가 [data-sfc-idx="N"] 선택자로 정확히 찾는다.
+ * overlay 모드용: data-karax-idx 속성을 심은 HTML을 반환한다.
+ * capture.ts의 applyConfidenceOverlay가 [data-karax-idx="N"] 선택자로 정확히 찾는다.
  */
 export function irToHtmlWithIdx(ir: IRDocument, profile: DeviceProfile): string {
   const fontFaceCSS = getFontFaceCSS();

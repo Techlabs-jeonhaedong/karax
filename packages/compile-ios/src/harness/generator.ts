@@ -12,7 +12,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 import * as crypto from "crypto";
-import type { ScreenSummary, DeviceProfileId } from "@sfc/adapter-api";
+import type { ScreenSummary, DeviceProfileId } from "@karax/adapter-api";
 
 // ── 디바이스 프로파일 ─────────────────────────────────────────────────────────
 
@@ -525,7 +525,7 @@ export async function generateHarness(opts: GenerateHarnessOpts): Promise<Harnes
     .slice(0, 8);
 
   const packageName = `SFCHarness${hash}`;
-  const workDir = opts.workDir ?? path.join(os.tmpdir(), `sfc-ios-${hash}`);
+  const workDir = opts.workDir ?? path.join(os.tmpdir(), `karax-ios-${hash}`);
   const outPath = path.join(workDir, `${screen.id}.png`);
 
   // 디렉토리 생성

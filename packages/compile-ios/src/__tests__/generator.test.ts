@@ -9,7 +9,7 @@ import {
   buildMockValue,
   selectSimulator,
 } from "../harness/generator.js";
-import type { ScreenSummary } from "@sfc/adapter-api";
+import type { ScreenSummary } from "@karax/adapter-api";
 
 // ── generatePackageSwift ──────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ describe("generateCaptureTest", () => {
     const result = generateCaptureTest({
       screen,
       moduleName: "SFCHarness",
-      outPath: "/tmp/sfc-ios-abc/HomeScreen.png",
+      outPath: "/tmp/karax-ios-abc/HomeScreen.png",
       width: 390,
       height: 844,
       scale: 3.0,
@@ -82,7 +82,7 @@ describe("generateCaptureTest", () => {
   });
 
   it("outPath가 코드에 직접 삽입됨", () => {
-    const outPath = "/tmp/sfc-ios-abc123/HomeScreen.png";
+    const outPath = "/tmp/karax-ios-abc123/HomeScreen.png";
     const result = generateCaptureTest({
       screen,
       moduleName: "SFCHarness",

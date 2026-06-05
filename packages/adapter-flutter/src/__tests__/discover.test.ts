@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "path";
 import { fileURLToPath } from "url";
-import type { ScreenSummary } from "@sfc/adapter-api";
+import type { ScreenSummary } from "@karax/adapter-api";
 import { flutterAdapter } from "../index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

@@ -1,5 +1,5 @@
 /**
- * @sfc/mcp — 공개 export
+ * @karax/mcp — 공개 export
  */
 export { createMcpServer, startStdioServer } from "./server.js";
 

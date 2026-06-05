@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import crypto from "crypto";
-import type { ScreenSummary, DeviceProfileId } from "@sfc/adapter-api";
+import type { ScreenSummary, DeviceProfileId } from "@karax/adapter-api";
 import {
   parseKotlinConstructorParams,
   generateKotlinMockArg,
@@ -244,7 +244,7 @@ export async function generateHarness(opts: GenerateHarnessOpts): Promise<Harnes
     .update(`${projectPath}:${screen.id}:${device}:${mockSeed}`)
     .digest("hex")
     .slice(0, 12);
-  const workDir = opts.workDir ?? path.join(os.tmpdir(), `sfc-android-${hash}`);
+  const workDir = opts.workDir ?? path.join(os.tmpdir(), `karax-android-${hash}`);
 
   // 멱등성 보장: 이전 실행의 구버전 소스가 혼입되지 않도록 항상 새로 생성한다.
   if (fs.existsSync(workDir)) {
@@ -294,7 +294,7 @@ export async function generateHarness(opts: GenerateHarnessOpts): Promise<Harnes
 
   // 대상 화면 패키지 분석
   const { packageName } = resolveSourceInfo(projectPath, screen);
-  const testPackageName = "com.sfc.harness.test";
+  const testPackageName = "com.karax.harness.test";
 
   // 대상 앱 소스 복사 (하니스 모듈의 main 소스로)
   const harnessMainKotlinDir = path.join(appDir, "src", "main", "kotlin");

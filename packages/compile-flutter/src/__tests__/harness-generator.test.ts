@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generatePubspec, generateTestDart, getBuiltinFontsDir } from "../harness/generator.js";
-import type { ScreenSummary } from "@sfc/adapter-api";
+import type { ScreenSummary } from "@karax/adapter-api";
 import type { ConstructorParam } from "../harness/paramCodegen.js";
 
 // ── 공통 픽스처 ────────────────────────────────────────────────────────────────

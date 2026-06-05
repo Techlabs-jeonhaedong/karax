@@ -5,7 +5,7 @@
 import path from "path";
 import { describe, it, expect } from "vitest";
 import { iosAdapter } from "../index.js";
-import type { AdapterContext } from "@sfc/adapter-api";
+import type { AdapterContext } from "@karax/adapter-api";
 
 const FIXTURE = path.resolve("../../fixtures/ios-swiftui-basic");
 
