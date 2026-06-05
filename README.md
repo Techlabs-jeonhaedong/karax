@@ -49,6 +49,8 @@
 
 > 주의: `@karax/mcp`는 아직 npm에 발행되지 않았습니다. 로컬 개발 환경에서는 아래 CLI 설치를 사용하세요.
 
+> **마이그레이션**: 기존에 `"sfc": { "command": "npx", "args": ["-y", "@sfc/mcp"] }`로 등록한 클라이언트 설정은 위와 같이 키를 `"karax"`로, 패키지를 `@karax/mcp`로 교체해야 합니다.
+
 ```bash
 # 로컬 저장소 클론 후
 pnpm install
