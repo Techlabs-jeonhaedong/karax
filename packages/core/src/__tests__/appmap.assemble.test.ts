@@ -127,6 +127,124 @@ describe("assembleAppMap", () => {
     expect(buttonElem?.label).toBe("Go to Detail");
   });
 
+  it("Button 자식 Text에서 라벨을 가져온다 (node.text 없는 경우)", () => {
+    const irDoc: IRDocument = {
+      schemaVersion: "1",
+      screen: {
+        id: "HomeScreen",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          children: [
+            {
+              type: "Button",
+              confidence: 1.0,
+              // text 없음 — 자식 Text 노드에 라벨이 있는 실제 Flutter 패턴
+              children: [
+                {
+                  type: "Text",
+                  confidence: 1.0,
+                  text: { value: "View Product Details" },
+                },
+              ],
+            },
+          ],
+        },
+      },
+      diagnostics: [],
+    };
+
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [{ id: "HomeScreen", discovery: "route", confidence: 1.0 }],
+      navGraph: { entryScreenId: "HomeScreen", edges: [], diagnostics: [] },
+      irDocs: [irDoc],
+    });
+
+    const homeNode = appMap.screens.find((s) => s.id === "HomeScreen");
+    const buttonElem = homeNode?.elements.find((e) => e.type === "Button");
+    expect(buttonElem).toBeDefined();
+    expect(buttonElem?.label).toBe("View Product Details");
+  });
+
+  it("Button 자식 Text가 token만 있을 때도 라벨을 가져온다", () => {
+    const irDoc: IRDocument = {
+      schemaVersion: "1",
+      screen: {
+        id: "S",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          children: [
+            {
+              type: "Button",
+              confidence: 1.0,
+              children: [
+                {
+                  type: "Text",
+                  confidence: 1.0,
+                  text: { token: "btn.submit" },
+                },
+              ],
+            },
+          ],
+        },
+      },
+      diagnostics: [],
+    };
+
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [{ id: "S", discovery: "route", confidence: 1.0 }],
+      navGraph: { entryScreenId: "S", edges: [], diagnostics: [] },
+      irDocs: [irDoc],
+    });
+
+    const buttonElem = appMap.screens[0]?.elements.find((e) => e.type === "Button");
+    expect(buttonElem?.label).toBe("btn.submit");
+  });
+
+  it("Button에 자식 Text가 없으면 label이 undefined이다", () => {
+    const irDoc: IRDocument = {
+      schemaVersion: "1",
+      screen: {
+        id: "S",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          children: [
+            {
+              type: "Button",
+              confidence: 1.0,
+              // text 없고 자식도 없음
+            },
+          ],
+        },
+      },
+      diagnostics: [],
+    };
+
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [{ id: "S", discovery: "route", confidence: 1.0 }],
+      navGraph: { entryScreenId: "S", edges: [], diagnostics: [] },
+      irDocs: [irDoc],
+    });
+
+    const buttonElem = appMap.screens[0]?.elements.find((e) => e.type === "Button");
+    expect(buttonElem).toBeDefined();
+    expect(buttonElem?.label).toBeUndefined();
+  });
+
   it("IRDocument 없는 화면은 elements=[]로 처리된다", () => {
     const appMap = assembleAppMap({
       appName: "App",

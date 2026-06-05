@@ -25,6 +25,24 @@ const INTERACTIVE_TYPES = new Set<IRNode["type"]>([
   "Button", "Input", "List", "Image", "Icon",
 ]);
 
+/** node.text 없을 때 자손에서 첫 번째 Text 노드의 값을 반환 (깊이 3 제한) */
+function findChildTextLabel(node: IRNode): string | undefined {
+  if (!node.children) return undefined;
+  const stack: Array<{ n: IRNode; depth: number }> = node.children.map((c) => ({ n: c, depth: 1 }));
+  while (stack.length > 0) {
+    const { n, depth } = stack.pop()!;
+    if (n.type === "Text" && (n.text?.value ?? n.text?.token)) {
+      return n.text?.value ?? n.text?.token;
+    }
+    if (depth < 3 && n.children) {
+      for (const child of n.children) {
+        stack.push({ n: child, depth: depth + 1 });
+      }
+    }
+  }
+  return undefined;
+}
+
 function collectElements(root: IRNode): MapElement[] {
   const results: MapElement[] = [];
   const queue: IRNode[] = [root];
@@ -33,7 +51,7 @@ function collectElements(root: IRNode): MapElement[] {
     const node = queue.shift()!;
 
     if (INTERACTIVE_TYPES.has(node.type)) {
-      const label = node.text?.value ?? node.text?.token;
+      const label = node.text?.value ?? node.text?.token ?? findChildTextLabel(node);
       results.push({
         type: node.type as MapElement["type"],
         ...(label ? { label } : {}),

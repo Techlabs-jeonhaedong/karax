@@ -5,7 +5,9 @@
  */
 
 import path from "path";
-import { describe, it, expect, beforeAll } from "vitest";
+import fs from "fs";
+import os from "os";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import {
   parseStoryboard,
   discoverUIKitScreens,
@@ -290,12 +292,18 @@ describe("detectUIKit", () => {
 // ── 엣지 케이스 ───────────────────────────────────────────────────────────────
 
 describe("storyboardParser — 엣지 케이스", () => {
-  it("빈 storyboard XML에서 빈 scenes 배열을 반환한다", async () => {
-    const { parseStoryboard } = await import("../legacy/storyboardParser.js");
-    // 빈 XML string을 직접 파싱하는 내부 함수 테스트는 실제 파일 기반으로만 진행
-    // (parseStoryboard는 파일 경로만 받음)
-    // 빈 프로젝트 디렉토리에서 discoverUIKitScreens 결과를 검증
-    const result = await discoverUIKitScreens("/tmp");
+  let emptyTmpDir: string | undefined;
+
+  afterEach(() => {
+    if (emptyTmpDir) {
+      fs.rmSync(emptyTmpDir, { recursive: true, force: true });
+      emptyTmpDir = undefined;
+    }
+  });
+
+  it("빈 프로젝트 디렉토리에서 discoverUIKitScreens가 빈 배열을 반환한다", async () => {
+    emptyTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-empty-"));
+    const result = await discoverUIKitScreens(emptyTmpDir);
     expect(result.screens).toHaveLength(0);
   });
 
