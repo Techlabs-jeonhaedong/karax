@@ -8,6 +8,32 @@
  *   2 — 부분 실패 (일부 화면 캡처 실패)
  */
 
+// ─── WASM Turboshaft 워크어라운드 self-respawn ────────────────────────
+// Node v24 V8 Turboshaft가 tree-sitter-swift.wasm을 백그라운드 컴파일할 때
+// Zone OOM으로 프로세스가 즉사한다 (iOS 어댑터 사용 시 100% 재현).
+// packages/adapter-ios/vitest.config.ts에 동일한 워크어라운드 적용돼 있음.
+// V8 플래그는 NODE_OPTIONS 허용 목록에 없어 환경 변수 전달 불가 → execArgv로만 가능.
+// 플래그 없이 진입하면 자기 자신을 플래그와 함께 재실행하고 exit code를 그대로 전파.
+{
+  // 동적 import 대신 동기 require-style로 처리: ESM static import는 top-level await 전에 실행되므로
+  // child_process와 wasmFlags를 인라인으로 가져온다.
+  const { spawnSync } = await import("node:child_process");
+  const { shouldRespawn, WASM_FLAGS, WASM_MARKER_ENV } = await import("./wasmFlags.js");
+
+  if (shouldRespawn(process.execArgv, process.env)) {
+    const result = spawnSync(
+      process.execPath,
+      [...WASM_FLAGS, process.argv[1], ...process.argv.slice(2)],
+      {
+        stdio: "inherit",
+        env: { ...process.env, [WASM_MARKER_ENV]: "1" },
+      }
+    );
+    process.exit(result.status ?? 1);
+  }
+}
+// ─────────────────────────────────────────────────────────────────────
+
 import { Command } from "commander";
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
@@ -327,10 +353,11 @@ program
   .option("--out <dir>", "마크다운 파일 출력 디렉토리 (기본: ./)")
   .option("--max-chars <n>", "문서 분할 기준 최대 글자 수")
   .option("--json", "JSON 형식으로 AppMap 출력", false)
+  .option("--no-layout", "정적 좌표 측정 비활성화 (Chromium 미사용)")
   .action(
     async (
       pathArg: string,
-      opts: { out?: string; maxChars?: string; json: boolean }
+      opts: { out?: string; maxChars?: string; json: boolean; layout: boolean }
     ) => {
       try {
         const args = parseMapArgs([
@@ -338,10 +365,11 @@ program
           ...(opts.out ? ["--out", opts.out] : []),
           ...(opts.maxChars ? ["--max-chars", opts.maxChars] : []),
           ...(opts.json ? ["--json"] : []),
+          ...(opts.layout === false ? ["--no-layout"] : []),
         ]);
 
         const { generateAppMap } = await import("@karax/sdk");
-        const appMap = await generateAppMap({ projectPath: args.path });
+        const appMap = await generateAppMap({ projectPath: args.path, includeLayout: args.layout });
 
         if (args.json) {
           console.log(JSON.stringify(appMap, null, 2));

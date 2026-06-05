@@ -1,8 +1,9 @@
 import path from "path";
 import { readFile } from "fs/promises";
-import { parseSource, type SyntaxNode } from "@karax/adapter-api";
+import { withParsedSource, type SyntaxNode } from "@karax/adapter-api";
 import { findNodes, findChild, filterChildren } from "../parse/scanner.js";
 import type { SymbolTable } from "../parse/scanner.js";
+import { discoverGetxRoutes } from "./getx.js";
 
 // ── AST 유틸 ────────────────────────────────────────────────────────────────
 
@@ -212,81 +213,81 @@ async function extractFromMainDart(projectPath: string): Promise<MaterialAppArgs
     return { routeClasses: [], onGenerateRouteClasses: [], goRouterClasses: [] };
   }
 
-  const root = await parseSource("dart", source);
+  return withParsedSource("dart", source, (root) => {
+    const result: MaterialAppArgs = {
+      routeClasses: [],
+      onGenerateRouteClasses: [],
+      goRouterClasses: [],
+    };
 
-  const result: MaterialAppArgs = {
-    routeClasses: [],
-    onGenerateRouteClasses: [],
-    goRouterClasses: [],
-  };
+    // GoRouter가 있는지 먼저 확인
+    const goRouterIds = findByIdentifier(root, "GoRouter");
+    for (const goRouterId of goRouterIds) {
+      // GoRouter identifier 바로 다음 형제(nextSibling)가 해당 GoRouter의 selector다.
+      const selectorNode = goRouterId.nextSibling as SyntaxNode | null;
+      if (!selectorNode || selectorNode.type !== "selector") continue;
+      const ap = findChild(selectorNode, "argument_part");
+      if (!ap) continue;
+      const args = findChild(ap, "arguments");
+      if (!args) continue;
+      const classes = parseGoRouter(args);
+      result.goRouterClasses.push(...classes);
+    }
 
-  // GoRouter가 있는지 먼저 확인
-  const goRouterIds = findByIdentifier(root, "GoRouter");
-  for (const goRouterId of goRouterIds) {
-    // GoRouter identifier 바로 다음 형제(nextSibling)가 해당 GoRouter의 selector다.
-    const selectorNode = goRouterId.nextSibling as SyntaxNode | null;
-    if (!selectorNode || selectorNode.type !== "selector") continue;
-    const ap = findChild(selectorNode, "argument_part");
-    if (!ap) continue;
-    const args = findChild(ap, "arguments");
-    if (!args) continue;
-    const classes = parseGoRouter(args);
-    result.goRouterClasses.push(...classes);
-  }
+    // MaterialApp / CupertinoApp arguments 탐색
+    for (const appName of ["MaterialApp", "CupertinoApp"]) {
+      const appIds = findByIdentifier(root, appName);
+      for (const appId of appIds) {
+        if (!appId.parent) continue;
 
-  // MaterialApp / CupertinoApp arguments 탐색
-  for (const appName of ["MaterialApp", "CupertinoApp"]) {
-    const appIds = findByIdentifier(root, appName);
-    for (const appId of appIds) {
-      if (!appId.parent) continue;
+        // MaterialApp.router 형태 건너뜀
+        const nextSel = appId.parent.children.find(
+          (c): c is SyntaxNode => c !== null && c.type === "selector"
+        );
+        const assgnSel = nextSel ? findChild(nextSel, "unconditional_assignable_selector") : undefined;
+        if (assgnSel?.text === ".router") continue;
 
-      // MaterialApp.router 형태 건너뜀
-      const nextSel = appId.parent.children.find(
-        (c): c is SyntaxNode => c !== null && c.type === "selector"
-      );
-      const assgnSel = nextSel ? findChild(nextSel, "unconditional_assignable_selector") : undefined;
-      if (assgnSel?.text === ".router") continue;
+        // arguments 노드 찾기
+        let args: SyntaxNode | undefined;
+        const selectors = filterChildren(appId.parent, "selector");
+        for (const sel of selectors) {
+          const ap = findChild(sel, "argument_part");
+          if (ap) {
+            args = findChild(ap, "arguments");
+            break;
+          }
+        }
+        if (!args) continue;
 
-      // arguments 노드 찾기
-      let args: SyntaxNode | undefined;
-      const selectors = filterChildren(appId.parent, "selector");
-      for (const sel of selectors) {
-        const ap = findChild(sel, "argument_part");
-        if (ap) {
-          args = findChild(ap, "arguments");
-          break;
+        // routes:
+        const routesArg = getNamedArg(args, "routes");
+        if (routesArg) {
+          result.routeClasses.push(...parseRoutesMap(routesArg));
+        }
+
+        // home:
+        const homeArg = getNamedArg(args, "home");
+        if (homeArg && !result.homeClass) {
+          result.homeClass = parseHomeArg(homeArg);
+        }
+
+        // onGenerateRoute:
+        const onGenArg = getNamedArg(args, "onGenerateRoute");
+        if (onGenArg) {
+          result.onGenerateRouteClasses.push(...parseOnGenerateRoute(onGenArg));
         }
       }
-      if (!args) continue;
-
-      // routes:
-      const routesArg = getNamedArg(args, "routes");
-      if (routesArg) {
-        result.routeClasses.push(...parseRoutesMap(routesArg));
-      }
-
-      // home:
-      const homeArg = getNamedArg(args, "home");
-      if (homeArg && !result.homeClass) {
-        result.homeClass = parseHomeArg(homeArg);
-      }
-
-      // onGenerateRoute:
-      const onGenArg = getNamedArg(args, "onGenerateRoute");
-      if (onGenArg) {
-        result.onGenerateRouteClasses.push(...parseOnGenerateRoute(onGenArg));
-      }
     }
-  }
 
-  return result;
+    return result;
+  });
 }
 
 // ── 결과 타입 ────────────────────────────────────────────────────────────────
 
 export interface RouteEntry {
   className: string;
-  source: "routes-table" | "home" | "on-generate-route" | "go-router" | "navigator-push";
+  source: "routes-table" | "home" | "on-generate-route" | "go-router" | "navigator-push" | "getx-page";
 }
 
 export interface DiagnosticEntry {
@@ -331,6 +332,12 @@ export async function discoverRouteGraph(
   if (mainArgs.homeClass) addRoute(mainArgs.homeClass, "home");
   for (const cls of mainArgs.onGenerateRouteClasses) addRoute(cls, "on-generate-route");
   for (const cls of mainArgs.goRouterClasses) addRoute(cls, "go-router");
+
+  // GetX: 프로젝트 전체에서 GetPage(name:, page:) 스캔 (라우트 테이블이 별도 파일이어도 발견)
+  const getx = discoverGetxRoutes(symbolTable);
+  for (const page of getx.pages) {
+    if (page.className) addRoute(page.className, "getx-page");
+  }
 
   // 프로젝트 전체 파일에서 Navigator.push 스캔
   for (const [, parsedFile] of symbolTable.files) {

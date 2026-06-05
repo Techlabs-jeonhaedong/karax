@@ -50,7 +50,7 @@ export type {
   DiagnosticEntry as AppMapDiagnosticEntry,
 } from "./appmap/schema.js";
 
-export { assembleAppMap } from "./appmap/assemble.js";
+export { assembleAppMap, matchElement, extractElementStyle } from "./appmap/assemble.js";
 export type { AssembleOptions, ScreenSummary as AppMapScreenSummary } from "./appmap/assemble.js";
 
 export { renderAppMapMarkdown } from "./appmap/markdown.js";

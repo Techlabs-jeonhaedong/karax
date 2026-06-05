@@ -8,6 +8,7 @@ import type {
   CaptureOptions,
   CaptureResult,
 } from "@karax/adapter-api";
+import { resolveFlutterPath } from "@karax/adapter-api";
 import { generateHarness } from "./harness/generator.js";
 import { runFlutterTest } from "./runner.js";
 import { HarnessError } from "./harness/paramCodegen.js";
@@ -17,8 +18,19 @@ export const BACKEND_ID = "flutter" as const;
 
 // ── flutter 경로 감지 ─────────────────────────────────────────────────────────
 
-async function detectFlutterPath(env: CompileEnvironment): Promise<string | null> {
-  // 명시적 경로 지정 시 우선 사용
+/**
+ * flutter 실행파일 경로를 결정한다.
+ *
+ * 우선순위:
+ *  1. env.toolchainPath — 명시적으로 지정된 경로
+ *  2. projectPath 기반 FVM resolve (.fvm/flutter_sdk 심링크 → 캐시 경로)
+ *  3. PATH의 "flutter" — 시스템 글로벌 설치
+ */
+async function detectFlutterPath(
+  env: CompileEnvironment,
+  projectPath?: string
+): Promise<string | null> {
+  // 1) 명시적 경로 지정 시 우선 사용
   if (env.toolchainPath) {
     try {
       await execa(env.toolchainPath, ["--version"], { timeout: 10_000 });
@@ -28,7 +40,13 @@ async function detectFlutterPath(env: CompileEnvironment): Promise<string | null
     }
   }
 
-  // PATH에서 flutter 탐색 (콜드스타트가 느린 머신에서 20s+ 소요 가능 → 30s)
+  // 2) 프로젝트 경로 기반 FVM resolve
+  if (projectPath) {
+    const fvmPath = await resolveFlutterPath(projectPath);
+    if (fvmPath) return fvmPath;
+  }
+
+  // 3) PATH에서 flutter 탐색 (콜드스타트가 느린 머신에서 20s+ 소요 가능 → 30s)
   try {
     const result = await execa("flutter", ["--version"], {
       timeout: 30_000,
@@ -51,8 +69,8 @@ async function detectFlutterPath(env: CompileEnvironment): Promise<string | null
 export const flutterCompileBackend: CompileBackend = {
   id: "flutter",
 
-  async isAvailable(env: CompileEnvironment): Promise<boolean> {
-    const flutterPath = await detectFlutterPath(env);
+  async isAvailable(env: CompileEnvironment, projectPath?: string): Promise<boolean> {
+    const flutterPath = await detectFlutterPath(env, projectPath);
     return flutterPath !== null;
   },
 
@@ -64,8 +82,8 @@ export const flutterCompileBackend: CompileBackend = {
     const { projectPath } = ctx;
     const { outDir, device = "iphone-15", mockSeed = 0 } = opts;
 
-    // flutter 경로 감지
-    const flutterPath = await detectFlutterPath({});
+    // flutter 경로 감지 (FVM 우선 시도)
+    const flutterPath = await detectFlutterPath({}, projectPath);
 
     // 하니스 프로젝트 생성
     const harness = await generateHarness({

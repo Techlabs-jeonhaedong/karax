@@ -133,8 +133,11 @@ export interface CompileBackend {
   /**
    * 현재 환경에서 이 백엔드를 사용할 수 있는지 확인한다.
    * false 반환 시 Tier 2 fallback이 자동으로 선택된다.
+   *
+   * @param env         컴파일 환경 (toolchainPath 등)
+   * @param projectPath 프로젝트 경로 — FVM 등 프로젝트별 툴체인 감지에 사용 (optional)
    */
-  isAvailable(env: CompileEnvironment): Promise<boolean>;
+  isAvailable(env: CompileEnvironment, projectPath?: string): Promise<boolean>;
 
   /**
    * 화면을 실제로 컴파일해서 PNG로 캡처한다.

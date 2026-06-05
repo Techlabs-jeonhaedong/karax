@@ -53,6 +53,20 @@ function resolveColor(
   return resolveToken(value, designTokens);
 }
 
+// ── CSS 값 새니타이저 ──────────────────────────────────────────────
+/**
+ * CSS 값 화이트리스트 검증.
+ * hex/rgb()/rgba()/hsl()/hsla()/linear-gradient()/CSS 키워드/투명도 등
+ * 안전한 CSS color/background 패턴만 허용한다.
+ * 허용 문자: a-z A-Z 0-9 # ( ) , . % - _ 공백
+ * 허용되지 않으면 fallback 값을 반환한다.
+ */
+const CSS_VALUE_SAFE_RE = /^[-#(),.%a-zA-Z0-9\s_/]+$/;
+
+function sanitizeCssValue(value: string, fallback: string): string {
+  return CSS_VALUE_SAFE_RE.test(value) ? value : fallback;
+}
+
 // ── CSS 유틸 ───────────────────────────────────────────────────────
 function toPx(v: unknown): string {
   if (v === "fill") return "100%";
@@ -109,7 +123,7 @@ function buildLayoutCSS(
 
   // Style
   if (s?.background) {
-    const bg = resolveToken(s.background, designTokens);
+    const bg = sanitizeCssValue(resolveToken(s.background, designTokens), "#E0E0E0");
     parts.push(`background:${bg}`);
   }
   if (s?.borderRadius !== undefined) parts.push(`border-radius:${s.borderRadius}px`);
@@ -358,7 +372,8 @@ function renderNode(
     }
 
     case "Divider": {
-      const color = resolveColor(node.style?.background, designTokens) ?? "#E0E0E0";
+      const rawColor = resolveColor(node.style?.background, designTokens) ?? "#E0E0E0";
+      const color = sanitizeCssValue(rawColor, "#E0E0E0");
       const heightVal = node.layout?.height;
       const isHorizontal = typeof heightVal === "number" ? heightVal <= 2 : true;
       if (isHorizontal) {
@@ -459,7 +474,7 @@ function renderAppBar(
   myIdx?: number,
 ): string {
   const h = node.layout?.height ?? 56;
-  const bg = resolveToken(node.style?.background ?? "#1976D2", designTokens);
+  const bg = sanitizeCssValue(resolveToken(node.style?.background ?? "#1976D2", designTokens), "#1976D2");
   const sh = node.style?.shadow;
   const shadowCSS = sh
     ? `box-shadow:${sh.offsetX ?? 0}px ${sh.offsetY ?? 2}px ${sh.blur ?? 4}px ${sh.color ?? "rgba(0,0,0,0.2)"};`
@@ -488,7 +503,7 @@ function renderTabBar(
   myIdx?: number,
 ): string {
   const h = node.layout?.height ?? 56;
-  const bg = resolveToken(node.style?.background ?? "#FFFFFF", designTokens);
+  const bg = sanitizeCssValue(resolveToken(node.style?.background ?? "#FFFFFF", designTokens), "#FFFFFF");
   const border = node.style?.border;
   const borderCSS = border
     ? `border-top:${border.width ?? 1}px solid ${resolveToken(border.color ?? "#E0E0E0", designTokens)};`

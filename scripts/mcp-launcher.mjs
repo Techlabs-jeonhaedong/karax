@@ -259,6 +259,17 @@ async function main() {
   handoff();
 }
 
+// WASM Turboshaft 워크어라운드 플래그.
+// Node v24 V8 Turboshaft가 tree-sitter-swift.wasm을 백그라운드 컴파일할 때
+// Zone OOM으로 프로세스가 즉사한다 (iOS 어댑터 사용 시 100% 재현).
+// packages/adapter-ios/vitest.config.ts에 동일한 워크어라운드 적용돼 있음.
+// V8 플래그는 NODE_OPTIONS 허용 목록에 없어 환경 변수 전달 불가 → execArgv로만 가능.
+const WASM_FLAGS = [
+  "--no-wasm-tier-up",
+  "--no-wasm-dynamic-tiering",
+  "--wasm-num-compilation-tasks=1",
+];
+
 /**
  * packages/mcp/dist/bin.js로 stdio 상속 핸드오프.
  * exit code를 그대로 전파하고, SIGINT/SIGTERM을 자식에게 전달한다.
@@ -269,7 +280,7 @@ function handoff() {
     process.exit(1);
   }
 
-  const child = spawn(process.execPath, [MCP_BIN], {
+  const child = spawn(process.execPath, [...WASM_FLAGS, MCP_BIN], {
     stdio: "inherit",
     env: process.env,
   });

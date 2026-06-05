@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
-import { parseSource, type SyntaxNode } from "@karax/adapter-api";
+import { parseWithTree, type SyntaxNode } from "@karax/adapter-api";
+import { buildConstTable } from "./constResolver.js";
 
 // ── 타입 ──────────────────────────────────────────────────────────────────────
 
@@ -10,6 +11,7 @@ export interface ClassInfo {
   line: number;       // 1-based
   superclass: string; // 단순 이름 (type_arguments 제외)
   stateOf?: string;   // State<X> 패턴인 경우 X의 클래스명
+  superTypeArg?: string; // superclass 첫 번째 타입 인자 (GetView<T>, State<X> 등)
 }
 
 export interface ImportInfo {
@@ -23,6 +25,8 @@ export interface ParsedFile {
   imports: ImportInfo[];
   root: SyntaxNode;
   source: string;
+  /** Emscripten 힙의 tree-sitter Tree를 해제한다. ParsedFile이 더 이상 필요 없을 때 호출해야 한다. */
+  disposeTree: () => void;
 }
 
 // ── dart 파일 수집 ─────────────────────────────────────────────────────────────
@@ -51,6 +55,8 @@ export async function collectDartFiles(projectPath: string): Promise<string[]> {
   }
 
   await walk(libDir);
+  // 결정론 보장: readdir 순서는 OS/파일시스템 의존이므로 정렬한다
+  results.sort();
   return results;
 }
 
@@ -121,9 +127,22 @@ export async function parseDartFile(
   packageName: string
 ): Promise<ParsedFile> {
   const source = await readFile(absolutePath, "utf-8");
-  const root = await parseSource("dart", source);
   const relPath = path.relative(projectPath, absolutePath);
   const fileDir = path.dirname(absolutePath);
+  return parseDartSource(source, relPath, { packageName, fileDir, projectPath });
+}
+
+/**
+ * 소스 문자열을 직접 파싱해 ParsedFile을 만든다. (fs 비의존 — 테스트에서 재사용)
+ * resolveCtx가 없으면 import는 resolved 없이 raw만 기록한다.
+ * 반환된 ParsedFile.disposeTree()를 반드시 호출해 Tree를 해제해야 한다.
+ */
+export async function parseDartSource(
+  source: string,
+  relPath: string,
+  resolveCtx?: { packageName: string; fileDir: string; projectPath: string }
+): Promise<ParsedFile> {
+  const { rootNode: root, disposeTree } = await parseWithTree("dart", source);
 
   // 클래스 선언 파싱
   const classDefs = findNodes(root, "class_definition");
@@ -133,17 +152,20 @@ export async function parseDartFile(
     const superclass = superclassNode ? findChild(superclassNode, "type_identifier")?.text ?? "" : "";
     const line = cls.startPosition.row + 1;
 
-    // State<ScreenClassName> 패턴에서 stateOf 추출
-    let stateOf: string | undefined;
-    if (superclass === "State" && superclassNode) {
+    // superclass 첫 번째 타입 인자 (State<X>, GetView<T> 등)
+    let superTypeArg: string | undefined;
+    if (superclassNode) {
       const typeArgs = findChild(superclassNode, "type_arguments");
       if (typeArgs) {
         const typeId = findNodes(typeArgs, "type_identifier")[0];
-        stateOf = typeId?.text;
+        superTypeArg = typeId?.text;
       }
     }
 
-    return { name, file: relPath, line, superclass, stateOf };
+    // State<ScreenClassName> 패턴에서 stateOf 추출
+    const stateOf = superclass === "State" ? superTypeArg : undefined;
+
+    return { name, file: relPath, line, superclass, stateOf, superTypeArg };
   });
 
   // import 파싱
@@ -151,11 +173,13 @@ export async function parseDartFile(
   const imports: ImportInfo[] = importSpecs.map((imp) => {
     const strLit = findNodes(imp, "string_literal")[0];
     const raw = strLit?.text ?? "";
-    const resolved = resolveImport(raw, packageName, fileDir, projectPath);
+    const resolved = resolveCtx
+      ? resolveImport(raw, resolveCtx.packageName, resolveCtx.fileDir, resolveCtx.projectPath)
+      : undefined;
     return { raw, resolved };
   });
 
-  return { filePath: relPath, classes, imports, root, source };
+  return { filePath: relPath, classes, imports, root, source, disposeTree };
 }
 
 // ── 프로젝트 전체 심볼 테이블 ────────────────────────────────────────────────
@@ -167,6 +191,36 @@ export interface SymbolTable {
   fileByClass: Map<string, ParsedFile>;
   /** 파일 상대경로 → ParsedFile */
   files: Map<string, ParsedFile>;
+  /** "ClassName.MEMBER" → 정적 문자열 상수 값 (constResolver가 채움) */
+  stringConstants: Map<string, string>;
+  /** 모든 ParsedFile의 tree-sitter Tree를 해제한다. SymbolTable이 더 이상 필요 없을 때 호출. */
+  dispose: () => void;
+}
+
+/** 빈 SymbolTable을 생성한다. */
+export function createSymbolTable(): SymbolTable {
+  const table: SymbolTable = {
+    classes: new Map(),
+    fileByClass: new Map(),
+    files: new Map(),
+    stringConstants: new Map(),
+    dispose: () => {
+      for (const parsed of table.files.values()) {
+        parsed.disposeTree();
+      }
+    },
+  };
+  return table;
+}
+
+/** ParsedFile을 테이블에 등록한다 (클래스 색인 + 문자열 상수 수집). */
+export function addParsedFile(table: SymbolTable, parsed: ParsedFile): void {
+  table.files.set(parsed.filePath, parsed);
+  for (const cls of parsed.classes) {
+    table.classes.set(cls.name, cls);
+    table.fileByClass.set(cls.name, parsed);
+  }
+  buildConstTable(parsed.root, parsed.filePath, table);
 }
 
 export async function buildSymbolTable(
@@ -174,19 +228,17 @@ export async function buildSymbolTable(
   packageName: string
 ): Promise<SymbolTable> {
   const dartFiles = await collectDartFiles(projectPath);
-  const table: SymbolTable = {
-    classes: new Map(),
-    fileByClass: new Map(),
-    files: new Map(),
-  };
+  const table = createSymbolTable();
 
-  for (const absPath of dartFiles) {
-    const parsed = await parseDartFile(absPath, projectPath, packageName);
-    table.files.set(parsed.filePath, parsed);
-    for (const cls of parsed.classes) {
-      table.classes.set(cls.name, cls);
-      table.fileByClass.set(cls.name, parsed);
+  try {
+    for (const absPath of dartFiles) {
+      const parsed = await parseDartFile(absPath, projectPath, packageName);
+      addParsedFile(table, parsed);
     }
+  } catch (e) {
+    // 루프 도중 파싱 실패 시 지금까지 파싱된 모든 Tree를 해제하고 재던진다.
+    table.dispose();
+    throw e;
   }
 
   return table;

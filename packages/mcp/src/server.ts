@@ -20,6 +20,7 @@ import {
   captureAll,
   ensureDependencies,
   generateAppMap,
+  resetParserState,
 } from "@karax/sdk";
 import { renderAppMapMarkdown } from "@karax/core";
 import type { FrameworkId, DeviceProfileId, CaptureMode } from "@karax/sdk";
@@ -46,6 +47,78 @@ function errorContent(message: string) {
 function wrapError(e: unknown): string {
   if (e instanceof Error) return e.message;
   return String(e);
+}
+
+/**
+ * Emscripten WASM Aborted 에러를 감지한다.
+ * web-tree-sitter가 힙 고갈 시 "Aborted(OOM...)" 메시지를 던지거나
+ * WebAssembly.RuntimeError("unreachable")를 발생시킨다.
+ *
+ * 오탐 방지:
+ * - "RuntimeError" 단독 문자열 매칭은 일반 JS 에러를 오탐할 수 있으므로 제거
+ * - WebAssembly.RuntimeError 인스턴스 검사를 우선 적용
+ * - 문자열 매칭은 구체적인 WASM 패턴으로 한정
+ */
+// Node.js 환경에서 WebAssembly.RuntimeError는 전역이지만 TypeScript ES2022 lib에 미포함.
+// globalThis를 통해 안전하게 접근한다.
+const _WebAssemblyRuntimeError = (globalThis as Record<string, unknown>)["WebAssembly"] != null
+  ? ((globalThis as Record<string, unknown>)["WebAssembly"] as { RuntimeError?: new (...args: unknown[]) => Error }).RuntimeError ?? null
+  : null;
+
+/**
+ * Emscripten WASM Aborted 에러를 감지한다.
+ * 오탐 방지:
+ * - WebAssembly.RuntimeError 인스턴스 검사를 우선 적용
+ * - 문자열 매칭은 구체적인 WASM 패턴으로 한정 ("RuntimeError" 단독 매칭 제거)
+ */
+function isWasmAbortedError(e: unknown): boolean {
+  // 1. WebAssembly.RuntimeError 인스턴스인 경우 (가장 구체적)
+  if (_WebAssemblyRuntimeError && e instanceof _WebAssemblyRuntimeError) return true;
+
+  const msg = e instanceof Error ? e.message : String(e);
+
+  // 2. Emscripten Aborted() 패턴 ("Aborted(" 포함)
+  if (msg.includes("Aborted(")) return true;
+
+  // 3. "RuntimeError: unreachable" — WASM trap 패턴
+  if (msg.includes("RuntimeError: unreachable")) return true;
+
+  return false;
+}
+
+/**
+ * WASM 힙 고갈 에러 발생 시 파서 캐시를 재초기화한다.
+ * 재초기화 성공/실패를 구분해 정직하게 보고한다.
+ */
+async function handleWasmError(e: unknown, toolName: string): Promise<string> {
+  const base = wrapError(e);
+  if (isWasmAbortedError(e)) {
+    let resetResult: "success" | "failure" = "success";
+    let resetErrorMsg = "";
+    try {
+      await resetParserState();
+    } catch (resetErr) {
+      resetResult = "failure";
+      resetErrorMsg = resetErr instanceof Error ? resetErr.message : String(resetErr);
+    }
+
+    if (resetResult === "success") {
+      return (
+        `[${toolName}] WASM 힙 고갈로 인해 파서가 비정상 종료되었습니다. ` +
+        `파서 상태를 재초기화했습니다. 다음 요청은 정상 동작할 수 있습니다. ` +
+        `(원인: 대형 프로젝트 분석 후 Emscripten 메모리 고갈) ` +
+        `원본 오류: ${base}`
+      );
+    } else {
+      return (
+        `[${toolName}] WASM 힙 고갈로 인해 파서가 비정상 종료되었습니다. ` +
+        `파서 재초기화 실패 — 서버 재시작이 필요합니다. ` +
+        `재초기화 오류: ${resetErrorMsg}. ` +
+        `원본 오류: ${base}`
+      );
+    }
+  }
+  return base;
 }
 
 /**
@@ -171,7 +244,7 @@ export function createMcpServer(): McpServer {
           ],
         };
       } catch (e) {
-        return errorContent(wrapError(e));
+        return errorContent(await handleWasmError(e, "list_screens"));
       }
     }
   );
@@ -205,7 +278,7 @@ export function createMcpServer(): McpServer {
           ],
         };
       } catch (e) {
-        return errorContent(wrapError(e));
+        return errorContent(await handleWasmError(e, "get_screen_ir"));
       }
     }
   );
@@ -265,7 +338,7 @@ export function createMcpServer(): McpServer {
           ],
         };
       } catch (e) {
-        return errorContent(wrapError(e));
+        return errorContent(await handleWasmError(e, "capture_screen"));
       }
     }
   );
@@ -340,7 +413,7 @@ export function createMcpServer(): McpServer {
 
         return { content };
       } catch (e) {
-        return errorContent(wrapError(e));
+        return errorContent(await handleWasmError(e, "capture_all"));
       }
     }
   );
@@ -393,17 +466,20 @@ export function createMcpServer(): McpServer {
 
   server.tool(
     "generate_app_map",
-    "프로젝트의 화면 구조와 네비게이션 그래프를 분석해 AppMap을 반환한다",
+    "프로젝트의 화면 구조와 네비게이션 그래프를 분석해 AppMap을 반환한다. " +
+    "includeLayout=false로 Chromium 기반 좌표 측정을 비활성화할 수 있다 (기본 true).",
     {
       projectPath: z.string().min(1),
       framework: z.enum(["flutter", "react-native", "ios", "android"]).optional(),
+      includeLayout: z.boolean().optional(),
     },
-    async ({ projectPath, framework }) => {
+    async ({ projectPath, framework, includeLayout }) => {
       try {
         validateProjectPath(projectPath);
         const appMap = await generateAppMap({
           projectPath,
           ...(framework ? { framework: framework as FrameworkId } : {}),
+          ...(includeLayout !== undefined ? { includeLayout } : {}),
         });
 
         const docs = renderAppMapMarkdown(appMap);
@@ -427,7 +503,7 @@ export function createMcpServer(): McpServer {
 
         return { content: [summaryContent, ...docContents] };
       } catch (e) {
-        return errorContent(`generate_app_map 오류: ${wrapError(e)}`);
+        return errorContent(await handleWasmError(e, "generate_app_map"));
       }
     }
   );
@@ -506,7 +582,7 @@ export function createMcpServer(): McpServer {
 
         return { content };
       } catch (e) {
-        return errorContent(wrapError(e));
+        return errorContent(await handleWasmError(e, "run_e2e_test"));
       }
     }
   );

@@ -5,9 +5,19 @@
 import fs from "fs";
 import path from "path";
 import { execa } from "execa";
+import { resolveFlutterPath } from "@karax/adapter-api";
 import { E2eError } from "../types.js";
 import { extractAndroidAppId, extractIosBundleId, findFlutterApk, findFlutterIosApp, findDerivedDataApp } from "./artifact.js";
 import type { AppBuilder, BuildResult } from "./types.js";
+
+/**
+ * 프로젝트 경로 기반으로 flutter 실행파일을 결정한다.
+ * FVM 설정이 있으면 FVM SDK를, 없으면 시스템 "flutter"를 사용한다.
+ */
+async function getFlutterExecutable(projectPath: string): Promise<string> {
+  const fvmPath = await resolveFlutterPath(projectPath);
+  return fvmPath ?? "flutter";
+}
 
 const BUILD_TIMEOUT = 600_000;
 
@@ -16,7 +26,8 @@ export class FlutterAndroidBuilder implements AppBuilder {
   readonly platform = "android" as const;
 
   async build(projectPath: string): Promise<BuildResult> {
-    const result = await execa("flutter", ["build", "apk", "--debug"], {
+    const flutterBin = await getFlutterExecutable(projectPath);
+    const result = await execa(flutterBin, ["build", "apk", "--debug"], {
       cwd: projectPath,
       timeout: BUILD_TIMEOUT,
     });
@@ -41,8 +52,9 @@ export class FlutterIosBuilder implements AppBuilder {
   readonly platform = "ios" as const;
 
   async build(projectPath: string): Promise<BuildResult> {
+    const flutterBin = await getFlutterExecutable(projectPath);
     const result = await execa(
-      "flutter",
+      flutterBin,
       ["build", "ios", "--simulator", "--debug"],
       { cwd: projectPath, timeout: BUILD_TIMEOUT }
     );

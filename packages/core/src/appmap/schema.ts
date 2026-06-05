@@ -11,6 +11,32 @@ export const DiagnosticEntrySchema = z
 
 export type DiagnosticEntry = z.infer<typeof DiagnosticEntrySchema>;
 
+// ── Bounds / ElementStyle (신규) ─────────────────────────────────────
+
+export const BoundsSchema = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+    width: z.number().nonnegative(),
+    height: z.number().nonnegative(),
+  })
+  .strict();
+
+export type Bounds = z.infer<typeof BoundsSchema>;
+
+export const ElementStyleSchema = z
+  .object({
+    background: z.string().optional(),
+    borderRadius: z.number().nonnegative().optional(),
+    borderColor: z.string().optional(),
+    borderWidth: z.number().nonnegative().optional(),
+    textColor: z.string().optional(),
+    opacity: z.number().min(0).max(1).optional(),
+  })
+  .strict();
+
+export type ElementStyle = z.infer<typeof ElementStyleSchema>;
+
 // ── TriggerInfo ──────────────────────────────────────────────────────
 
 export const TriggerInfoSchema = z
@@ -25,6 +51,15 @@ export const TriggerInfoSchema = z
       })
       .strict()
       .optional(),
+    elementRef: z
+      .object({
+        file: z.string(),
+        line: z.number().int().nonnegative().optional(),
+      })
+      .strict()
+      .optional(),
+    style: ElementStyleSchema.optional(),
+    bounds: BoundsSchema.optional(),
   })
   .strict();
 
@@ -41,6 +76,17 @@ export const NavigationEdgeSchema = z
     trigger: TriggerInfoSchema,
     confidence: z.number().min(0).max(1),
     diagnostics: DiagnosticEntrySchema.array(),
+    /** from 식별 방식 — screen: 위젯 클래스, controller: 컨트롤러/매니저, global: 특정 불가 */
+    fromKind: z.enum(["screen", "controller", "global"]).optional(),
+    /** 실제 네비게이션 호출 위치 */
+    fromRef: z
+      .object({
+        file: z.string(),
+        line: z.number().int().nonnegative().optional(),
+        symbol: z.string().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -64,6 +110,8 @@ export const MapElementSchema = z
       })
       .strict()
       .optional(),
+    style: ElementStyleSchema.optional(),
+    bounds: BoundsSchema.optional(),
   })
   .strict();
 

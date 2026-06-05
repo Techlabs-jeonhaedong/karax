@@ -9,7 +9,7 @@
 
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
-import { parseSource, type SyntaxNode } from "@karax/adapter-api";
+import { parseWithTree, type SyntaxNode } from "@karax/adapter-api";
 
 // ── 타입 ──────────────────────────────────────────────────────────────────────
 
@@ -36,6 +36,8 @@ export interface ParsedFile {
   imports: ImportInfo[];
   root: SyntaxNode;
   source: string;
+  /** Emscripten 힙의 tree-sitter Tree를 해제한다. ParsedFile이 더 이상 필요 없을 때 호출해야 한다. */
+  disposeTree: () => void;
 }
 
 // ── 기본 AST 유틸 ─────────────────────────────────────────────────────────────
@@ -196,7 +198,7 @@ export async function parseKotlinFile(
   projectPath: string
 ): Promise<ParsedFile> {
   const source = await readFile(absolutePath, "utf-8");
-  const root = await parseSource("kotlin", source);
+  const { rootNode: root, disposeTree } = await parseWithTree("kotlin", source);
   const relPath = path.relative(projectPath, absolutePath);
 
   // import 파싱
@@ -283,7 +285,7 @@ export async function parseKotlinFile(
     i++;
   }
 
-  return { filePath: relPath, composables, imports, root, source };
+  return { filePath: relPath, composables, imports, root, source, disposeTree };
 }
 
 // ── 프로젝트 전체 심볼 테이블 ────────────────────────────────────────────────
@@ -295,6 +297,8 @@ export interface SymbolTable {
   fileByComposable: Map<string, ParsedFile>;
   /** 파일 상대경로 → ParsedFile */
   files: Map<string, ParsedFile>;
+  /** 모든 ParsedFile의 tree-sitter Tree를 해제한다. SymbolTable이 더 이상 필요 없을 때 호출. */
+  dispose: () => void;
 }
 
 export async function buildSymbolTable(
@@ -305,17 +309,28 @@ export async function buildSymbolTable(
     composables: new Map(),
     fileByComposable: new Map(),
     files: new Map(),
+    dispose: () => {
+      for (const parsed of table.files.values()) {
+        parsed.disposeTree();
+      }
+    },
   };
 
-  for (const absPath of kotlinFiles) {
-    const parsed = await parseKotlinFile(absPath, projectPath);
-    table.files.set(parsed.filePath, parsed);
-    for (const comp of parsed.composables) {
-      if (!table.composables.has(comp.name)) {
-        table.composables.set(comp.name, comp);
-        table.fileByComposable.set(comp.name, parsed);
+  try {
+    for (const absPath of kotlinFiles) {
+      const parsed = await parseKotlinFile(absPath, projectPath);
+      table.files.set(parsed.filePath, parsed);
+      for (const comp of parsed.composables) {
+        if (!table.composables.has(comp.name)) {
+          table.composables.set(comp.name, comp);
+          table.fileByComposable.set(comp.name, parsed);
+        }
       }
     }
+  } catch (e) {
+    // 루프 도중 파싱 실패 시 지금까지 파싱된 모든 Tree를 해제하고 재던진다.
+    table.dispose();
+    throw e;
   }
 
   return table;

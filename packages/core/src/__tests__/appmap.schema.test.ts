@@ -5,6 +5,10 @@ import {
   ScreenNodeSchema,
   NavigationGraphSchema,
   sanitizeAppName,
+  BoundsSchema,
+  ElementStyleSchema,
+  TriggerInfoSchema,
+  MapElementSchema,
 } from "../appmap/schema.js";
 
 describe("AppMap schema", () => {
@@ -60,6 +64,121 @@ describe("AppMap schema", () => {
           trigger: { kind: "button" },
           confidence: 1.5,
           diagnostics: [],
+        })
+      ).toThrow();
+    });
+
+    it("fromKind 필드를 포함한 엣지를 파싱한다 (screen)", () => {
+      const edge = {
+        from: "HomeScreen",
+        to: "DetailScreen",
+        action: "push",
+        trigger: { kind: "button" },
+        confidence: 1.0,
+        diagnostics: [],
+        fromKind: "screen",
+      };
+      const result = NavigationEdgeSchema.parse(edge);
+      expect(result.fromKind).toBe("screen");
+    });
+
+    it("fromKind=controller 엣지를 파싱한다", () => {
+      const edge = {
+        from: "HomeScreen",
+        to: "DetailScreen",
+        action: "push",
+        trigger: { kind: "button" },
+        confidence: 0.6,
+        diagnostics: [],
+        fromKind: "controller",
+      };
+      const result = NavigationEdgeSchema.parse(edge);
+      expect(result.fromKind).toBe("controller");
+    });
+
+    it("fromKind=global 엣지를 파싱한다", () => {
+      const edge = {
+        from: "(global)",
+        to: "SplashScreen",
+        action: "push",
+        trigger: { kind: "button" },
+        confidence: 0.4,
+        diagnostics: [],
+        fromKind: "global",
+      };
+      const result = NavigationEdgeSchema.parse(edge);
+      expect(result.fromKind).toBe("global");
+    });
+
+    it("fromRef 필드를 포함한 엣지를 파싱한다", () => {
+      const edge = {
+        from: "HomeScreen",
+        to: "DetailScreen",
+        action: "push",
+        trigger: { kind: "button" },
+        confidence: 1.0,
+        diagnostics: [],
+        fromRef: { file: "lib/home/controller/home_controller.dart", line: 42, symbol: "_onTap" },
+      };
+      const result = NavigationEdgeSchema.parse(edge);
+      expect(result.fromRef?.file).toBe("lib/home/controller/home_controller.dart");
+      expect(result.fromRef?.line).toBe(42);
+      expect(result.fromRef?.symbol).toBe("_onTap");
+    });
+
+    it("fromRef.line, fromRef.symbol 없이도 파싱된다", () => {
+      const edge = {
+        from: "HomeScreen",
+        to: null,
+        action: "push",
+        trigger: { kind: "button" },
+        confidence: 0.4,
+        diagnostics: [],
+        fromRef: { file: "lib/util/some_util.dart" },
+      };
+      const result = NavigationEdgeSchema.parse(edge);
+      expect(result.fromRef?.file).toBe("lib/util/some_util.dart");
+      expect(result.fromRef?.line).toBeUndefined();
+    });
+
+    it("fromKind가 허용되지 않은 값이면 에러를 던진다", () => {
+      expect(() =>
+        NavigationEdgeSchema.parse({
+          from: "A",
+          to: "B",
+          action: "push",
+          trigger: { kind: "button" },
+          confidence: 1.0,
+          diagnostics: [],
+          fromKind: "unknown_kind",
+        })
+      ).toThrow();
+    });
+
+    it("fromKind, fromRef 없이도 기존 엣지가 하위호환으로 파싱된다", () => {
+      const legacy = {
+        from: "HomeScreen",
+        to: "DetailScreen",
+        action: "push",
+        trigger: { kind: "button", label: "Go" },
+        confidence: 1.0,
+        diagnostics: [],
+      };
+      const result = NavigationEdgeSchema.parse(legacy);
+      expect(result.fromKind).toBeUndefined();
+      expect(result.fromRef).toBeUndefined();
+    });
+
+    it("fromRef에 미지 필드가 있으면 strict 위반으로 에러를 던진다", () => {
+      expect(() =>
+        NavigationEdgeSchema.parse({
+          from: "A",
+          to: "B",
+          action: "push",
+          trigger: { kind: "button" },
+          confidence: 1.0,
+          diagnostics: [],
+          fromRef: { file: "lib/a.dart", unknownField: true },
         })
       ).toThrow();
     });
@@ -200,6 +319,171 @@ describe("AppMap schema", () => {
     it("순수 경로 구분자만 있으면 app을 반환한다", () => {
       expect(sanitizeAppName("/")).toBe("app");
       expect(sanitizeAppName("\\")).toBe("app");
+    });
+  });
+
+  // ── 신규 스키마 테스트 ─────────────────────────────────────────────
+
+  describe("BoundsSchema", () => {
+    it("유효한 bounds를 파싱한다", () => {
+      const result = BoundsSchema.parse({ x: 10, y: 20, width: 100, height: 50 });
+      expect(result).toEqual({ x: 10, y: 20, width: 100, height: 50 });
+    });
+
+    it("x, y는 음수를 허용한다", () => {
+      expect(() => BoundsSchema.parse({ x: -5, y: -10, width: 100, height: 50 })).not.toThrow();
+    });
+
+    it("width, height가 음수이면 에러를 던진다", () => {
+      expect(() => BoundsSchema.parse({ x: 0, y: 0, width: -1, height: 50 })).toThrow();
+      expect(() => BoundsSchema.parse({ x: 0, y: 0, width: 100, height: -1 })).toThrow();
+    });
+
+    it("width, height가 0이면 허용한다", () => {
+      expect(() => BoundsSchema.parse({ x: 0, y: 0, width: 0, height: 0 })).not.toThrow();
+    });
+
+    it("미지 필드(strict 위반)를 거부한다", () => {
+      expect(() =>
+        BoundsSchema.parse({ x: 0, y: 0, width: 100, height: 50, extra: "bad" })
+      ).toThrow();
+    });
+
+    it("필수 필드 누락 시 에러를 던진다", () => {
+      expect(() => BoundsSchema.parse({ x: 0, y: 0, width: 100 })).toThrow(); // height 없음
+    });
+  });
+
+  describe("ElementStyleSchema", () => {
+    it("모든 필드가 있을 때 파싱한다", () => {
+      const result = ElementStyleSchema.parse({
+        background: "#fff",
+        borderRadius: 8,
+        borderColor: "#ccc",
+        borderWidth: 1,
+        textColor: "#000",
+        opacity: 0.9,
+      });
+      expect(result.background).toBe("#fff");
+      expect(result.borderRadius).toBe(8);
+      expect(result.opacity).toBe(0.9);
+    });
+
+    it("모든 필드가 optional — 빈 객체도 유효하다", () => {
+      expect(() => ElementStyleSchema.parse({})).not.toThrow();
+    });
+
+    it("opacity가 0~1 범위를 벗어나면 에러를 던진다", () => {
+      expect(() => ElementStyleSchema.parse({ opacity: 1.1 })).toThrow();
+      expect(() => ElementStyleSchema.parse({ opacity: -0.1 })).toThrow();
+    });
+
+    it("borderRadius가 음수이면 에러를 던진다", () => {
+      expect(() => ElementStyleSchema.parse({ borderRadius: -1 })).toThrow();
+    });
+
+    it("borderWidth가 음수이면 에러를 던진다", () => {
+      expect(() => ElementStyleSchema.parse({ borderWidth: -1 })).toThrow();
+    });
+
+    it("미지 필드(strict 위반)를 거부한다", () => {
+      expect(() => ElementStyleSchema.parse({ unknown: "field" })).toThrow();
+    });
+
+    it("opacity 경계값 0, 1을 허용한다", () => {
+      expect(() => ElementStyleSchema.parse({ opacity: 0 })).not.toThrow();
+      expect(() => ElementStyleSchema.parse({ opacity: 1 })).not.toThrow();
+    });
+  });
+
+  describe("TriggerInfoSchema — 신규 필드", () => {
+    it("elementRef 필드를 포함한 TriggerInfo를 파싱한다", () => {
+      const result = TriggerInfoSchema.parse({
+        kind: "button",
+        label: "Submit",
+        elementRef: { file: "lib/home.dart", line: 42 },
+      });
+      expect(result.elementRef?.file).toBe("lib/home.dart");
+      expect(result.elementRef?.line).toBe(42);
+    });
+
+    it("elementRef.line 없이도 파싱된다", () => {
+      const result = TriggerInfoSchema.parse({
+        kind: "button",
+        elementRef: { file: "lib/home.dart" },
+      });
+      expect(result.elementRef?.file).toBe("lib/home.dart");
+      expect(result.elementRef?.line).toBeUndefined();
+    });
+
+    it("elementRef에 미지 필드가 있으면 strict 위반으로 에러를 던진다", () => {
+      expect(() =>
+        TriggerInfoSchema.parse({
+          kind: "button",
+          elementRef: { file: "lib/home.dart", unknownField: true },
+        })
+      ).toThrow();
+    });
+
+    it("style 필드를 포함한 TriggerInfo를 파싱한다", () => {
+      const result = TriggerInfoSchema.parse({
+        kind: "button",
+        style: { background: "#ff0000", opacity: 0.8 },
+      });
+      expect(result.style?.background).toBe("#ff0000");
+    });
+
+    it("bounds 필드를 포함한 TriggerInfo를 파싱한다", () => {
+      const result = TriggerInfoSchema.parse({
+        kind: "button",
+        bounds: { x: 10, y: 20, width: 100, height: 40 },
+      });
+      expect(result.bounds?.x).toBe(10);
+      expect(result.bounds?.width).toBe(100);
+    });
+
+    it("기존 필드만 있는 데이터가 하위호환으로 파싱된다", () => {
+      // 기존 포맷 — 신규 필드 없음
+      const legacy = {
+        kind: "button",
+        label: "Go Back",
+        sourceRef: { file: "lib/app.dart", line: 10 },
+      };
+      expect(() => TriggerInfoSchema.parse(legacy)).not.toThrow();
+      const result = TriggerInfoSchema.parse(legacy);
+      expect(result.elementRef).toBeUndefined();
+      expect(result.style).toBeUndefined();
+      expect(result.bounds).toBeUndefined();
+    });
+  });
+
+  describe("MapElementSchema — 신규 필드", () => {
+    it("style, bounds 필드를 포함한 MapElement를 파싱한다", () => {
+      const result = MapElementSchema.parse({
+        type: "Button",
+        label: "Submit",
+        style: { background: "#007AFF", borderRadius: 8 },
+        bounds: { x: 16, y: 100, width: 200, height: 48 },
+      });
+      expect(result.style?.background).toBe("#007AFF");
+      expect(result.bounds?.height).toBe(48);
+    });
+
+    it("기존 필드만 있는 MapElement가 하위호환으로 파싱된다", () => {
+      const legacy = {
+        type: "Button",
+        label: "Click Me",
+        sourceRef: { file: "lib/home.dart", line: 5 },
+      };
+      const result = MapElementSchema.parse(legacy);
+      expect(result.style).toBeUndefined();
+      expect(result.bounds).toBeUndefined();
+    });
+
+    it("MapElement에 미지 필드가 있으면 strict 위반으로 에러를 던진다", () => {
+      expect(() =>
+        MapElementSchema.parse({ type: "Button", unknownField: "bad" })
+      ).toThrow();
     });
   });
 });
