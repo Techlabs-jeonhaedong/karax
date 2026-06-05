@@ -4,8 +4,8 @@
  * SwiftPM 패키지 구조:
  *   workDir/
  *     Package.swift          — 라이브러리 타깃 + 테스트 타깃
- *     Sources/SFCHarness/    — 대상 화면 소스 복사본
- *     Tests/SFCHarnessTests/ — XCTest 캡처 코드
+ *     Sources/KaraxHarness/    — 대상 화면 소스 복사본
+ *     Tests/KaraxHarnessTests/ — XCTest 캡처 코드
  */
 
 import * as path from "path";
@@ -509,8 +509,8 @@ export interface HarnessProject {
  * 구조:
  *   workDir/
  *     Package.swift
- *     Sources/SFCHarness<hash>/   (대상 소스 복사 + stub 대체)
- *     Tests/SFCHarness<hash>Tests/
+ *     Sources/KaraxHarness<hash>/   (대상 소스 복사 + stub 대체)
+ *     Tests/KaraxHarness<hash>Tests/
  *       CaptureTest.swift
  *
  * xcodebuild scheme 이름은 packageName 자체 (not packageName-Package).
@@ -524,7 +524,7 @@ export async function generateHarness(opts: GenerateHarnessOpts): Promise<Harnes
     .digest("hex")
     .slice(0, 8);
 
-  const packageName = `SFCHarness${hash}`;
+  const packageName = `KaraxHarness${hash}`;
   const workDir = opts.workDir ?? path.join(os.tmpdir(), `karax-ios-${hash}`);
   const outPath = path.join(workDir, `${screen.id}.png`);
 

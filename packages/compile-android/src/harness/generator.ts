@@ -259,7 +259,7 @@ export async function generateHarness(opts: GenerateHarnessOpts): Promise<Harnes
   // settings.gradle.kts
   fs.writeFileSync(
     path.join(workDir, "settings.gradle.kts"),
-    generateSettingsGradle("sfc_harness"),
+    generateSettingsGradle("karax_harness"),
     "utf-8"
   );
 

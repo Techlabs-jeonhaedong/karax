@@ -72,8 +72,8 @@ export function generatePubspec(opts: GeneratePubspecOpts): string {
     assetSection = `\nflutter:\n  uses-material-design: true\n${fontEntries}`;
   }
 
-  return `name: sfc_harness
-description: Auto-generated harness for SFC screenshot capture
+  return `name: karax_harness
+description: Auto-generated harness for karax screenshot capture
 publish_to: none
 
 version: 1.0.0+1

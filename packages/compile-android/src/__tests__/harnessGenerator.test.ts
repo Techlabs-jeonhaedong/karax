@@ -14,19 +14,19 @@ import {
 
 describe("generateSettingsGradle", () => {
   it("pluginManagement에 google + mavenCentral 포함", () => {
-    const content = generateSettingsGradle("sfc_harness");
+    const content = generateSettingsGradle("karax_harness");
     expect(content).toContain("google()");
     expect(content).toContain("mavenCentral()");
   });
 
   it("rootProject.name 설정 포함", () => {
-    const content = generateSettingsGradle("sfc_harness");
+    const content = generateSettingsGradle("karax_harness");
     expect(content).toContain("rootProject.name");
-    expect(content).toContain("sfc_harness");
+    expect(content).toContain("karax_harness");
   });
 
   it("include(':app') 포함", () => {
-    const content = generateSettingsGradle("sfc_harness");
+    const content = generateSettingsGradle("karax_harness");
     expect(content).toContain(":app");
   });
 });

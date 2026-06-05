@@ -16,7 +16,7 @@ import type { ScreenSummary } from "@karax/adapter-api";
 describe("generatePackageSwift", () => {
   it("올바른 platforms .iOS(.v16) 선언 포함", () => {
     const result = generatePackageSwift({
-      packageName: "SFCHarness",
+      packageName: "KaraxHarness",
       sourceFiles: ["Sources/Screens/HomeScreen.swift"],
     });
     expect(result).toContain(".iOS(.v16)");
@@ -24,12 +24,12 @@ describe("generatePackageSwift", () => {
 
   it("라이브러리 타깃과 테스트 타깃 모두 선언", () => {
     const result = generatePackageSwift({
-      packageName: "SFCHarness",
+      packageName: "KaraxHarness",
       sourceFiles: ["Sources/Screens/HomeScreen.swift", "Sources/Components/PriceTag.swift"],
     });
-    expect(result).toContain('.library(name: "SFCHarness"');
+    expect(result).toContain('.library(name: "KaraxHarness"');
     // 멀티라인 포맷이므로 name 부분만 검사
-    expect(result).toContain('"SFCHarnessTests"');
+    expect(result).toContain('"KaraxHarnessTests"');
     expect(result).toContain(".testTarget(");
   });
 
@@ -40,7 +40,7 @@ describe("generatePackageSwift", () => {
 
   it("excludeFiles 지정 시 exclude 선언 포함", () => {
     const result = generatePackageSwift({
-      packageName: "SFCHarness",
+      packageName: "KaraxHarness",
       sourceFiles: [],
       excludeFiles: ["Screens/BrokenScreen.swift"],
     });
@@ -50,7 +50,7 @@ describe("generatePackageSwift", () => {
 
   it("MyApp.swift는 항상 exclude에 포함", () => {
     const result = generatePackageSwift({
-      packageName: "SFCHarness",
+      packageName: "KaraxHarness",
       sourceFiles: [],
     });
     expect(result).toContain("MyApp.swift");
@@ -70,7 +70,7 @@ describe("generateCaptureTest", () => {
   it("@MainActor XCTestCase 상속 코드 생성", () => {
     const result = generateCaptureTest({
       screen,
-      moduleName: "SFCHarness",
+      moduleName: "KaraxHarness",
       outPath: "/tmp/karax-ios-abc/HomeScreen.png",
       width: 390,
       height: 844,
@@ -85,7 +85,7 @@ describe("generateCaptureTest", () => {
     const outPath = "/tmp/karax-ios-abc123/HomeScreen.png";
     const result = generateCaptureTest({
       screen,
-      moduleName: "SFCHarness",
+      moduleName: "KaraxHarness",
       outPath,
       width: 390,
       height: 844,
@@ -98,7 +98,7 @@ describe("generateCaptureTest", () => {
   it("UIHostingController + UIWindow 1차 캡처 + ImageRenderer 2차 폴백 포함", () => {
     const result = generateCaptureTest({
       screen,
-      moduleName: "SFCHarness",
+      moduleName: "KaraxHarness",
       outPath: "/tmp/out.png",
       width: 390,
       height: 844,
@@ -116,7 +116,7 @@ describe("generateCaptureTest", () => {
   it("UIWindow에 attach해서 1차 렌더링 (iOS 26 NavigationStack 지원)", () => {
     const result = generateCaptureTest({
       screen,
-      moduleName: "SFCHarness",
+      moduleName: "KaraxHarness",
       outPath: "/tmp/out.png",
       width: 390,
       height: 844,
@@ -131,7 +131,7 @@ describe("generateCaptureTest", () => {
   it("background white + colorScheme light 환경 설정으로 투명 이미지 방지", () => {
     const result = generateCaptureTest({
       screen,
-      moduleName: "SFCHarness",
+      moduleName: "KaraxHarness",
       outPath: "/tmp/out.png",
       width: 390,
       height: 844,
@@ -146,7 +146,7 @@ describe("generateCaptureTest", () => {
   it("layer.render + drawHierarchy 3단계 폴백 체인 포함", () => {
     const result = generateCaptureTest({
       screen,
-      moduleName: "SFCHarness",
+      moduleName: "KaraxHarness",
       outPath: "/tmp/out.png",
       width: 390,
       height: 844,
@@ -160,7 +160,7 @@ describe("generateCaptureTest", () => {
   it("RunLoop을 통해 렌더 싸이클이 완료될 때까지 대기", () => {
     const result = generateCaptureTest({
       screen,
-      moduleName: "SFCHarness",
+      moduleName: "KaraxHarness",
       outPath: "/tmp/out.png",
       width: 390,
       height: 844,
@@ -174,7 +174,7 @@ describe("generateCaptureTest", () => {
   it("화면 프레임 크기가 코드에 반영됨", () => {
     const result = generateCaptureTest({
       screen,
-      moduleName: "SFCHarness",
+      moduleName: "KaraxHarness",
       outPath: "/tmp/out.png",
       width: 430,
       height: 932,
@@ -188,7 +188,7 @@ describe("generateCaptureTest", () => {
   it("생성자 인자가 화면 초기화 코드에 삽입됨", () => {
     const result = generateCaptureTest({
       screen,
-      moduleName: "SFCHarness",
+      moduleName: "KaraxHarness",
       outPath: "/tmp/out.png",
       width: 390,
       height: 844,
@@ -207,7 +207,7 @@ describe("generateCaptureTest", () => {
     };
     const result = generateCaptureTest({
       screen: screenNoRef,
-      moduleName: "SFCHarness",
+      moduleName: "KaraxHarness",
       outPath: "/tmp/out.png",
       width: 390,
       height: 844,

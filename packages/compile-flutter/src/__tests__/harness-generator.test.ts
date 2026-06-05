@@ -53,13 +53,13 @@ describe("generatePubspec", () => {
     expect(yaml).toContain("Roboto");
   });
 
-  it("harness 패키지명은 sfc_harness여야 한다", () => {
+  it("harness 패키지명은 karax_harness여야 한다", () => {
     const yaml = generatePubspec({
       appPackageName: "flutter_basic_fixture",
       appAbsolutePath: "/abs/path/to/app",
       fontsDir: FONTS_DIR,
     });
-    expect(yaml).toContain("name: sfc_harness");
+    expect(yaml).toContain("name: karax_harness");
   });
 });
 
