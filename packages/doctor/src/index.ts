@@ -8,12 +8,16 @@ import {
   checkXcodebuild,
   checkCocoaPods,
   checkAndroidSdk,
+  checkAdb,
+  checkEmulator,
+  checkAgentClis,
 } from "./checks/index.js";
 import type { CheckResult } from "./checks/types.js";
 import { computeTiers, type TiersAvailable } from "./tiers.js";
 import { ensureChromium, getManualInstallHints } from "./ensure.js";
 
 export type { CheckResult } from "./checks/index.js";
+export { detectAndroidSdkPath } from "./checks/index.js";
 export type { TiersAvailable } from "./tiers.js";
 
 export interface DoctorReport {
@@ -30,10 +34,11 @@ export async function runDoctor(_projectPath?: string): Promise<DoctorReport> {
   const checks = await runAllChecks();
   const tiersAvailable = computeTiers(checks);
 
-  // overallOk: autoInstallable이 아닌 필수 항목에 missing이 없으면 true
-  // (playwright-chromium은 autoInstallable=true 이므로 overallOk에서 제외)
+  // overallOk: autoInstallable이 아닌 필수(non-optional) 항목에 missing이 없으면 true
+  // (playwright-chromium은 autoInstallable=true 이므로 제외,
+  //  optional=true 항목(E2E 전용 등)도 제외)
   const nonAutoMissing = checks.filter(
-    (c) => c.status === "missing" && !c.autoInstallable
+    (c) => c.status === "missing" && !c.autoInstallable && !c.optional
   );
   const overallOk = nonAutoMissing.length === 0;
 
@@ -72,7 +77,8 @@ export async function doctorFix(report?: DoctorReport): Promise<DoctorReport> {
 }
 
 async function runAllChecks(): Promise<CheckResult[]> {
-  return Promise.all([
+  const agentChecks = await checkAgentClis();
+  const checks = await Promise.all([
     checkNode(),
     checkPlaywrightChromium(),
     checkFlutter(),
@@ -82,5 +88,9 @@ async function runAllChecks(): Promise<CheckResult[]> {
     checkXcodebuild(),
     checkCocoaPods(),
     checkAndroidSdk(),
+    // E2E 체크 (E2E 캡처 티어와 직교 — tiers.ts 영향 없음)
+    checkAdb(),
+    checkEmulator(),
   ]);
+  return [...checks, ...agentChecks];
 }

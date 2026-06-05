@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "@sfc/e2e": "workspace:*",
     "@sfc/sdk": "workspace:*"
   },
   "devDependencies": {

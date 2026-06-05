@@ -16,6 +16,7 @@ import {
   parseListArgs,
   parseCaptureArgs,
   parseMcpConfigArgs,
+  parseTestArgs,
 } from "./commands.js";
 import type { DeviceProfileId } from "@sfc/sdk";
 
@@ -351,6 +352,97 @@ mcpCmd
       process.exit(EXIT_CODES.FAILURE);
     }
   });
+
+// ─── test ─────────────────────────────────────────────────────────
+
+program
+  .command("test <path>")
+  .description("LLM 에이전트로 E2E 테스트를 실행한다 (에뮬레이터/시뮬레이터 + 풀 빌드)")
+  .requiredOption("--platform <platform>", "타겟 플랫폼: android|ios")
+  .option("--scenario <file>", "시나리오 마크다운 파일 경로")
+  .option("--agent <agent>", "LLM 에이전트: claude|codex|gemini", "claude")
+  .option("--api-key <key>", "에이전트 API 키 (없으면 CLI 로그인 사용)")
+  .option("--device <id>", "디바이스/에뮬레이터 ID")
+  .option("--out <dir>", "결과 출력 디렉토리", "/tmp/sfc-e2e-out")
+  .option("--timeout <ms>", "에이전트 전체 타임아웃 (ms)", "900000")
+  .option("--max-steps <n>", "에이전트 최대 스텝 수", "20")
+  .option("--json", "JSON 형식으로 출력", false)
+  .option("--keep-booted", "테스트 후 디바이스를 종료하지 않음", false)
+  .action(
+    async (
+      pathArg: string,
+      opts: {
+        platform: string;
+        scenario?: string;
+        agent: string;
+        apiKey?: string;
+        device?: string;
+        out: string;
+        timeout: string;
+        maxSteps: string;
+        json: boolean;
+        keepBooted: boolean;
+      }
+    ) => {
+      try {
+        const args = parseTestArgs([
+          pathArg,
+          "--platform", opts.platform,
+          ...(opts.scenario ? ["--scenario", opts.scenario] : []),
+          "--agent", opts.agent,
+          ...(opts.apiKey ? ["--api-key", opts.apiKey] : []),
+          ...(opts.device ? ["--device", opts.device] : []),
+          "--out", opts.out,
+          "--timeout", opts.timeout,
+          "--max-steps", opts.maxSteps,
+          ...(opts.json ? ["--json"] : []),
+          ...(opts.keepBooted ? ["--keep-booted"] : []),
+        ]);
+
+        const { runE2eTest } = await import("@sfc/e2e");
+
+        console.log(`\nE2E 테스트 시작: ${args.path} (플랫폼: ${args.platform}, 에이전트: ${args.agent})\n`);
+
+        const result = await runE2eTest({
+          projectPath: args.path,
+          platform: args.platform,
+          scenarioPath: args.scenario,
+          agent: args.agent,
+          apiKey: args.apiKey,
+          deviceId: args.device,
+          outDir: args.out,
+          timeoutMs: args.timeout,
+          maxSteps: args.maxSteps,
+          keepBooted: args.keepBooted,
+        });
+
+        if (args.json) {
+          console.log(JSON.stringify(result, null, 2));
+        } else {
+          const outcomeIcon = result.outcome === "pass" ? "✓" : result.outcome === "fail" ? "✗" : "!";
+          console.log(`\nE2E 테스트 ${result.outcome === "pass" ? "통과" : result.outcome === "fail" ? "실패" : "오류"}:\n`);
+          console.log(`  결과:       ${outcomeIcon} ${result.outcome}`);
+          console.log(`  요약:       ${result.summary}`);
+          console.log(`  리포트:     ${result.reportJsonPath}`);
+          console.log(`  스크린샷:   ${result.screenshotsDir}`);
+          console.log(`  스텝 수:    ${result.steps.length}\n`);
+        }
+
+        // 종료 코드 매핑
+        // pass → 0, fail → 2 (PARTIAL_FAILURE), error → 1 (FAILURE)
+        if (result.outcome === "pass") {
+          process.exit(EXIT_CODES.SUCCESS);
+        } else if (result.outcome === "fail") {
+          process.exit(EXIT_CODES.PARTIAL_FAILURE);
+        } else {
+          process.exit(EXIT_CODES.FAILURE);
+        }
+      } catch (e) {
+        console.error("오류:", e instanceof Error ? e.message : String(e));
+        process.exit(EXIT_CODES.FAILURE);
+      }
+    }
+  );
 
 // ─── 알 수 없는 커맨드 처리 ───────────────────────────────────────
 

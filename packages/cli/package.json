@@ -20,6 +20,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@sfc/e2e": "workspace:*",
     "@sfc/sdk": "workspace:*",
     "commander": "^13.0.0"
   },

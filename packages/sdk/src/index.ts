@@ -31,6 +31,12 @@ import type { IRDocument } from "@sfc/core";
 
 export const SDK_VERSION = "0.0.1" as const;
 
+// ── E2E 테스트 (재노출) ────────────────────────────────────────────
+// @sfc/e2e의 public API를 sdk에서 재노출한다 (public API 집약점 관례).
+export { runE2eTest } from "@sfc/e2e";
+export type { RunE2eTestOptions, E2eTestResult, Platform as E2ePlatform, AgentKind, E2eErrorCode } from "@sfc/e2e";
+export { E2eError, E2E_ERROR_CODES } from "@sfc/e2e";
+
 // ── 타입 re-export ─────────────────────────────────────────────────
 
 export type { DetectResult, DoctorReport, ScreenSummary, CaptureResult, IRDocument };

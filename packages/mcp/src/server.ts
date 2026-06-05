@@ -379,6 +379,80 @@ export function createMcpServer(): McpServer {
     }
   );
 
+  // ── 8. run_e2e_test ──────────────────────────────────────────────
+  // 주의: 이 툴은 에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요됩니다.
+
+  server.tool(
+    "run_e2e_test",
+    "Android 에뮬레이터 / iOS 시뮬레이터에서 LLM 에이전트로 E2E 테스트를 실행한다. " +
+    "에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요될 수 있습니다.",
+    {
+      projectPath: z.string().min(1),
+      platform: z.enum(["android", "ios"]),
+      agent: z.enum(["claude", "codex", "gemini"]).optional().default("claude"),
+      scenarioPath: z.string().optional(),
+      apiKey: z.string().optional(),
+      deviceId: z.string().optional(),
+      outDir: z.string().optional(),
+      timeoutMs: z.number().int().positive().optional(),
+      maxSteps: z.number().int().positive().optional(),
+      keepBooted: z.boolean().optional().default(false),
+    },
+    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted }) => {
+      try {
+        validateProjectPath(projectPath);
+
+        const { runE2eTest } = await import("@sfc/e2e");
+
+        const result = await runE2eTest({
+          projectPath,
+          platform,
+          agent,
+          scenarioPath,
+          apiKey,
+          deviceId,
+          outDir,
+          timeoutMs,
+          maxSteps,
+          keepBooted,
+        });
+
+        // 응답: 요약 텍스트 + 리포트 경로 + 최종 스크린샷 소량 base64
+        const summaryText = [
+          `E2E 테스트 결과: ${result.outcome}`,
+          `요약: ${result.summary}`,
+          `리포트: ${result.reportJsonPath}`,
+          `스크린샷 디렉토리: ${result.screenshotsDir}`,
+          `스텝 수: ${result.steps.length}`,
+        ].join("\n");
+
+        // 마지막 스크린샷 1개만 base64로 포함 (응답 크기 제한)
+        const lastScreenshot = result.steps
+          .slice()
+          .reverse()
+          .find((s) => s.screenshot);
+
+        const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [
+          { type: "text", text: summaryText },
+        ];
+
+        if (lastScreenshot?.screenshot) {
+          const screenshotPath = `${result.screenshotsDir}/${lastScreenshot.screenshot}`;
+          try {
+            const base64 = pngToBase64(screenshotPath);
+            content.push({ type: "image", data: base64, mimeType: "image/png" });
+          } catch {
+            // 스크린샷 첨부 실패는 무시
+          }
+        }
+
+        return { content };
+      } catch (e) {
+        return errorContent(wrapError(e));
+      }
+    }
+  );
+
   return server;
 }
 
