@@ -651,7 +651,8 @@ describe("assembleAppMap — style 주입 및 매칭 실패 diagnostics", () => 
           from: "HomeScreen",
           to: "DetailScreen",
           action: "push",
-          trigger: { kind: "button" }, // label도 elementRef도 없음
+          // 매칭 단서(label)는 있지만 elements에 없는 라벨 → 매칭 실패
+          trigger: { kind: "button", label: "존재하지 않는 라벨" },
           confidence: 1.0,
           diagnostics: [],
         },
@@ -888,5 +889,67 @@ describe("assembleAppMap — style 주입 및 매칭 실패 diagnostics", () => 
 
     const button = appMap.screens[0]?.elements.find((e) => e.type === "Button");
     expect(button?.style).toBeUndefined();
+  });
+});
+
+// ── 단계 7: 전역 엣지 보존·TRIGGER_UNMATCHED 노이즈 방지 ─────────────────────
+
+describe("assembleAppMap — 전역/(global) 엣지 처리", () => {
+  it("화면에 귀속되지 않은 (global) 엣지도 top-level edges에 보존된다", () => {
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [
+        { id: "HomeScreen", discovery: "route", confidence: 1.0 },
+      ],
+      navGraph: {
+        entryScreenId: "HomeScreen",
+        edges: [
+          {
+            from: "(global)",
+            to: "HomeScreen",
+            action: "replace",
+            trigger: { kind: "system" },
+            confidence: 0.4,
+            diagnostics: [],
+            fromKind: "global",
+            fromRef: { file: "lib/util/session.dart", line: 5 },
+          },
+        ],
+        diagnostics: [],
+      },
+      irDocs: [],
+    });
+
+    expect(appMap.edges).toHaveLength(1);
+    expect(appMap.edges[0]!.from).toBe("(global)");
+    // 어떤 화면의 outgoing에도 없음
+    expect(appMap.screens[0]!.outgoing).toHaveLength(0);
+  });
+
+  it("매칭 단서(elementRef/label) 없는 트리거에는 TRIGGER_UNMATCHED를 붙이지 않는다", () => {
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [{ id: "HomeScreen", discovery: "route", confidence: 1.0 }],
+      navGraph: {
+        entryScreenId: null,
+        edges: [
+          {
+            from: "(global)",
+            to: "HomeScreen",
+            action: "replace",
+            trigger: { kind: "system" },
+            confidence: 0.4,
+            diagnostics: [],
+          },
+        ],
+        diagnostics: [],
+      },
+      irDocs: [],
+    });
+
+    const codes = appMap.edges[0]!.diagnostics.map((d) => d.code);
+    expect(codes).not.toContain("TRIGGER_UNMATCHED");
   });
 });
