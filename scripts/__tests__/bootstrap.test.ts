@@ -34,6 +34,8 @@ describe("isInstalled", () => {
   it("node_modules가 존재하면 true를 반환한다", () => {
     const fakeFs = {
       existsSync: (p: string) => p === `${FAKE_ROOT}/node_modules`,
+      readdirSync: (_p: string) => [] as any,
+      readFileSync: (_p: string, _enc?: string): string => { throw new Error("ENOENT"); },
     };
     expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(true);
   });
@@ -41,14 +43,330 @@ describe("isInstalled", () => {
   it("node_modules가 없으면 false를 반환한다", () => {
     const fakeFs = {
       existsSync: (_p: string) => false,
+      readdirSync: (_p: string) => [] as any,
+      readFileSync: (_p: string, _enc?: string): string => { throw new Error("ENOENT"); },
     };
     expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(false);
   });
 
   // 엣지 케이스: 빈 문자열 root
   it("root가 빈 문자열이어도 크래시하지 않는다", () => {
-    const fakeFs = { existsSync: () => false };
+    const fakeFs = {
+      existsSync: () => false,
+      readdirSync: (_p: string) => [] as any,
+      readFileSync: (_p: string, _enc?: string): string => { throw new Error("ENOENT"); },
+    };
     expect(isInstalled("", fakeFs)).toBe(false);
+  });
+
+  // ─── 워크스페이스 패키지 node_modules 검증 ────────────────────────
+
+  it("루트 node_modules는 있지만 의존성 있는 패키지의 node_modules가 없으면 false", () => {
+    // packages/e2e는 dependencies가 있는데 node_modules가 없는 상황
+    const existingDirs = new Set([`${FAKE_ROOT}/node_modules`]);
+    const pkgJsons: Record<string, string> = {
+      [`${FAKE_ROOT}/pnpm-workspace.yaml`]: "packages:\n  - \"packages/*\"\n",
+      [`${FAKE_ROOT}/packages/e2e/package.json`]: JSON.stringify({
+        name: "@fake/e2e",
+        dependencies: { execa: "^9.0.0" },
+      }),
+    };
+    const fakeFs = {
+      existsSync: (p: string) => existingDirs.has(p),
+      readdirSync: (p: string) => {
+        if (p === `${FAKE_ROOT}/packages`) return ["e2e"] as any;
+        return [] as any;
+      },
+      readFileSync: (p: string, enc?: string) => {
+        if (pkgJsons[p]) return pkgJsons[p];
+        throw new Error(`ENOENT: ${p}`);
+      },
+      realpathSync: (p: string) => p,
+    };
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(false);
+  });
+
+  it("루트 node_modules가 없으면 워크스페이스 패키지와 무관하게 false", () => {
+    const fakeFs = {
+      existsSync: (_p: string) => false,
+      readdirSync: (_p: string) => [] as any,
+      readFileSync: (_p: string, _enc?: string) => { throw new Error("ENOENT"); },
+    };
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(false);
+  });
+
+  it("의존성이 없는 패키지는 node_modules가 없어도 true로 판정한다", () => {
+    // packages/meta에는 dependencies/devDependencies가 전혀 없음
+    const existingDirs = new Set([`${FAKE_ROOT}/node_modules`]);
+    const pkgJsons: Record<string, string> = {
+      [`${FAKE_ROOT}/pnpm-workspace.yaml`]: "packages:\n  - \"packages/*\"\n",
+      [`${FAKE_ROOT}/packages/meta/package.json`]: JSON.stringify({
+        name: "@fake/meta",
+      }),
+    };
+    const fakeFs = {
+      existsSync: (p: string) => existingDirs.has(p),
+      readdirSync: (p: string) => {
+        if (p === `${FAKE_ROOT}/packages`) return ["meta"] as any;
+        return [] as any;
+      },
+      readFileSync: (p: string, _enc?: string) => {
+        if (pkgJsons[p]) return pkgJsons[p];
+        throw new Error(`ENOENT: ${p}`);
+      },
+      realpathSync: (p: string) => p,
+    };
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(true);
+  });
+
+  it("모든 의존성 있는 패키지에 node_modules가 있으면 true", () => {
+    const existingDirs = new Set([
+      `${FAKE_ROOT}/node_modules`,
+      `${FAKE_ROOT}/packages/core/node_modules`,
+      `${FAKE_ROOT}/packages/e2e/node_modules`,
+    ]);
+    const pkgJsons: Record<string, string> = {
+      [`${FAKE_ROOT}/pnpm-workspace.yaml`]: "packages:\n  - \"packages/*\"\n",
+      [`${FAKE_ROOT}/packages/core/package.json`]: JSON.stringify({
+        name: "@fake/core",
+        dependencies: { zod: "^3.0.0" },
+      }),
+      [`${FAKE_ROOT}/packages/e2e/package.json`]: JSON.stringify({
+        name: "@fake/e2e",
+        devDependencies: { vitest: "^3.0.0" },
+      }),
+    };
+    const fakeFs = {
+      existsSync: (p: string) => existingDirs.has(p),
+      readdirSync: (p: string) => {
+        if (p === `${FAKE_ROOT}/packages`) return ["core", "e2e"] as any;
+        return [] as any;
+      },
+      readFileSync: (p: string, _enc?: string) => {
+        if (pkgJsons[p]) return pkgJsons[p];
+        throw new Error(`ENOENT: ${p}`);
+      },
+      realpathSync: (p: string) => p,
+    };
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(true);
+  });
+
+  it("devDependencies만 있는 패키지도 node_modules가 없으면 false", () => {
+    const existingDirs = new Set([`${FAKE_ROOT}/node_modules`]);
+    const pkgJsons: Record<string, string> = {
+      [`${FAKE_ROOT}/pnpm-workspace.yaml`]: "packages:\n  - \"packages/*\"\n",
+      [`${FAKE_ROOT}/packages/sdk/package.json`]: JSON.stringify({
+        name: "@fake/sdk",
+        devDependencies: { typescript: "^5.0.0" },
+      }),
+    };
+    const fakeFs = {
+      existsSync: (p: string) => existingDirs.has(p),
+      readdirSync: (p: string) => {
+        if (p === `${FAKE_ROOT}/packages`) return ["sdk"] as any;
+        return [] as any;
+      },
+      readFileSync: (p: string, _enc?: string) => {
+        if (pkgJsons[p]) return pkgJsons[p];
+        throw new Error(`ENOENT: ${p}`);
+      },
+      realpathSync: (p: string) => p,
+    };
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(false);
+  });
+
+  it("packages 디렉토리 읽기 실패 시 크래시 없이 기본 체크 결과를 반환한다", () => {
+    // readdirSync가 throw → packages 순회 생략, 루트 node_modules 존재 여부만 판정
+    const fakeFs = {
+      existsSync: (p: string) => p === `${FAKE_ROOT}/node_modules`,
+      readdirSync: (_p: string) => { throw new Error("EACCES: permission denied"); },
+      readFileSync: (_p: string, _enc?: string) => { throw new Error("ENOENT"); },
+      realpathSync: (p: string) => p,
+    };
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(true);
+  });
+
+  it("package.json 파싱 실패(깨진 JSON)인 패키지는 건너뛰고 다른 패키지를 검사한다", () => {
+    // broken-pkg: JSON 파싱 실패 → 건너뜀
+    // good-pkg: dependencies 있고 node_modules 없음 → false 반환
+    const existingDirs = new Set([`${FAKE_ROOT}/node_modules`]);
+    const rawFiles: Record<string, string> = {
+      [`${FAKE_ROOT}/pnpm-workspace.yaml`]: "packages:\n  - \"packages/*\"\n",
+      [`${FAKE_ROOT}/packages/broken-pkg/package.json`]: "{NOT_VALID_JSON",
+      [`${FAKE_ROOT}/packages/good-pkg/package.json`]: JSON.stringify({
+        name: "@fake/good-pkg",
+        dependencies: { lodash: "^4.0.0" },
+      }),
+    };
+    const fakeFs = {
+      existsSync: (p: string) => existingDirs.has(p),
+      readdirSync: (p: string) => {
+        if (p === `${FAKE_ROOT}/packages`) return ["broken-pkg", "good-pkg"] as any;
+        return [] as any;
+      },
+      readFileSync: (p: string, _enc?: string) => {
+        if (rawFiles[p]) return rawFiles[p];
+        throw new Error(`ENOENT: ${p}`);
+      },
+      realpathSync: (p: string) => p,
+    };
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(false);
+  });
+
+  it("워크스페이스 패키지가 0개이면 루트 node_modules 존재만으로 true", () => {
+    const fakeFs = {
+      existsSync: (p: string) => p === `${FAKE_ROOT}/node_modules`,
+      readdirSync: (p: string) => {
+        if (p === `${FAKE_ROOT}/packages`) return [] as any;
+        return [] as any;
+      },
+      readFileSync: (_p: string, _enc?: string) => { throw new Error("ENOENT"); },
+      realpathSync: (p: string) => p,
+    };
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(true);
+  });
+
+  it("pnpm-workspace.yaml이 없으면(readFileSync throw) 루트 node_modules만 체크한다", () => {
+    const fakeFs = {
+      existsSync: (p: string) => p === `${FAKE_ROOT}/node_modules`,
+      readdirSync: (_p: string) => { throw new Error("ENOENT"); },
+      readFileSync: (_p: string, _enc?: string) => { throw new Error("ENOENT"); },
+      realpathSync: (p: string) => p,
+    };
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(true);
+  });
+
+  // ─── symlink 안전 처리 ────────────────────────────────────────────
+
+  it("symlink가 root 밖을 가리키면 해당 패키지를 건너뛰고 나머지로 판정한다", () => {
+    // evil-pkg는 symlink로 루트 바깥을 가리키므로 건너뜀
+    // good-pkg는 node_modules 없음 → false
+    const existingDirs = new Set([`${FAKE_ROOT}/node_modules`]);
+    const pkgJsons: Record<string, string> = {
+      [`${FAKE_ROOT}/packages/good-pkg/package.json`]: JSON.stringify({
+        name: "@fake/good-pkg",
+        dependencies: { zod: "^3.0.0" },
+      }),
+    };
+    const fakeFs = {
+      existsSync: (p: string) => existingDirs.has(p),
+      readdirSync: (p: string) => {
+        if (p === `${FAKE_ROOT}/packages`) return ["evil-pkg", "good-pkg"] as any;
+        return [] as any;
+      },
+      readFileSync: (p: string, _enc?: string) => {
+        if (pkgJsons[p]) return pkgJsons[p];
+        throw new Error(`ENOENT: ${p}`);
+      },
+      // evil-pkg의 realpath는 루트 밖(/tmp/malicious)을 가리킴
+      realpathSync: (p: string) => {
+        if (p.includes("evil-pkg")) return "/tmp/malicious/evil-pkg";
+        return p;
+      },
+    };
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(false);
+  });
+
+  it("realpathSync가 throw하면 해당 패키지를 건너뛰고 나머지로 판정한다", () => {
+    // symlink-err-pkg: realpathSync throw → 건너뜀
+    // clean-pkg: 의존성 없음 → true
+    const existingDirs = new Set([`${FAKE_ROOT}/node_modules`]);
+    const pkgJsons: Record<string, string> = {
+      [`${FAKE_ROOT}/packages/clean-pkg/package.json`]: JSON.stringify({
+        name: "@fake/clean-pkg",
+      }),
+    };
+    const fakeFs = {
+      existsSync: (p: string) => existingDirs.has(p),
+      readdirSync: (p: string) => {
+        if (p === `${FAKE_ROOT}/packages`) return ["symlink-err-pkg", "clean-pkg"] as any;
+        return [] as any;
+      },
+      readFileSync: (p: string, _enc?: string) => {
+        if (pkgJsons[p]) return pkgJsons[p];
+        throw new Error(`ENOENT: ${p}`);
+      },
+      realpathSync: (p: string) => {
+        if (p.includes("symlink-err-pkg")) throw new Error("ENOENT: broken symlink");
+        return p;
+      },
+    };
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(true);
+  });
+
+  // ─── JSON inherited property / 비정상 타입 가드 ──────────────────
+
+  it("dependencies가 문자열인 깨진 package.json은 건너뛴다", () => {
+    // dependencies가 string이면 Object.keys 오동작 → hasOwnProperty + typeof 가드로 방어
+    const existingDirs = new Set([`${FAKE_ROOT}/node_modules`]);
+    const pkgJsons: Record<string, string> = {
+      [`${FAKE_ROOT}/packages/bad-types-pkg/package.json`]: JSON.stringify({
+        name: "@fake/bad-types-pkg",
+        dependencies: "not-an-object",
+      }),
+    };
+    const fakeFs = {
+      existsSync: (p: string) => existingDirs.has(p),
+      readdirSync: (p: string) => {
+        if (p === `${FAKE_ROOT}/packages`) return ["bad-types-pkg"] as any;
+        return [] as any;
+      },
+      readFileSync: (p: string, _enc?: string) => {
+        if (pkgJsons[p]) return pkgJsons[p];
+        throw new Error(`ENOENT: ${p}`);
+      },
+      realpathSync: (p: string) => p,
+    };
+    // dependencies가 string이면 hasDeps = false로 판정 → node_modules 없어도 true
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(true);
+  });
+
+  it("dependencies가 배열인 깨진 package.json은 건너뛴다", () => {
+    const existingDirs = new Set([`${FAKE_ROOT}/node_modules`]);
+    const pkgJsons: Record<string, string> = {
+      [`${FAKE_ROOT}/packages/array-deps-pkg/package.json`]: JSON.stringify({
+        name: "@fake/array-deps-pkg",
+        dependencies: ["dep-a", "dep-b"],
+      }),
+    };
+    const fakeFs = {
+      existsSync: (p: string) => existingDirs.has(p),
+      readdirSync: (p: string) => {
+        if (p === `${FAKE_ROOT}/packages`) return ["array-deps-pkg"] as any;
+        return [] as any;
+      },
+      readFileSync: (p: string, _enc?: string) => {
+        if (pkgJsons[p]) return pkgJsons[p];
+        throw new Error(`ENOENT: ${p}`);
+      },
+      realpathSync: (p: string) => p,
+    };
+    // 배열은 typeof object이지만 Array → hasOwnProperty 가드로 처리, node_modules 없어도 true
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(true);
+  });
+
+  it("__proto__ injection 시도가 있어도 안전하게 처리한다", () => {
+    const existingDirs = new Set([`${FAKE_ROOT}/node_modules`]);
+    // JSON.parse는 __proto__를 일반 키로 처리하므로 실제 프로토타입 오염 없음
+    // 하지만 hasOwnProperty.call 방어가 동작하는지 확인
+    const maliciousJson = '{"name":"@fake/proto-pkg","__proto__":{"dependencies":{"evil":"1.0.0"}}}';
+    const pkgJsons: Record<string, string> = {
+      [`${FAKE_ROOT}/packages/proto-pkg/package.json`]: maliciousJson,
+    };
+    const fakeFs = {
+      existsSync: (p: string) => existingDirs.has(p),
+      readdirSync: (p: string) => {
+        if (p === `${FAKE_ROOT}/packages`) return ["proto-pkg"] as any;
+        return [] as any;
+      },
+      readFileSync: (p: string, _enc?: string) => {
+        if (pkgJsons[p]) return pkgJsons[p];
+        throw new Error(`ENOENT: ${p}`);
+      },
+      realpathSync: (p: string) => p,
+    };
+    // __proto__ 키는 hasOwnProperty.call로 false → node_modules 없어도 true
+    expect(isInstalled(FAKE_ROOT, fakeFs)).toBe(true);
   });
 });
 

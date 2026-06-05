@@ -11,14 +11,113 @@ import nodePath from "node:path";
 // ─── isInstalled ────────────────────────────────────────────────────
 
 /**
- * node_modules 디렉토리가 존재하는지 확인한다.
+ * 의존성 설치가 완료됐는지 확인한다.
+ *
+ * 1) 루트 node_modules 디렉토리가 존재해야 한다 (기존 동작 유지).
+ * 2) pnpm-workspace.yaml 기준 packages/* 패키지들을 순회하며,
+ *    dependencies 또는 devDependencies가 하나라도 있는 패키지인데
+ *    해당 패키지의 node_modules가 없으면 미설치(false)로 판정한다.
+ *    - 의존성이 전혀 없는 패키지는 node_modules가 없어도 무시한다.
+ *    - packages 디렉토리 읽기/package.json 파싱 실패 시 해당 패키지는 건너뛴다.
+ *    - symlink가 root 하위를 벗어나면 해당 패키지를 건너뛴다.
+ *
  * @param {string} root - 프로젝트 루트 경로
- * @param {{ existsSync: (p: string) => boolean }} [fsImpl] - fs 주입 (기본: node:fs)
+ * @param {{
+ *   existsSync: (p: string) => boolean,
+ *   readdirSync?: (p: string) => string[],
+ *   readFileSync?: (p: string, enc: string) => string,
+ *   realpathSync?: (p: string) => string,
+ * }} [fsImpl] - fs 주입 (기본: node:fs)
  * @returns {boolean}
  */
 export function isInstalled(root, fsImpl) {
   const fs = fsImpl ?? nodeFs;
-  return fs.existsSync(nodePath.join(root, "node_modules"));
+
+  // 1) 루트 node_modules 확인
+  if (!fs.existsSync(nodePath.join(root, "node_modules"))) {
+    return false;
+  }
+
+  // 2) 워크스페이스 패키지 단위 검증
+  const readdirSync = fs.readdirSync ?? nodeFs.readdirSync.bind(nodeFs);
+  const readFileSync = fs.readFileSync ?? nodeFs.readFileSync.bind(nodeFs);
+  const realpathSync = fs.realpathSync ?? nodeFs.realpathSync.bind(nodeFs);
+
+  /** @type {string[]} */
+  let pkgDirs;
+  try {
+    pkgDirs = /** @type {string[]} */ (readdirSync(nodePath.join(root, "packages")));
+  } catch {
+    // packages 디렉토리를 읽을 수 없으면 루트 체크 결과만으로 판정
+    return true;
+  }
+
+  // root의 실제 경로(trailing separator 포함)를 미리 계산해 symlink 검증에 사용
+  let realRoot;
+  try {
+    realRoot = realpathSync(root);
+  } catch {
+    realRoot = root;
+  }
+  const realRootPrefix = realRoot.endsWith(nodePath.sep)
+    ? realRoot
+    : realRoot + nodePath.sep;
+
+  for (const dir of pkgDirs) {
+    const pkgDir = nodePath.join(root, "packages", dir);
+
+    // symlink 이탈 검증: 실제 경로가 root 하위인지 확인
+    let realPkgDir;
+    try {
+      realPkgDir = realpathSync(pkgDir);
+    } catch {
+      // symlink 해석 실패(dangling symlink 등) → 건너뜀
+      continue;
+    }
+    if (!realPkgDir.startsWith(realRootPrefix)) {
+      // root 밖을 가리키는 symlink → 건너뜀
+      continue;
+    }
+
+    const pkgJsonPath = nodePath.join(pkgDir, "package.json");
+
+    /** @type {{ dependencies?: unknown, devDependencies?: unknown }} */
+    let pkgJson;
+    try {
+      const raw = readFileSync(pkgJsonPath, "utf8");
+      pkgJson = JSON.parse(raw);
+    } catch {
+      // 파일 없음 또는 JSON 파싱 실패 → 해당 패키지 건너뜀
+      continue;
+    }
+
+    /**
+     * hasDeps: dependencies / devDependencies 필드가 실제 객체이고 키가 하나 이상일 때만 true.
+     * hasOwnProperty.call로 상속 프로퍼티 오염 방지, typeof + !Array.isArray로 비정상 타입 방어.
+     * @param {string} key
+     * @returns {boolean}
+     */
+    const hasDepsField = (key) => {
+      if (!Object.prototype.hasOwnProperty.call(pkgJson, key)) return false;
+      const val = /** @type {any} */ (pkgJson)[key];
+      if (typeof val !== "object" || val === null || Array.isArray(val)) return false;
+      return Object.keys(val).length > 0;
+    };
+
+    const hasDeps = hasDepsField("dependencies") || hasDepsField("devDependencies");
+
+    if (!hasDeps) {
+      // 의존성 없는 패키지는 node_modules 없어도 OK
+      continue;
+    }
+
+    const pkgNodeModules = nodePath.join(pkgDir, "node_modules");
+    if (!fs.existsSync(pkgNodeModules)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 // ─── isBuilt ────────────────────────────────────────────────────────
