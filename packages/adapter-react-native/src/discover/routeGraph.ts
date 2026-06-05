@@ -250,11 +250,20 @@ export async function discoverRouteGraph(
     }
   }
 
-  if (routes.length === 0 && rootComponentName) {
-    diagnostics.push({
-      code: "NO_NAVIGATOR",
-      message: `네비게이터를 찾을 수 없음 — '${rootComponentName}'은 단일 화면 앱일 수 있음`,
-    });
+  if (routes.length === 0) {
+    if (rootComponentName) {
+      // 진입점은 찾았지만 네비게이터가 없음 → 단일 화면 앱
+      diagnostics.push({
+        code: "NO_NAVIGATOR",
+        message: `네비게이터를 찾을 수 없음 — '${rootComponentName}'은 단일 화면 앱일 수 있음`,
+      });
+    } else {
+      // index.js/index.ts도 없음 → 진입점 자체를 탐색 불가
+      diagnostics.push({
+        code: "NO_ENTRY_POINT",
+        message: `AppRegistry.registerComponent를 찾을 수 없음 — index.js/index.ts가 없거나 표준 형태가 아닐 수 있음`,
+      });
+    }
   }
 
   return { routes, diagnostics };

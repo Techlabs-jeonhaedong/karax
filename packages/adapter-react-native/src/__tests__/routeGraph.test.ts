@@ -8,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.resolve(__dirname, "../../../..", "fixtures/react-native-basic");
 const TAB_FIXTURE = path.resolve(__dirname, "fixtures/tab-navigator");
 const SINGLE_FIXTURE = path.resolve(__dirname, "fixtures/single-app");
+const SINGLE_WITH_ENTRY_FIXTURE = path.resolve(__dirname, "fixtures/single-screen-with-entry");
 
 describe("routeGraph — react-native-basic fixture", () => {
   it("4개의 라우트 화면을 발견한다 (Home/Detail/List/Settings)", async () => {
@@ -60,11 +61,24 @@ describe("routeGraph — tab navigator fixture", () => {
   });
 });
 
-describe("routeGraph — single app (navigator 없음)", () => {
-  it("라우트가 0개이고 NO_NAVIGATOR 진단이 생성된다", async () => {
+describe("routeGraph — single app (index.js 없음, 진입점 탐색 불가)", () => {
+  it("라우트가 0개이고 NO_ENTRY_POINT 진단이 생성된다", async () => {
     const table = await buildSymbolTable(SINGLE_FIXTURE);
     const { routes, diagnostics } = await discoverRouteGraph(SINGLE_FIXTURE, table);
     expect(routes).toHaveLength(0);
+    expect(diagnostics.some(d => d.code === "NO_ENTRY_POINT")).toBe(true);
+    // NO_NAVIGATOR는 발생하지 않아야 함
+    expect(diagnostics.some(d => d.code === "NO_NAVIGATOR")).toBe(false);
+  });
+});
+
+describe("routeGraph — single screen with entry (index.js 있음, navigator 없음)", () => {
+  it("라우트가 0개이고 NO_NAVIGATOR 진단이 생성된다", async () => {
+    const table = await buildSymbolTable(SINGLE_WITH_ENTRY_FIXTURE);
+    const { routes, diagnostics } = await discoverRouteGraph(SINGLE_WITH_ENTRY_FIXTURE, table);
+    expect(routes).toHaveLength(0);
     expect(diagnostics.some(d => d.code === "NO_NAVIGATOR")).toBe(true);
+    // NO_ENTRY_POINT는 발생하지 않아��� 함
+    expect(diagnostics.some(d => d.code === "NO_ENTRY_POINT")).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import type {
   FrameworkEvidence,
   AdapterContext,
   ScreenSummary,
+  NavigationGraph,
 } from "@karax/adapter-api";
 import type { IRDocument } from "@karax/core";
 import { readPackageName, hasFlutterDependency } from "./parse/pubspec.js";
@@ -12,6 +13,7 @@ import { buildSymbolTable } from "./parse/scanner.js";
 import { discoverRouteGraph } from "./discover/routeGraph.js";
 import { findHeuristicCandidates } from "./discover/heuristic.js";
 import { buildScreenIR as _buildScreenIR } from "./ir/builder.js";
+import { discoverFlutterNavGraph, readFlutterAppName } from "./discover/navGraph.js";
 
 // ── 유틸 ─────────────────────────────────────────────────────────────────────
 
@@ -126,6 +128,22 @@ export const flutterAdapter: FrameworkAdapter = {
 
   async buildScreenIR(ctx: AdapterContext, screenId: string): Promise<IRDocument> {
     return _buildScreenIR(ctx, screenId);
+  },
+
+  async discoverNavigation(ctx: AdapterContext): Promise<NavigationGraph> {
+    const { projectPath } = ctx;
+    let packageName: string;
+    try {
+      packageName = await readPackageName(projectPath);
+    } catch {
+      packageName = "";
+    }
+    const symbolTable = await buildSymbolTable(projectPath, packageName);
+    return discoverFlutterNavGraph(projectPath, symbolTable);
+  },
+
+  async readAppName(ctx: AdapterContext): Promise<string | undefined> {
+    return readFlutterAppName(ctx.projectPath);
   },
 };
 

@@ -13,6 +13,9 @@
   "references": [
     {
       "path": "../sdk"
+    },
+    {
+      "path": "../core"
     }
   ]
 }

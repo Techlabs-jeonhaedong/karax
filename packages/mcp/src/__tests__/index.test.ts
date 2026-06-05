@@ -46,9 +46,9 @@ describe("MCP 서버 — tools/list", () => {
     await server.close();
   });
 
-  it("정확히 7개 tool이 등록됨", async () => {
+  it("정확히 8개 tool이 등록됨", async () => {
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(7);
+    expect(result.tools).toHaveLength(8);
   });
 
   it("모든 tool 이름이 일치함", async () => {
@@ -59,6 +59,7 @@ describe("MCP 서버 — tools/list", () => {
       "capture_screen",
       "detect_framework",
       "doctor",
+      "generate_app_map",
       "get_analysis_report",
       "get_screen_ir",
       "list_screens",
@@ -471,6 +472,67 @@ describe("MCP 서버 — capture_all report.failures 계약 (낮음-9 회귀)", 
     },
     120_000
   );
+});
+
+describe("MCP 서버 — generate_app_map tool", () => {
+  let client: Client;
+  let server: Awaited<ReturnType<typeof makeClientServer>>["server"];
+
+  beforeEach(async () => {
+    ({ client, server } = await makeClientServer());
+  });
+
+  afterEach(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  it("flutter-basic fixture → AppMap 반환", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: { projectPath: FLUTTER_FIXTURE },
+    });
+
+    expect(result.isError).toBeFalsy();
+
+    const contents = result.content as Array<{ type: string; text: string }>;
+
+    // 첫 번째 content: 요약 JSON
+    const summaryText = contents[0];
+    expect(summaryText).toBeDefined();
+    expect(summaryText!.type).toBe("text");
+
+    const parsed = JSON.parse(summaryText!.text);
+    expect(parsed.appMap).toBeDefined();
+    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+    expect(Array.isArray(parsed.appMap.screens)).toBe(true);
+    expect(parsed.appMap.screens.length).toBeGreaterThan(0);
+    expect(typeof parsed.documentCount).toBe("number");
+    expect(parsed.documentCount).toBeGreaterThanOrEqual(1);
+
+    // 두 번째 이후 content: 마크다운 문서 본문 (mermaid 블록 포함)
+    const markdownContents = contents.slice(1);
+    expect(markdownContents.length).toBeGreaterThanOrEqual(1);
+    const combinedMarkdown = markdownContents.map((c) => c.text).join("\n");
+    expect(combinedMarkdown).toContain("```mermaid");
+    expect(combinedMarkdown).toContain("flowchart TD");
+  }, 30_000);
+
+  it("projectPath 누락 → isError", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: {},
+    });
+    expect(result.isError).toBe(true);
+  });
+
+  it("존재하지 않는 경로 → isError", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: { projectPath: "/tmp/nonexistent-abc123" },
+    });
+    expect(result.isError).toBe(true);
+  });
 });
 
 describe("MCP 서버 — 엣지 케이스", () => {

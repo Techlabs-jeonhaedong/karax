@@ -9,12 +9,13 @@
 
 import path from "path";
 import { readFile } from "fs/promises";
-import type { FrameworkAdapter, AdapterContext, ScreenSummary, FrameworkEvidence } from "@karax/adapter-api";
+import type { FrameworkAdapter, AdapterContext, ScreenSummary, FrameworkEvidence, NavigationGraph } from "@karax/adapter-api";
 import type { IRDocument } from "@karax/core";
 import { buildSymbolTable } from "./parse/scanner.js";
 import { discoverRouteGraph } from "./discover/routeGraph.js";
 import { findHeuristicCandidates } from "./discover/heuristic.js";
 import { buildScreenIR } from "./ir/builder.js";
+import { discoverRNNavGraph, readRNAppName } from "./discover/navGraph.js";
 
 export const ADAPTER_ID = "react-native" as const;
 
@@ -121,6 +122,15 @@ export const reactNativeAdapter: FrameworkAdapter = {
   discoverScreens,
   buildScreenIR: (ctx: AdapterContext, screenId: string): Promise<IRDocument> =>
     buildScreenIR(ctx, screenId),
+
+  async discoverNavigation(ctx: AdapterContext): Promise<NavigationGraph> {
+    const symbolTable = await buildSymbolTable(ctx.projectPath);
+    return discoverRNNavGraph(ctx.projectPath, symbolTable);
+  },
+
+  async readAppName(ctx: AdapterContext): Promise<string | undefined> {
+    return readRNAppName(ctx.projectPath);
+  },
 };
 
 export default reactNativeAdapter;
