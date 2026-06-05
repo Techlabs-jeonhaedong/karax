@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
-import { parseSource, type SyntaxNode } from "@sfc/adapter-api";
+import { parseSource, type SyntaxNode } from "@karax/adapter-api";
 
 // ── 타입 ──────────────────────────────────────────────────────────────────────
 

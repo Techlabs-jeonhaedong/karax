@@ -1,6 +1,6 @@
 /**
  * 실제 로컬 환경 통합 테스트
- * SFC_DOCTOR_INTEGRATION=1 환경변수가 있을 때만 실행됨.
+ * KARAX_DOCTOR_INTEGRATION=1 환경변수가 있을 때만 실행됨.
  *
  * 이 머신 기준: flutter/dart/java/xcode/gradle/pod 모두 설치됨
  * → 대형 툴체인 체크 ok + 4개 프레임워크 tier1=true 단언
@@ -10,7 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { runDoctor } from "../index.js";
 
-const INTEGRATION = process.env.SFC_DOCTOR_INTEGRATION === "1";
+const INTEGRATION = process.env.KARAX_DOCTOR_INTEGRATION === "1";
 
 describe.skipIf(!INTEGRATION)("Doctor 로컬 통합 테스트", () => {
   it("모든 대형 툴체인 체크 ok, 4개 프레임워크 tier1=true", async () => {

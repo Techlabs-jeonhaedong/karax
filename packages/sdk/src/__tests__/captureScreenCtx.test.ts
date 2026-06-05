@@ -5,11 +5,11 @@
  * ctx에 포함해서 전달하는지를 직접 검증한다.
  * fix를 revert하면(ctx에서 maxInlineDepth 제거) 이 테스트가 실패해야 한다.
  *
- * 구현: @sfc/adapter-flutter를 vi.mock으로 교체해 ctx를 캡처한다.
+ * 구현: @karax/adapter-flutter를 vi.mock으로 교체해 ctx를 캡처한다.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { AdapterContext, FrameworkAdapter, ScreenSummary } from "@sfc/adapter-api";
-import type { IRDocument } from "@sfc/core";
+import type { AdapterContext, FrameworkAdapter, ScreenSummary } from "@karax/adapter-api";
+import type { IRDocument } from "@karax/core";
 import * as path from "path";
 
 const FLUTTER_FIXTURE = path.resolve(
@@ -42,7 +42,7 @@ const STUB_IR: IRDocument = {
 
 // ── flutter adapter mock ────────────────────────────────────────────────
 // vi.mock은 hoisted되므로 capturedCtxCalls에 직접 접근 가능
-vi.mock("@sfc/adapter-flutter", () => {
+vi.mock("@karax/adapter-flutter", () => {
   const mockAdapter: FrameworkAdapter = {
     id: "flutter" as const,
     async detect() {
@@ -61,7 +61,7 @@ vi.mock("@sfc/adapter-flutter", () => {
 });
 
 // ── renderScreenshot mock — Playwright 없이 동작하게 ───────────────────
-vi.mock("@sfc/renderer", () => ({
+vi.mock("@karax/renderer", () => ({
   renderScreenshot: vi.fn().mockResolvedValue({
     pngPath: "/tmp/stub.png",
     width: 390,
@@ -70,8 +70,8 @@ vi.mock("@sfc/renderer", () => ({
 }));
 
 // ── captureEngine mock — Tier 결정 없이 바로 static 결과 반환 ──────────
-vi.mock("@sfc/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@sfc/core")>();
+vi.mock("@karax/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@karax/core")>();
   return {
     ...actual,
     captureScreenWithTiers: vi.fn().mockResolvedValue({
@@ -88,12 +88,12 @@ vi.mock("@sfc/core", async (importOriginal) => {
 
 describe("captureScreen — maxInlineDepth ctx 전달 (중간-6 회귀)", () => {
   beforeEach(() => {
-    process.env.SFC_SKIP_ENSURE = "1";
+    process.env.KARAX_SKIP_ENSURE = "1";
     capturedCtxCalls.length = 0;
   });
 
   afterEach(() => {
-    delete process.env.SFC_SKIP_ENSURE;
+    delete process.env.KARAX_SKIP_ENSURE;
   });
 
   it(

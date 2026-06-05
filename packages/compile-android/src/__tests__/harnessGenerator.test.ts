@@ -14,19 +14,19 @@ import {
 
 describe("generateSettingsGradle", () => {
   it("pluginManagement에 google + mavenCentral 포함", () => {
-    const content = generateSettingsGradle("sfc_harness");
+    const content = generateSettingsGradle("karax_harness");
     expect(content).toContain("google()");
     expect(content).toContain("mavenCentral()");
   });
 
   it("rootProject.name 설정 포함", () => {
-    const content = generateSettingsGradle("sfc_harness");
+    const content = generateSettingsGradle("karax_harness");
     expect(content).toContain("rootProject.name");
-    expect(content).toContain("sfc_harness");
+    expect(content).toContain("karax_harness");
   });
 
   it("include(':app') 포함", () => {
-    const content = generateSettingsGradle("sfc_harness");
+    const content = generateSettingsGradle("karax_harness");
     expect(content).toContain(":app");
   });
 });
@@ -61,7 +61,7 @@ describe("generateLibsVersionsToml", () => {
 describe("generateHarnessModuleBuildGradle", () => {
   it("android.library 플러그인 alias 포함", () => {
     const content = generateHarnessModuleBuildGradle({
-      packageName: "com.sfc.harness",
+      packageName: "com.karax.harness",
       sourceAbsPath: "/tmp/source",
     });
     // alias(libs.plugins.android.library) 형태로 포함됨
@@ -70,7 +70,7 @@ describe("generateHarnessModuleBuildGradle", () => {
 
   it("app.cash.paparazzi 플러그인 포함", () => {
     const content = generateHarnessModuleBuildGradle({
-      packageName: "com.sfc.harness",
+      packageName: "com.karax.harness",
       sourceAbsPath: "/tmp/source",
     });
     expect(content).toContain("paparazzi");
@@ -78,7 +78,7 @@ describe("generateHarnessModuleBuildGradle", () => {
 
   it("kotlin-android 플러그인 포함", () => {
     const content = generateHarnessModuleBuildGradle({
-      packageName: "com.sfc.harness",
+      packageName: "com.karax.harness",
       sourceAbsPath: "/tmp/source",
     });
     expect(content).toContain("kotlin");
@@ -86,7 +86,7 @@ describe("generateHarnessModuleBuildGradle", () => {
 
   it("buildFeatures { compose = true } 포함", () => {
     const content = generateHarnessModuleBuildGradle({
-      packageName: "com.sfc.harness",
+      packageName: "com.karax.harness",
       sourceAbsPath: "/tmp/source",
     });
     expect(content).toContain("compose");
@@ -105,7 +105,7 @@ describe("generatePaparazziTestKt", () => {
     const code = generatePaparazziTestKt({
       screenName: "HomeScreen",
       packageName: "com.example.fixture.screens",
-      testPackageName: "com.sfc.harness.test",
+      testPackageName: "com.karax.harness.test",
       deviceConfig: "NEXUS_5",
       constructorArgs: [],
     });
@@ -117,7 +117,7 @@ describe("generatePaparazziTestKt", () => {
     const code = generatePaparazziTestKt({
       screenName: "HomeScreen",
       packageName: "com.example.fixture.screens",
-      testPackageName: "com.sfc.harness.test",
+      testPackageName: "com.karax.harness.test",
       deviceConfig: "NEXUS_5",
       constructorArgs: [],
     });
@@ -129,7 +129,7 @@ describe("generatePaparazziTestKt", () => {
     const code = generatePaparazziTestKt({
       screenName: "DetailScreen",
       packageName: "com.example.fixture.screens",
-      testPackageName: "com.sfc.harness.test",
+      testPackageName: "com.karax.harness.test",
       deviceConfig: "NEXUS_5",
       constructorArgs: [],
     });
@@ -140,7 +140,7 @@ describe("generatePaparazziTestKt", () => {
     const code = generatePaparazziTestKt({
       screenName: "HomeScreen",
       packageName: "com.example.fixture.screens",
-      testPackageName: "com.sfc.harness.test",
+      testPackageName: "com.karax.harness.test",
       deviceConfig: "NEXUS_5",
       constructorArgs: [],
     });
@@ -151,7 +151,7 @@ describe("generatePaparazziTestKt", () => {
     const code = generatePaparazziTestKt({
       screenName: "HomeScreen",
       packageName: "com.example.fixture.screens",
-      testPackageName: "com.sfc.harness.test",
+      testPackageName: "com.karax.harness.test",
       deviceConfig: "NEXUS_5",
       constructorArgs: ["onExploreClick = {}", "onSettingsClick = {}"],
     });
@@ -163,7 +163,7 @@ describe("generatePaparazziTestKt", () => {
     const code = generatePaparazziTestKt({
       screenName: "HomeScreen",
       packageName: "com.example.fixture.screens",
-      testPackageName: "com.sfc.harness.test",
+      testPackageName: "com.karax.harness.test",
       deviceConfig: "NEXUS_5",
       constructorArgs: [],
     });

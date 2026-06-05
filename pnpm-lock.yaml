@@ -20,14 +20,14 @@ importers:
 
   packages/adapter-android:
     dependencies:
-      '@sfc/adapter-api':
+      '@karax/adapter-api':
         specifier: workspace:*
         version: link:../adapter-api
-      '@sfc/core':
+      '@karax/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@sfc/renderer':
+      '@karax/renderer':
         specifier: workspace:*
         version: link:../renderer
       '@types/node':
@@ -51,7 +51,7 @@ importers:
 
   packages/adapter-api:
     dependencies:
-      '@sfc/core':
+      '@karax/core':
         specifier: workspace:*
         version: link:../core
       tree-sitter-wasms:
@@ -73,10 +73,10 @@ importers:
 
   packages/adapter-flutter:
     dependencies:
-      '@sfc/adapter-api':
+      '@karax/adapter-api':
         specifier: workspace:*
         version: link:../adapter-api
-      '@sfc/core':
+      '@karax/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -92,14 +92,14 @@ importers:
 
   packages/adapter-ios:
     dependencies:
-      '@sfc/adapter-api':
+      '@karax/adapter-api':
         specifier: workspace:*
         version: link:../adapter-api
-      '@sfc/core':
+      '@karax/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@sfc/renderer':
+      '@karax/renderer':
         specifier: workspace:*
         version: link:../renderer
       '@types/node':
@@ -123,14 +123,14 @@ importers:
 
   packages/adapter-react-native:
     dependencies:
-      '@sfc/adapter-api':
+      '@karax/adapter-api':
         specifier: workspace:*
         version: link:../adapter-api
-      '@sfc/core':
+      '@karax/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@sfc/renderer':
+      '@karax/renderer':
         specifier: workspace:*
         version: link:../renderer
       '@types/node':
@@ -154,7 +154,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@sfc/sdk':
+      '@karax/sdk':
         specifier: workspace:*
         version: link:../sdk
       commander:
@@ -173,7 +173,7 @@ importers:
 
   packages/compile-android:
     dependencies:
-      '@sfc/adapter-api':
+      '@karax/adapter-api':
         specifier: workspace:*
         version: link:../adapter-api
       execa:
@@ -192,7 +192,7 @@ importers:
 
   packages/compile-flutter:
     dependencies:
-      '@sfc/adapter-api':
+      '@karax/adapter-api':
         specifier: workspace:*
         version: link:../adapter-api
       execa:
@@ -211,7 +211,7 @@ importers:
 
   packages/compile-ios:
     dependencies:
-      '@sfc/adapter-api':
+      '@karax/adapter-api':
         specifier: workspace:*
         version: link:../adapter-api
       execa:
@@ -230,7 +230,7 @@ importers:
 
   packages/compile-react-native:
     dependencies:
-      '@sfc/adapter-api':
+      '@karax/adapter-api':
         specifier: workspace:*
         version: link:../adapter-api
       esbuild:
@@ -283,7 +283,7 @@ importers:
 
   packages/doctor:
     dependencies:
-      '@sfc/adapter-api':
+      '@karax/adapter-api':
         specifier: workspace:*
         version: link:../adapter-api
       execa:
@@ -302,7 +302,7 @@ importers:
 
   packages/enrich-llm:
     dependencies:
-      '@sfc/core':
+      '@karax/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -318,12 +318,12 @@ importers:
 
   packages/mcp:
     dependencies:
+      '@karax/sdk':
+        specifier: workspace:*
+        version: link:../sdk
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.0
         version: 1.29.0(zod@3.25.76)
-      '@sfc/sdk':
-        specifier: workspace:*
-        version: link:../sdk
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -337,7 +337,7 @@ importers:
 
   packages/renderer:
     dependencies:
-      '@sfc/core':
+      '@karax/core':
         specifier: workspace:*
         version: link:../core
       pixelmatch:
@@ -350,7 +350,7 @@ importers:
         specifier: ^7.0.0
         version: 7.0.0
     devDependencies:
-      '@sfc/adapter-flutter':
+      '@karax/adapter-flutter':
         specifier: workspace:*
         version: link:../adapter-flutter
       '@types/node':
@@ -368,40 +368,40 @@ importers:
 
   packages/sdk:
     dependencies:
-      '@sfc/adapter-android':
+      '@karax/adapter-android':
         specifier: workspace:*
         version: link:../adapter-android
-      '@sfc/adapter-api':
+      '@karax/adapter-api':
         specifier: workspace:*
         version: link:../adapter-api
-      '@sfc/adapter-flutter':
+      '@karax/adapter-flutter':
         specifier: workspace:*
         version: link:../adapter-flutter
-      '@sfc/adapter-ios':
+      '@karax/adapter-ios':
         specifier: workspace:*
         version: link:../adapter-ios
-      '@sfc/adapter-react-native':
+      '@karax/adapter-react-native':
         specifier: workspace:*
         version: link:../adapter-react-native
-      '@sfc/compile-android':
+      '@karax/compile-android':
         specifier: workspace:*
         version: link:../compile-android
-      '@sfc/compile-flutter':
+      '@karax/compile-flutter':
         specifier: workspace:*
         version: link:../compile-flutter
-      '@sfc/compile-ios':
+      '@karax/compile-ios':
         specifier: workspace:*
         version: link:../compile-ios
-      '@sfc/compile-react-native':
+      '@karax/compile-react-native':
         specifier: workspace:*
         version: link:../compile-react-native
-      '@sfc/core':
+      '@karax/core':
         specifier: workspace:*
         version: link:../core
-      '@sfc/doctor':
+      '@karax/doctor':
         specifier: workspace:*
         version: link:../doctor
-      '@sfc/renderer':
+      '@karax/renderer':
         specifier: workspace:*
         version: link:../renderer
     devDependencies:

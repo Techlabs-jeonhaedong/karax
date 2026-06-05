@@ -10,10 +10,10 @@ import * as os from "os";
 import { fileURLToPath } from "url";
 import { describe, expect, it, afterEach } from "vitest";
 import { rnWebCompileBackend, CompileCaptureError } from "../index.js";
-import type { AdapterContext, ScreenSummary } from "@sfc/adapter-api";
+import type { AdapterContext, ScreenSummary } from "@karax/adapter-api";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// __tests__ → src → compile-react-native → packages → screenshot-from-code → fixtures
+// __tests__ → src → compile-react-native → packages → karax → fixtures
 const FIXTURE_PATH = path.resolve(
   __dirname,
   "../../../../fixtures/react-native-basic"
@@ -53,7 +53,7 @@ describe("capture — 실 렌더링", () => {
   });
 
   function makeOutDir(): string {
-    const d = path.join(os.tmpdir(), `sfc-rn-test-${Date.now()}`);
+    const d = path.join(os.tmpdir(), `karax-rn-test-${Date.now()}`);
     fs.mkdirSync(d, { recursive: true });
     outDirs.push(d);
     return d;
@@ -161,7 +161,7 @@ describe("capture — 실 렌더링", () => {
 
     // 캡처 전 tmpdir 파일 목록 기록
     const tmpDir = os.tmpdir();
-    const beforeEntries = new Set(fs.readdirSync(tmpDir).filter(e => e.startsWith("sfc-rn-")));
+    const beforeEntries = new Set(fs.readdirSync(tmpDir).filter(e => e.startsWith("karax-rn-")));
 
     try {
       await rnWebCompileBackend.capture(BASE_CTX, screen, { outDir, mockSeed: 42 });
@@ -169,8 +169,8 @@ describe("capture — 실 렌더링", () => {
       // 에러는 예상됨
     }
 
-    // 캡처 후 sfc-rn-* 디렉토리가 증가하지 않아야 함
-    const afterEntries = new Set(fs.readdirSync(tmpDir).filter(e => e.startsWith("sfc-rn-")));
+    // 캡처 후 karax-rn-* 디렉토리가 증가하지 않아야 함
+    const afterEntries = new Set(fs.readdirSync(tmpDir).filter(e => e.startsWith("karax-rn-")));
     const leaked = [...afterEntries].filter(e => !beforeEntries.has(e));
     expect(leaked).toHaveLength(0);
   }, 30_000);
@@ -200,7 +200,7 @@ describe("원본 무수정 보장", () => {
 
     const before = hashDir(FIXTURE_PATH);
 
-    const outDir = path.join(os.tmpdir(), `sfc-rn-hash-${Date.now()}`);
+    const outDir = path.join(os.tmpdir(), `karax-rn-hash-${Date.now()}`);
     const screen: ScreenSummary = {
       id: "HomeScreen",
       discovery: "route",

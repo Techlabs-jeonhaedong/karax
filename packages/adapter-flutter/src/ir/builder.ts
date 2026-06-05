@@ -11,9 +11,9 @@
  * 7. IRDocument 조립 + zod 스키마 검증
  */
 
-import type { AdapterContext } from "@sfc/adapter-api";
-import type { IRDocument, IRNode } from "@sfc/core";
-import { createMockProvider, aggregateScreenConfidence, parseIRDocument, NODE_CONFIDENCE } from "@sfc/core";
+import type { AdapterContext } from "@karax/adapter-api";
+import type { IRDocument, IRNode } from "@karax/core";
+import { createMockProvider, aggregateScreenConfidence, parseIRDocument, NODE_CONFIDENCE } from "@karax/core";
 import { buildSymbolTable } from "../parse/scanner.js";
 import { readPackageName } from "../parse/pubspec.js";
 import { discoverRouteGraph } from "../discover/routeGraph.js";
@@ -23,7 +23,7 @@ import { mapWidget } from "./widgetMapper.js";
 import type { MapContext } from "./widgetMapper.js";
 import { findAllNodes, findChild } from "./astUtils.js";
 
-import type { SyntaxNode } from "@sfc/adapter-api";
+import type { SyntaxNode } from "@karax/adapter-api";
 
 // ── 화면 build() 위젯 노드 추출 ──────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import { mkdirSync } from "fs";
 import { resolve } from "path";
-import type { IRDocument, IRNode } from "@sfc/core";
+import type { IRDocument, IRNode } from "@karax/core";
 import { getDeviceProfile } from "../devices/profiles.js";
 import { irToHtml, irToHtmlWithIdx } from "../html/irToHtml.js";
 
@@ -53,7 +53,7 @@ const CONTAINER_TYPES = new Set([
 
 /**
  * IR 트리를 irToHtmlWithIdx의 renderNode와 동일한 순서로 순회하여
- * 각 DOM 요소에 심어진 data-sfc-idx와 대응하는 NodeInfo 목록을 반환한다.
+ * 각 DOM 요소에 심어진 data-karax-idx와 대응하는 NodeInfo 목록을 반환한다.
  *
  * Branch는 첫 번째 child만 렌더링하므로(DOM 요소 생성 없음) 건너뛰고,
  * Branch의 첫 child가 다음 idx를 받는다.
@@ -102,7 +102,7 @@ export function collectNodeInfoWithIdx(root: IRNode): NodeInfo[] {
 
 /**
  * Playwright page에 confidence 오버레이를 CSS+JS로 적용한다.
- * irToHtmlWithIdx가 심은 data-sfc-idx 속성으로 DOM 요소를 정확히 찾아 마킹한다.
+ * irToHtmlWithIdx가 심은 data-karax-idx 속성으로 DOM 요소를 정확히 찾아 마킹한다.
  *
  * - confidence < 0.5: 반투명 주황 테두리(3px) + 코너 라벨(점수)
  * - Unknown 타입: 빨강 테두리
@@ -114,13 +114,13 @@ async function applyConfidenceOverlay(
   // CSS 주입
   await page.addStyleTag({
     content: `
-      .sfc-low-conf {
+      .karax-low-conf {
         outline: 3px solid rgba(255, 140, 0, 0.75) !important;
         outline-offset: -2px;
         position: relative !important;
       }
-      .sfc-low-conf::before {
-        content: attr(data-sfc-score) !important;
+      .karax-low-conf::before {
+        content: attr(data-karax-score) !important;
         position: absolute !important;
         top: 2px !important;
         left: 2px !important;
@@ -133,13 +133,13 @@ async function applyConfidenceOverlay(
         z-index: 9999 !important;
         pointer-events: none !important;
       }
-      .sfc-unknown {
+      .karax-unknown {
         outline: 3px solid rgba(220, 38, 38, 0.85) !important;
         outline-offset: -2px;
         position: relative !important;
       }
-      .sfc-unknown::before {
-        content: attr(data-sfc-score) !important;
+      .karax-unknown::before {
+        content: attr(data-karax-score) !important;
         position: absolute !important;
         top: 2px !important;
         left: 2px !important;
@@ -155,17 +155,17 @@ async function applyConfidenceOverlay(
     `,
   });
 
-  // JS: data-sfc-idx 속성으로 각 DOM 요소를 정확히 찾아 마킹
+  // JS: data-karax-idx 속성으로 각 DOM 요소를 정확히 찾아 마킹
   await page.evaluate((infos: NodeInfo[]) => {
     for (const info of infos) {
       if (!info.hasLowConfidence) continue;
-      const el = document.querySelector(`[data-sfc-idx="${info.idx}"]`);
+      const el = document.querySelector(`[data-karax-idx="${info.idx}"]`);
       if (!el) continue;
-      el.setAttribute("data-sfc-score", info.confidence.toFixed(2));
+      el.setAttribute("data-karax-score", info.confidence.toFixed(2));
       if (info.isUnknown) {
-        el.classList.add("sfc-unknown");
+        el.classList.add("karax-unknown");
       } else {
-        el.classList.add("sfc-low-conf");
+        el.classList.add("karax-low-conf");
       }
     }
   }, nodeInfos);
@@ -222,7 +222,7 @@ export async function renderScreenshot(
 
     // overlay 모드: 별도 PNG 생성
     if (options.overlay === "confidence") {
-      // data-sfc-idx가 심어진 HTML 사용
+      // data-karax-idx가 심어진 HTML 사용
       const overlayHtml = irToHtmlWithIdx(ir, profile);
       const nodeInfos = collectNodeInfoWithIdx(ir.screen.root);
 

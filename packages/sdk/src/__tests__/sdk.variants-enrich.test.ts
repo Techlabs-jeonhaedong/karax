@@ -40,12 +40,12 @@ describe("SDK enrich 배선", () => {
   it(
     "enrich 플러그인이 captureScreen Tier2 경로에서 실제로 호출된다",
     async () => {
-      process.env.SFC_SKIP_ENSURE = "1";
+      process.env.KARAX_SKIP_ENSURE = "1";
 
       const called = vi.fn();
       const plugin = makeMockEnrichPlugin(() => called());
 
-      const outDir = path.join(os.tmpdir(), `sfc-enrich-test-${Date.now()}`);
+      const outDir = path.join(os.tmpdir(), `karax-enrich-test-${Date.now()}`);
       try {
         const { captureScreen, listScreens } = await import("../index.js");
 
@@ -76,7 +76,7 @@ describe("SDK enrich 배선", () => {
         expect(pngFiles.length).toBeGreaterThan(0);
       } finally {
         if (fs.existsSync(outDir)) fs.rmSync(outDir, { recursive: true, force: true });
-        delete process.env.SFC_SKIP_ENSURE;
+        delete process.env.KARAX_SKIP_ENSURE;
       }
     },
     60_000
@@ -90,7 +90,7 @@ describe("SDK enrich 배선", () => {
   it(
     "enrich 없이 captureScreen 호출해도 동작한다 (회귀 테스트)",
     async () => {
-      process.env.SFC_SKIP_ENSURE = "1";
+      process.env.KARAX_SKIP_ENSURE = "1";
 
       const { listScreens } = await import("../index.js");
 
@@ -101,7 +101,7 @@ describe("SDK enrich 배선", () => {
 
       expect(screens.length).toBeGreaterThan(0);
 
-      delete process.env.SFC_SKIP_ENSURE;
+      delete process.env.KARAX_SKIP_ENSURE;
     },
     30_000
   );

@@ -2,7 +2,7 @@
  * Swift AST 유틸리티 — viewMapper / themeResolver / inliner에서 공통 사용
  */
 
-import type { SyntaxNode } from "@sfc/adapter-api";
+import type { SyntaxNode } from "@karax/adapter-api";
 
 // ── 기본 탐색 ──────────────────────────────────────────────────────────────────
 

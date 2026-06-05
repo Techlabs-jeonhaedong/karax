@@ -1,22 +1,22 @@
 /**
  * M4 통합 테스트 — 실제 flutter 실행
  *
- * SFC_FLUTTER_INTEGRATION=1 환경변수가 설정된 경우에만 실행된다.
+ * KARAX_FLUTTER_INTEGRATION=1 환경변수가 설정된 경우에만 실행된다.
  * 기본으로는 skip (CI 매트릭스 분리 — PLAN 11절).
  *
  * 실행 방법:
- *   SFC_FLUTTER_INTEGRATION=1 pnpm --filter @sfc/compile-flutter test
+ *   KARAX_FLUTTER_INTEGRATION=1 pnpm --filter @karax/compile-flutter test
  */
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
 import * as os from "os";
-import type { ScreenSummary } from "@sfc/adapter-api";
+import type { ScreenSummary } from "@karax/adapter-api";
 import { flutterCompileBackend } from "../index.js";
 
-const INTEGRATION = process.env["SFC_FLUTTER_INTEGRATION"] === "1";
-// __tests__ -> src -> compile-flutter -> packages -> screenshot-from-code (4단계)
+const INTEGRATION = process.env["KARAX_FLUTTER_INTEGRATION"] === "1";
+// __tests__ -> src -> compile-flutter -> packages -> karax (4단계)
 const REPO_ROOT = path.resolve(new URL(".", import.meta.url).pathname, "../../../../");
 const FIXTURE_PATH = path.resolve(REPO_ROOT, "fixtures/flutter-basic");
 const BROKEN_FIXTURE_PATH = path.resolve(
@@ -62,7 +62,7 @@ runSuite("M4 Flutter Tier 1 통합 테스트", { timeout: 300_000 }, () => {
   let outDir: string;
 
   beforeAll(() => {
-    outDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-m4-test-"));
+    outDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-m4-test-"));
   });
 
   afterAll(() => {

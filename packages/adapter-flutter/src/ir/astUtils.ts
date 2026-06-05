@@ -2,7 +2,7 @@
  * Dart AST 유틸리티 — widgetMapper/themeResolver/inliner에서 공통으로 사용
  */
 
-import type { SyntaxNode } from "@sfc/adapter-api";
+import type { SyntaxNode } from "@karax/adapter-api";
 
 // ── 기본 탐색 ─────────────────────────────────────────────────────────────────
 

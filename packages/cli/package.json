@@ -1,8 +1,8 @@
 {
-  "name": "@sfc/cli",
+  "name": "@karax/cli",
   "version": "0.0.1",
   "bin": {
-    "sfc": "./dist/bin.js"
+    "karax": "./dist/bin.js"
   },
   "private": true,
   "type": "module",
@@ -20,7 +20,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sfc/sdk": "workspace:*",
+    "@karax/sdk": "workspace:*",
     "commander": "^13.0.0"
   },
   "devDependencies": {

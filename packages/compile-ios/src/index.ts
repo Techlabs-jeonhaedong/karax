@@ -13,7 +13,7 @@ import type {
   ScreenSummary,
   CaptureOptions,
   CaptureResult,
-} from "@sfc/adapter-api";
+} from "@karax/adapter-api";
 import { generateHarness } from "./harness/generator.js";
 import {
   isXcodebuildAvailable,

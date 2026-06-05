@@ -10,8 +10,8 @@
 import path from "path";
 import { describe, it, expect, beforeAll } from "vitest";
 import { buildSwiftScreenIR } from "../ir/builder.js";
-import type { AdapterContext } from "@sfc/adapter-api";
-import type { IRDocument } from "@sfc/core";
+import type { AdapterContext } from "@karax/adapter-api";
+import type { IRDocument } from "@karax/core";
 
 const FIXTURE = path.resolve("../../fixtures/ios-swiftui-basic");
 

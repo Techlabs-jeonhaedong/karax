@@ -12,14 +12,14 @@
  * 8. IRDocument 조립 + zod 스키마 검증
  */
 
-import type { AdapterContext } from "@sfc/adapter-api";
-import type { IRDocument, IRNode } from "@sfc/core";
+import type { AdapterContext } from "@karax/adapter-api";
+import type { IRDocument, IRNode } from "@karax/core";
 import {
   createMockProvider,
   aggregateScreenConfidence,
   parseIRDocument,
   NODE_CONFIDENCE,
-} from "@sfc/core";
+} from "@karax/core";
 import { buildSymbolTable } from "../parse/scanner.js";
 import { loadResources } from "../parse/resources.js";
 import { discoverRouteGraph } from "../discover/routeGraph.js";

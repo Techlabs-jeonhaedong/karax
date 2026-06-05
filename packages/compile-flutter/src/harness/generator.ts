@@ -2,7 +2,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 import * as crypto from "crypto";
-import type { ScreenSummary, DeviceProfileId } from "@sfc/adapter-api";
+import type { ScreenSummary, DeviceProfileId } from "@karax/adapter-api";
 import {
   getDeviceProfile,
   physicalSize,
@@ -72,8 +72,8 @@ export function generatePubspec(opts: GeneratePubspecOpts): string {
     assetSection = `\nflutter:\n  uses-material-design: true\n${fontEntries}`;
   }
 
-  return `name: sfc_harness
-description: Auto-generated harness for SFC screenshot capture
+  return `name: karax_harness
+description: Auto-generated harness for karax screenshot capture
 publish_to: none
 
 version: 1.0.0+1
@@ -265,7 +265,7 @@ export async function generateHarness(opts: GenerateHarnessOpts): Promise<Harnes
     .update(`${projectPath}:${screen.id}:${device}:${mockSeed}`)
     .digest("hex")
     .slice(0, 12);
-  const workDir = opts.workDir ?? path.join(os.tmpdir(), `sfc-flutter-${hash}`);
+  const workDir = opts.workDir ?? path.join(os.tmpdir(), `karax-flutter-${hash}`);
 
   // 하니스 디렉토리 생성
   fs.mkdirSync(workDir, { recursive: true });

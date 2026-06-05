@@ -1,5 +1,5 @@
 {
-  "name": "@sfc/mcp",
+  "name": "@karax/mcp",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -12,17 +12,17 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "@sfc/mcp": "./dist/bin.js"
+    "@karax/mcp": "./dist/bin.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "postinstall": "node --input-type=module -e \"import('@sfc/sdk').then(m=>m.ensureDependencies?.()).catch(()=>{})\" || true"
+    "postinstall": "node --input-type=module -e \"import('@karax/sdk').then(m=>m.ensureDependencies?.()).catch(()=>{})\" || true"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "@sfc/sdk": "workspace:*"
+    "@karax/sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -31,8 +31,8 @@ afterEach(() => {
 
 describe("generateHarness — 멱등성 (중간-8 회귀)", () => {
   it("재실행 시 최신 소스가 반영됨 (구버전 잔존 없음)", async () => {
-    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-android-proj-"));
-    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-android-work-"));
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-android-proj-"));
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-android-work-"));
     TMP_ROOTS.push(projectDir, workDir);
 
     const screen = {
@@ -73,8 +73,8 @@ describe("generateHarness — 멱등성 (중간-8 회귀)", () => {
   });
 
   it("최초 실행 시 workDir이 생성됨", async () => {
-    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-android-proj2-"));
-    const workDir = path.join(os.tmpdir(), `sfc-android-new-${Date.now()}`);
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-android-proj2-"));
+    const workDir = path.join(os.tmpdir(), `karax-android-new-${Date.now()}`);
     TMP_ROOTS.push(projectDir, workDir);
 
     makeFakeProject(projectDir, "class HomeScreen {}");

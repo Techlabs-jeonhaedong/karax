@@ -1,5 +1,5 @@
 /**
- * @sfc/adapter-android — Android Compose + XML layout 어댑터
+ * @karax/adapter-android — Android Compose + XML layout 어댑터
  *
  * FrameworkAdapter 구현:
  * - detect: settings.gradle(.kts) + AndroidManifest.xml
@@ -19,8 +19,8 @@ import type {
   FrameworkEvidence,
   AdapterContext,
   ScreenSummary,
-} from "@sfc/adapter-api";
-import type { IRDocument } from "@sfc/core";
+} from "@karax/adapter-api";
+import type { IRDocument } from "@karax/core";
 import { buildSymbolTable } from "./parse/scanner.js";
 import { parseManifest, readProjectName } from "./parse/manifest.js";
 import { discoverRouteGraph } from "./discover/routeGraph.js";

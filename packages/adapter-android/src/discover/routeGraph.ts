@@ -8,7 +8,7 @@
  * 4. NavHost 내 composable("route") { XScreen(...) } 파싱 → route 목록
  */
 
-import type { SyntaxNode } from "@sfc/adapter-api";
+import type { SyntaxNode } from "@karax/adapter-api";
 import type { SymbolTable, ParsedFile } from "../parse/scanner.js";
 import { parseManifest } from "../parse/manifest.js";
 
