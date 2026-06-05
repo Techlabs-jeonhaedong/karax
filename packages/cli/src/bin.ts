@@ -18,6 +18,7 @@ import {
   parseDoctorArgs,
   parseListArgs,
   parseCaptureArgs,
+  parseMapArgs,
   parseMcpConfigArgs,
   parseTestArgs,
 } from "./commands.js";
@@ -311,6 +312,73 @@ program
 
           process.exit(exitCode);
         }
+      } catch (e) {
+        console.error("오류:", e instanceof Error ? e.message : String(e));
+        process.exit(EXIT_CODES.FAILURE);
+      }
+    }
+  );
+
+// ─── map ──────────────────────────────────────────────────────────
+
+program
+  .command("map <path>")
+  .description("프로젝트의 화면 구조와 네비게이션 그래프를 분석해 AppMap 마크다운을 생성한다")
+  .option("--out <dir>", "마크다운 파일 출력 디렉토리 (기본: ./)")
+  .option("--max-chars <n>", "문서 분할 기준 최대 글자 수")
+  .option("--json", "JSON 형식으로 AppMap 출력", false)
+  .action(
+    async (
+      pathArg: string,
+      opts: { out?: string; maxChars?: string; json: boolean }
+    ) => {
+      try {
+        const args = parseMapArgs([
+          pathArg,
+          ...(opts.out ? ["--out", opts.out] : []),
+          ...(opts.maxChars ? ["--max-chars", opts.maxChars] : []),
+          ...(opts.json ? ["--json"] : []),
+        ]);
+
+        const { generateAppMap } = await import("@karax/sdk");
+        const appMap = await generateAppMap({ projectPath: args.path });
+
+        if (args.json) {
+          console.log(JSON.stringify(appMap, null, 2));
+          process.exit(EXIT_CODES.SUCCESS);
+          return;
+        }
+
+        // 마크다운 렌더링 후 파일 저장
+        const { renderAppMapMarkdown } = await import("@karax/core");
+        const { mkdir, writeFile } = await import("fs/promises");
+        const path = await import("path");
+        const outDir = args.out ?? ".";
+
+        const docs = renderAppMapMarkdown(appMap, {
+          ...(args.maxChars !== undefined ? { maxChars: args.maxChars } : {}),
+        });
+
+        await mkdir(outDir, { recursive: true });
+
+        const resolvedOutDir = path.resolve(outDir);
+
+        for (const doc of docs) {
+          // path.basename으로 경로 탈출 방어 — doc.fileName은 항상 단순 파일명이어야 함
+          const safeFileName = path.basename(doc.fileName);
+          const filePath = path.resolve(resolvedOutDir, safeFileName);
+          // outDir 내부인지 검증
+          if (!filePath.startsWith(resolvedOutDir + path.sep) && filePath !== resolvedOutDir) {
+            throw new Error(`경로 탈출 감지: ${doc.fileName}`);
+          }
+          await writeFile(filePath, doc.content, "utf-8");
+          console.log(`생성됨: ${filePath}`);
+        }
+
+        console.log(
+          `\n앱 지도 생성 완료 (${docs.length}개 파일, confidence: ${(appMap.overallConfidence * 100).toFixed(1)}%)\n`
+        );
+        process.exit(EXIT_CODES.SUCCESS);
       } catch (e) {
         console.error("오류:", e instanceof Error ? e.message : String(e));
         process.exit(EXIT_CODES.FAILURE);

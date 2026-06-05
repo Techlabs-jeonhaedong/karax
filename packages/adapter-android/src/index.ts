@@ -19,6 +19,7 @@ import type {
   FrameworkEvidence,
   AdapterContext,
   ScreenSummary,
+  NavigationGraph,
 } from "@karax/adapter-api";
 import type { IRDocument } from "@karax/core";
 import { buildSymbolTable } from "./parse/scanner.js";
@@ -30,6 +31,7 @@ import {
   discoverXmlLayouts,
   buildXmlScreenIR,
 } from "./xml/xmlLayoutAdapter.js";
+import { discoverAndroidNavGraph, readAndroidAppName } from "./discover/navGraph.js";
 
 // ── 유틸 ─────────────────────────────────────────────────────────────────────
 
@@ -210,6 +212,15 @@ export const androidAdapter: FrameworkAdapter = {
     }
 
     return _buildScreenIR(ctx, screenId);
+  },
+
+  async discoverNavigation(ctx: AdapterContext): Promise<NavigationGraph> {
+    const symbolTable = await buildSymbolTable(ctx.projectPath);
+    return discoverAndroidNavGraph(ctx.projectPath, symbolTable);
+  },
+
+  async readAppName(ctx: AdapterContext): Promise<string | undefined> {
+    return readAndroidAppName(ctx.projectPath);
   },
 };
 

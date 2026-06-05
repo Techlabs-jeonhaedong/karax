@@ -28,6 +28,8 @@ import { runDoctor, doctorFix as coreDoctorFix } from "@karax/doctor";
 import type { DoctorReport } from "@karax/doctor";
 import { renderScreenshot } from "@karax/renderer";
 import type { IRDocument } from "@karax/core";
+export { generateAppMap, renderAppMapMarkdown } from "./appMap.js";
+export type { GenerateAppMapOptions, AppMap, AppMapDocument, AppMapRenderOptions } from "./appMap.js";
 
 export const SDK_VERSION = "0.0.1" as const;
 

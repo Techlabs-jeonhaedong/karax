@@ -154,6 +154,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@karax/core':
+        specifier: workspace:*
+        version: link:../core
       '@karax/e2e':
         specifier: workspace:*
         version: link:../e2e
@@ -349,6 +352,9 @@ importers:
 
   packages/mcp:
     dependencies:
+      '@karax/core':
+        specifier: workspace:*
+        version: link:../core
       '@karax/e2e':
         specifier: workspace:*
         version: link:../e2e

@@ -13,6 +13,7 @@ import {
   parseCaptureArgs,
   parseMcpConfigArgs,
   parseTestArgs,
+  parseMapArgs,
   EXIT_CODES,
 } from "../commands.js";
 
@@ -205,6 +206,58 @@ describe("parseTestArgs", () => {
   it("--json 플래그를 파싱한다", () => {
     const result = parseTestArgs(["/proj", "--platform", "android", "--json"]);
     expect(result.json).toBe(true);
+  });
+});
+
+// ─── map ───────────────────────────────────────────────────────────
+
+describe("parseMapArgs", () => {
+  it("경로 인수를 파싱한다", () => {
+    const result = parseMapArgs(["/some/project"]);
+    expect(result.path).toBe("/some/project");
+    expect(result.out).toBeUndefined();
+    expect(result.maxChars).toBeUndefined();
+    expect(result.json).toBe(false);
+  });
+
+  it("--out 옵션을 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--out", "/tmp/map-out"]);
+    expect(result.out).toBe("/tmp/map-out");
+  });
+
+  it("--max-chars 옵션을 파싱한다 (숫자 변환)", () => {
+    const result = parseMapArgs(["/p", "--max-chars", "3000"]);
+    expect(result.maxChars).toBe(3000);
+  });
+
+  it("--json 플래그를 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--json"]);
+    expect(result.json).toBe(true);
+  });
+
+  it("경로가 없으면 에러를 던진다", () => {
+    expect(() => parseMapArgs([])).toThrow();
+  });
+
+  it("--max-chars 500 미만이면 에러를 던진다", () => {
+    expect(() => parseMapArgs(["/p", "--max-chars", "499"])).toThrow(/500/);
+  });
+
+  it("--max-chars 0이면 에러를 던진다", () => {
+    expect(() => parseMapArgs(["/p", "--max-chars", "0"])).toThrow(/500/);
+  });
+
+  it("--max-chars 음수면 에러를 던진다", () => {
+    expect(() => parseMapArgs(["/p", "--max-chars", "-100"])).toThrow(/500/);
+  });
+
+  it("--max-chars가 숫자가 아니면 에러를 던진다", () => {
+    expect(() => parseMapArgs(["/p", "--max-chars", "abc"])).toThrow(/500/);
+  });
+
+  it("--max-chars 500 경계값은 허용한다", () => {
+    const result = parseMapArgs(["/p", "--max-chars", "500"]);
+    expect(result.maxChars).toBe(500);
   });
 });
 

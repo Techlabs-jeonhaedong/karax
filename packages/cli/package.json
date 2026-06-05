@@ -22,6 +22,7 @@
   "dependencies": {
     "@karax/e2e": "workspace:*",
     "@karax/sdk": "workspace:*",
+    "@karax/core": "workspace:*",
     "commander": "^13.0.0"
   },
   "devDependencies": {

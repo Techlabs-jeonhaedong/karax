@@ -157,6 +157,41 @@ export function parseCaptureArgs(argv: string[]): CaptureArgs {
   };
 }
 
+// ── map ───────────────────────────────────────────────────────────
+
+export interface MapArgs {
+  path: string;
+  out?: string;
+  maxChars?: number;
+  json: boolean;
+}
+
+export function parseMapArgs(argv: string[]): MapArgs {
+  const prog = makeProgram("map");
+  prog.argument("<path>", "분석할 프로젝트 경로");
+  prog.option("--out <dir>", "마크다운 파일 출력 디렉토리");
+  prog.option("--max-chars <n>", "문서 분할 기준 최대 글자 수");
+  prog.option("--json", "JSON 형식으로 AppMap 출력", false);
+  prog.parse(["node", "map", ...argv]);
+
+  const opts = prog.opts<{ out?: string; maxChars?: string; json: boolean }>();
+  let maxChars: number | undefined;
+  if (opts.maxChars !== undefined) {
+    const parsed = parseInt(opts.maxChars, 10);
+    if (isNaN(parsed) || parsed < 500) {
+      throw new Error(`--max-chars는 500 이상이어야 합니다 (입력값: ${opts.maxChars})`);
+    }
+    maxChars = parsed;
+  }
+
+  return {
+    path: prog.args[0],
+    out: opts.out,
+    maxChars,
+    json: opts.json,
+  };
+}
+
 // ── mcp-config ────────────────────────────────────────────────────
 
 export interface McpConfigArgs {

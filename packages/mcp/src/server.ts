@@ -19,7 +19,9 @@ import {
   captureScreen,
   captureAll,
   ensureDependencies,
+  generateAppMap,
 } from "@karax/sdk";
+import { renderAppMapMarkdown } from "@karax/core";
 import type { FrameworkId, DeviceProfileId, CaptureMode } from "@karax/sdk";
 
 // ── 입력 스키마 (zod) ────────────────────────────────────────────────
@@ -92,7 +94,9 @@ export function createMcpServer(): McpServer {
         "Flutter/React Native/Android Compose/iOS SwiftUI 4개 프레임워크를 지원한다. " +
         "2-티어 캡처(Tier 1: 부분 컴파일, Tier 2: 정적 IR→Chromium) 전략으로 동작하며, " +
         "captureMode(auto/compile/static), variant 전개, overlay(confidence 시각화), " +
-        "enrich(LLM 보강) 옵션을 제공한다.",
+        "enrich(LLM 보강) 옵션을 제공한다. " +
+        "generate_app_map으로 화면 구조·네비게이션 그래프를 AppMap으로 추출하고, " +
+        "run_e2e_test로 에뮬레이터/시뮬레이터에서 LLM 에이전트 기반 E2E 테스트를 실행할 수 있다.",
     }
   );
 
@@ -385,7 +389,50 @@ export function createMcpServer(): McpServer {
     }
   );
 
-  // ── 8. run_e2e_test ──────────────────────────────────────────────
+  // ── 8. generate_app_map ───────────────────────────────────────────
+
+  server.tool(
+    "generate_app_map",
+    "프로젝트의 화면 구조와 네비게이션 그래프를 분석해 AppMap을 반환한다",
+    {
+      projectPath: z.string().min(1),
+      framework: z.enum(["flutter", "react-native", "ios", "android"]).optional(),
+    },
+    async ({ projectPath, framework }) => {
+      try {
+        validateProjectPath(projectPath);
+        const appMap = await generateAppMap({
+          projectPath,
+          ...(framework ? { framework: framework as FrameworkId } : {}),
+        });
+
+        const docs = renderAppMapMarkdown(appMap);
+        const summaryContent = {
+          type: "text" as const,
+          text: JSON.stringify(
+            {
+              appMap,
+              documentCount: docs.length,
+              fileNames: docs.map((d) => d.fileName),
+            },
+            null,
+            2
+          ),
+        };
+
+        const docContents = docs.map((doc) => ({
+          type: "text" as const,
+          text: `# ${doc.fileName}\n\n${doc.content}`,
+        }));
+
+        return { content: [summaryContent, ...docContents] };
+      } catch (e) {
+        return errorContent(`generate_app_map 오류: ${wrapError(e)}`);
+      }
+    }
+  );
+
+  // ── 9. run_e2e_test ──────────────────────────────────────────────
   // 주의: 이 툴은 에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요됩니다.
 
   server.tool(
