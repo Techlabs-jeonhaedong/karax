@@ -5,7 +5,7 @@
 
 import path from "path";
 import { readFile } from "fs/promises";
-import { parseSource, type SyntaxNode } from "@karax/adapter-api";
+import { withParsedSource, type SyntaxNode } from "@karax/adapter-api";
 import { findNodes, findChild } from "../parse/scanner.js";
 
 // ── 결과 타입 ─────────────────────────────────────────────────────────────────
@@ -204,9 +204,19 @@ export async function resolveTheme(projectPath: string): Promise<ThemeResult> {
     return { colors: {}, spacing: {}, typography: {}, diagnostics };
   }
 
-  let root: SyntaxNode;
   try {
-    root = await parseSource("tsx", themeSource);
+    return await withParsedSource("tsx", themeSource, (root) => {
+      const { strings: colors } = parseExportedObject(root, "colors");
+      const { numbers: spacing } = parseExportedObject(root, "spacing");
+      const typography = parseTypographyObject(root);
+
+      return {
+        colors,
+        spacing,
+        typography,
+        diagnostics,
+      };
+    });
   } catch {
     diagnostics.push({
       level: "warn",
@@ -215,15 +225,4 @@ export async function resolveTheme(projectPath: string): Promise<ThemeResult> {
     });
     return { colors: {}, spacing: {}, typography: {}, diagnostics };
   }
-
-  const { strings: colors } = parseExportedObject(root, "colors");
-  const { numbers: spacing } = parseExportedObject(root, "spacing");
-  const typography = parseTypographyObject(root);
-
-  return {
-    colors,
-    spacing,
-    typography,
-    diagnostics,
-  };
 }

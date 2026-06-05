@@ -145,134 +145,137 @@ export async function buildScreenIR(
 
   // 1. 심볼 테이블 구축
   const symbolTable = await buildSymbolTable(projectPath);
+  try {
+    // 2. 화면 발견 — discovery 판단
+    const { routes } = await discoverRouteGraph(projectPath, symbolTable);
+    const routeComponentNames = new Set(routes.map(r => r.componentName));
+    const candidates = findHeuristicCandidates(symbolTable, routeComponentNames);
+    const candidateComponentNames = new Set(candidates.map(c => c.componentName));
 
-  // 2. 화면 발견 — discovery 판단
-  const { routes } = await discoverRouteGraph(projectPath, symbolTable);
-  const routeComponentNames = new Set(routes.map(r => r.componentName));
-  const candidates = findHeuristicCandidates(symbolTable, routeComponentNames);
-  const candidateComponentNames = new Set(candidates.map(c => c.componentName));
+    const isRoute = routeComponentNames.has(screenId);
+    const discovery: "route" | "candidate" = isRoute ? "route" : "candidate";
 
-  const isRoute = routeComponentNames.has(screenId);
-  const discovery: "route" | "candidate" = isRoute ? "route" : "candidate";
+    // 화면 컴포넌트 존재 확인
+    const componentInfo = symbolTable.components.get(screenId);
+    if (!componentInfo) {
+      const doc: IRDocument = {
+        schemaVersion: "0.1",
+        screen: {
+          id: screenId,
+          discovery: "candidate",
+          confidence: 0,
+          root: {
+            type: "Unknown",
+            confidence: NODE_CONFIDENCE.unknown,
+            role: `component:${screenId}`,
+          },
+        },
+        designTokens: undefined,
+        diagnostics: [{
+          level: "warn",
+          code: "UNRESOLVED_COMPONENT",
+          message: `화면 컴포넌트 '${screenId}'를 심볼 테이블에서 찾을 수 없음`,
+        }],
+      };
+      return parseIRDocument(doc);
+    }
 
-  // 화면 컴포넌트 존재 확인
-  const componentInfo = symbolTable.components.get(screenId);
-  if (!componentInfo) {
-    const doc: IRDocument = {
+    // 3. ThemeResolver
+    const themeResult = await resolveTheme(projectPath);
+    for (const d of themeResult.diagnostics) {
+      diagnostics.push(d);
+    }
+
+    // 4. 화면 컴포넌트 파일에서 return JSX 추출
+    const parsedFile = symbolTable.fileByComponent.get(screenId);
+    if (!parsedFile) {
+      return buildFallbackDocument(screenId, discovery, diagnostics);
+    }
+
+    const returnNode = extractComponentReturnJsx(parsedFile.root, screenId);
+    if (!returnNode) {
+      diagnostics.push({
+        level: "warn",
+        code: "UNRESOLVED_COMPONENT",
+        message: `컴포넌트 '${screenId}'의 JSX return을 파싱할 수 없음`,
+      });
+      return buildFallbackDocument(screenId, discovery, diagnostics);
+    }
+
+    // 5. componentMapper로 IR 변환
+    const fileStyleSheet = parseStyleSheet(parsedFile.root);
+
+    const mapCtx: MapContext = {
+      depth: 0,
+      maxDepth: maxInlineDepth,
+      visited: new Set([screenId]),
+      symbolTable,
+      projectPath,
+      themeColors: themeResult.colors,
+      styleSheet: fileStyleSheet,
+      mockProvider: mock,
+      diagnostics,
+      currentFile: parsedFile.filePath,
+    };
+
+    let rootNode: IRNode;
+    try {
+      const mapped = await mapComponent(returnNode, mock, mapCtx);
+      rootNode = mapped ?? {
+        type: "Unknown",
+        confidence: NODE_CONFIDENCE.unknown,
+        role: `component:${screenId}`,
+      };
+    } catch (e) {
+      diagnostics.push({
+        level: "warn",
+        code: "UNRESOLVED_COMPONENT",
+        message: `IR 변환 실패: ${e instanceof Error ? e.message : String(e)}`,
+      });
+      rootNode = {
+        type: "Unknown",
+        confidence: NODE_CONFIDENCE.unknown,
+        role: `component:${screenId}`,
+      };
+    }
+
+    // 6. confidence 집계
+    const confidence = aggregateScreenConfidence(rootNode, discovery);
+
+    // 7. IRDocument 조립
+    const designTokens: {
+      colors?: Record<string, string>;
+      spacing?: Record<string, number>;
+      typography?: Record<string, unknown>;
+    } = {};
+    if (Object.keys(themeResult.colors).length > 0) designTokens.colors = themeResult.colors;
+    if (Object.keys(themeResult.spacing).length > 0) designTokens.spacing = themeResult.spacing;
+    if (Object.keys(themeResult.typography).length > 0) designTokens.typography = themeResult.typography;
+
+    const rawDoc = {
       schemaVersion: "0.1",
       screen: {
         id: screenId,
-        discovery: "candidate",
-        confidence: 0,
-        root: {
-          type: "Unknown",
-          confidence: NODE_CONFIDENCE.unknown,
-          role: `component:${screenId}`,
+        sourceRef: {
+          file: componentInfo.file,
+          line: componentInfo.line,
+          symbol: screenId,
         },
+        device: "pixel-8",
+        discovery,
+        confidence,
+        root: rootNode,
       },
-      designTokens: undefined,
-      diagnostics: [{
-        level: "warn",
-        code: "UNRESOLVED_COMPONENT",
-        message: `화면 컴포넌트 '${screenId}'를 심볼 테이블에서 찾을 수 없음`,
-      }],
+      designTokens: Object.keys(designTokens).length > 0 ? designTokens : undefined,
+      diagnostics: diagnostics.map(d => ({
+        level: d.level as "info" | "warn" | "error",
+        code: d.code,
+        message: d.message,
+      })),
     };
-    return parseIRDocument(doc);
+
+    return parseIRDocument(rawDoc);
+  } finally {
+    symbolTable.dispose();
   }
-
-  // 3. ThemeResolver
-  const themeResult = await resolveTheme(projectPath);
-  for (const d of themeResult.diagnostics) {
-    diagnostics.push(d);
-  }
-
-  // 4. 화면 컴포넌트 파일에서 return JSX 추출
-  const parsedFile = symbolTable.fileByComponent.get(screenId);
-  if (!parsedFile) {
-    return buildFallbackDocument(screenId, discovery, diagnostics);
-  }
-
-  const returnNode = extractComponentReturnJsx(parsedFile.root, screenId);
-  if (!returnNode) {
-    diagnostics.push({
-      level: "warn",
-      code: "UNRESOLVED_COMPONENT",
-      message: `컴포넌트 '${screenId}'의 JSX return을 파싱할 수 없음`,
-    });
-    return buildFallbackDocument(screenId, discovery, diagnostics);
-  }
-
-  // 5. componentMapper로 IR 변환
-  const fileStyleSheet = parseStyleSheet(parsedFile.root);
-
-  const mapCtx: MapContext = {
-    depth: 0,
-    maxDepth: maxInlineDepth,
-    visited: new Set([screenId]),
-    symbolTable,
-    projectPath,
-    themeColors: themeResult.colors,
-    styleSheet: fileStyleSheet,
-    mockProvider: mock,
-    diagnostics,
-    currentFile: parsedFile.filePath,
-  };
-
-  let rootNode: IRNode;
-  try {
-    const mapped = await mapComponent(returnNode, mock, mapCtx);
-    rootNode = mapped ?? {
-      type: "Unknown",
-      confidence: NODE_CONFIDENCE.unknown,
-      role: `component:${screenId}`,
-    };
-  } catch (e) {
-    diagnostics.push({
-      level: "warn",
-      code: "UNRESOLVED_COMPONENT",
-      message: `IR 변환 실패: ${e instanceof Error ? e.message : String(e)}`,
-    });
-    rootNode = {
-      type: "Unknown",
-      confidence: NODE_CONFIDENCE.unknown,
-      role: `component:${screenId}`,
-    };
-  }
-
-  // 6. confidence 집계
-  const confidence = aggregateScreenConfidence(rootNode, discovery);
-
-  // 7. IRDocument 조립
-  const designTokens: {
-    colors?: Record<string, string>;
-    spacing?: Record<string, number>;
-    typography?: Record<string, unknown>;
-  } = {};
-  if (Object.keys(themeResult.colors).length > 0) designTokens.colors = themeResult.colors;
-  if (Object.keys(themeResult.spacing).length > 0) designTokens.spacing = themeResult.spacing;
-  if (Object.keys(themeResult.typography).length > 0) designTokens.typography = themeResult.typography;
-
-  const rawDoc = {
-    schemaVersion: "0.1",
-    screen: {
-      id: screenId,
-      sourceRef: {
-        file: componentInfo.file,
-        line: componentInfo.line,
-        symbol: screenId,
-      },
-      device: "pixel-8",
-      discovery,
-      confidence,
-      root: rootNode,
-    },
-    designTokens: Object.keys(designTokens).length > 0 ? designTokens : undefined,
-    diagnostics: diagnostics.map(d => ({
-      level: d.level as "info" | "warn" | "error",
-      code: d.code,
-      message: d.message,
-    })),
-  };
-
-  return parseIRDocument(rawDoc);
 }

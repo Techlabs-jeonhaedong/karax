@@ -75,43 +75,46 @@ async function discoverScreens(ctx: AdapterContext): Promise<ScreenSummary[]> {
 
   // 심볼 테이블 구축
   const symbolTable = await buildSymbolTable(projectPath);
+  try {
+    // 라우트 그래프 발견
+    const { routes } = await discoverRouteGraph(projectPath, symbolTable);
+    const routeComponentNames = new Set(routes.map(r => r.componentName));
 
-  // 라우트 그래프 발견
-  const { routes } = await discoverRouteGraph(projectPath, symbolTable);
-  const routeComponentNames = new Set(routes.map(r => r.componentName));
-
-  for (const route of routes) {
-    const compInfo = symbolTable.components.get(route.componentName);
-    summaries.push({
-      id: route.componentName,
-      title: route.name,
-      discovery: "route",
-      confidence: 0.9,
-      sourceRef: compInfo
-        ? { file: compInfo.file, line: compInfo.line, symbol: route.componentName }
-        : undefined,
-    });
-  }
-
-  // heuristic 후보 발견
-  if (includeCandidates) {
-    const candidates = findHeuristicCandidates(symbolTable, routeComponentNames);
-    for (const candidate of candidates) {
+    for (const route of routes) {
+      const compInfo = symbolTable.components.get(route.componentName);
       summaries.push({
-        id: candidate.componentName,
-        title: candidate.componentName,
-        discovery: "candidate",
-        confidence: 0.5,
-        sourceRef: {
-          file: candidate.componentInfo.file,
-          line: candidate.componentInfo.line,
-          symbol: candidate.componentName,
-        },
+        id: route.componentName,
+        title: route.name,
+        discovery: "route",
+        confidence: 0.9,
+        sourceRef: compInfo
+          ? { file: compInfo.file, line: compInfo.line, symbol: route.componentName }
+          : undefined,
       });
     }
-  }
 
-  return summaries;
+    // heuristic 후보 발견
+    if (includeCandidates) {
+      const candidates = findHeuristicCandidates(symbolTable, routeComponentNames);
+      for (const candidate of candidates) {
+        summaries.push({
+          id: candidate.componentName,
+          title: candidate.componentName,
+          discovery: "candidate",
+          confidence: 0.5,
+          sourceRef: {
+            file: candidate.componentInfo.file,
+            line: candidate.componentInfo.line,
+            symbol: candidate.componentName,
+          },
+        });
+      }
+    }
+
+    return summaries;
+  } finally {
+    symbolTable.dispose();
+  }
 }
 
 // ── FrameworkAdapter 구현 ─────────────────────────────────────────────────────
@@ -125,7 +128,11 @@ export const reactNativeAdapter: FrameworkAdapter = {
 
   async discoverNavigation(ctx: AdapterContext): Promise<NavigationGraph> {
     const symbolTable = await buildSymbolTable(ctx.projectPath);
-    return discoverRNNavGraph(ctx.projectPath, symbolTable);
+    try {
+      return await discoverRNNavGraph(ctx.projectPath, symbolTable);
+    } finally {
+      symbolTable.dispose();
+    }
   },
 
   async readAppName(ctx: AdapterContext): Promise<string | undefined> {

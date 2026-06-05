@@ -134,39 +134,44 @@ export const androidAdapter: FrameworkAdapter = {
     }
 
     if (hasCompose && symbolTable) {
-      // Route-graph 발견
-      const { routes } = await discoverRouteGraph(projectPath, symbolTable);
-      const routeNameSet = new Set(routes.map((r) => r.composableName));
+      const st = symbolTable;
+      try {
+        // Route-graph 발견
+        const { routes } = await discoverRouteGraph(projectPath, st);
+        const routeNameSet = new Set(routes.map((r) => r.composableName));
 
-      for (const route of routes) {
-        const info = symbolTable.composables.get(route.composableName);
-        screens.push({
-          id: route.composableName,
-          title: classNameToTitle(route.composableName),
-          discovery: "route",
-          confidence: 1.0,
-          sourceRef: info
-            ? { file: info.file, line: info.line, symbol: route.composableName }
-            : undefined,
-        });
-      }
-
-      // Heuristic 발견
-      if (includeCandidates) {
-        const candidates = findHeuristicCandidates(symbolTable, routeNameSet);
-        for (const c of candidates) {
+        for (const route of routes) {
+          const info = st.composables.get(route.composableName);
           screens.push({
-            id: c.composableName,
-            title: classNameToTitle(c.composableName),
-            discovery: "candidate",
-            confidence: 0.6,
-            sourceRef: {
-              file: c.composableInfo.file,
-              line: c.composableInfo.line,
-              symbol: c.composableName,
-            },
+            id: route.composableName,
+            title: classNameToTitle(route.composableName),
+            discovery: "route",
+            confidence: 1.0,
+            sourceRef: info
+              ? { file: info.file, line: info.line, symbol: route.composableName }
+              : undefined,
           });
         }
+
+        // Heuristic 발견
+        if (includeCandidates) {
+          const candidates = findHeuristicCandidates(st, routeNameSet);
+          for (const c of candidates) {
+            screens.push({
+              id: c.composableName,
+              title: classNameToTitle(c.composableName),
+              discovery: "candidate",
+              confidence: 0.6,
+              sourceRef: {
+                file: c.composableInfo.file,
+                line: c.composableInfo.line,
+                symbol: c.composableName,
+              },
+            });
+          }
+        }
+      } finally {
+        st.dispose();
       }
     }
 
@@ -204,6 +209,8 @@ export const androidAdapter: FrameworkAdapter = {
     }
 
     const isInCompose = symbolTable?.composables.has(screenId) ?? false;
+    // 심볼 테이블은 composables.has 확인 용도로만 사용 — 즉시 해제
+    symbolTable?.dispose();
 
     if (!isInCompose) {
       // XML layout 경로 시도
@@ -216,7 +223,11 @@ export const androidAdapter: FrameworkAdapter = {
 
   async discoverNavigation(ctx: AdapterContext): Promise<NavigationGraph> {
     const symbolTable = await buildSymbolTable(ctx.projectPath);
-    return discoverAndroidNavGraph(ctx.projectPath, symbolTable);
+    try {
+      return await discoverAndroidNavGraph(ctx.projectPath, symbolTable);
+    } finally {
+      symbolTable.dispose();
+    }
   },
 
   async readAppName(ctx: AdapterContext): Promise<string | undefined> {

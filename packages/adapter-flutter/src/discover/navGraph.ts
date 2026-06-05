@@ -15,7 +15,7 @@
 
 import path from "path";
 import { readFile } from "fs/promises";
-import { parseSource, type SyntaxNode } from "@karax/adapter-api";
+import { withParsedSource, type SyntaxNode } from "@karax/adapter-api";
 import type {
   NavigationGraph,
   NavigationEdge,
@@ -124,44 +124,47 @@ async function extractMainDartInfo(projectPath: string): Promise<MainDartInfo> {
     return { routeMap: new Map() };
   }
 
-  const root = await parseSource("dart", source);
-  const routeMap = new Map<string, string>();
-  let homeClass: string | undefined;
+  return withParsedSource("dart", source, (root) => {
+    const routeMap = new Map<string, string>();
+    let homeClass: string | undefined;
 
-  for (const appName of ["MaterialApp", "CupertinoApp"]) {
-    const appIds = findByIdentifier(root, appName);
-    for (const appId of appIds) {
-      if (!appId.parent) continue;
-      let args: SyntaxNode | undefined;
-      const selectors = filterChildren(appId.parent, "selector");
-      for (const sel of selectors) {
-        const ap = findChild(sel, "argument_part");
-        if (ap) {
-          args = findChild(ap, "arguments");
-          break;
+    for (const appName of ["MaterialApp", "CupertinoApp"]) {
+      const appIds = findByIdentifier(root, appName);
+      for (const appId of appIds) {
+        if (!appId.parent) continue;
+        let args: SyntaxNode | undefined;
+        const selectors = filterChildren(appId.parent, "selector");
+        for (const sel of selectors) {
+          const ap = findChild(sel, "argument_part");
+          if (ap) {
+            args = findChild(ap, "arguments");
+            break;
+          }
         }
-      }
-      if (!args) continue;
+        if (!args) continue;
 
-      const routesArg = getNamedArg(args, "routes");
-      if (routesArg) {
-        for (const entry of parseRoutesMapWithKeys(routesArg)) {
-          if (!routeMap.has(entry.route)) routeMap.set(entry.route, entry.className);
+        // routes: (중복 라우트는 첫 값 유지 — 결정론)
+        const routesArg = getNamedArg(args, "routes");
+        if (routesArg) {
+          for (const entry of parseRoutesMapWithKeys(routesArg)) {
+            if (!routeMap.has(entry.route)) routeMap.set(entry.route, entry.className);
+          }
         }
-      }
 
-      const homeArg = getNamedArg(args, "home");
-      if (homeArg && !homeClass) {
-        if (homeArg.type === "const_object_expression") {
-          homeClass = findChild(homeArg, "type_identifier")?.text;
-        } else if (homeArg.type === "identifier") {
-          homeClass = homeArg.text;
+        // home:
+        const homeArg = getNamedArg(args, "home");
+        if (homeArg && !homeClass) {
+          if (homeArg.type === "const_object_expression") {
+            homeClass = findChild(homeArg, "type_identifier")?.text;
+          } else if (homeArg.type === "identifier") {
+            homeClass = homeArg.text;
+          }
         }
       }
     }
-  }
 
-  return { routeMap, homeClass };
+    return { routeMap, homeClass };
+  });
 }
 
 // ── 네비 호출 사이트 스캔 ─────────────────────────────────────────────────────

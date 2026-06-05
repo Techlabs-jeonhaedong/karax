@@ -890,6 +890,170 @@ describe("MCP 서버 — run_e2e_test tool (핸들러 계약, @karax/e2e mock)",
 // ─── run_e2e_test — screenshot path traversal 방어 (이중 방어 회귀) ──────────
 // steps에 탈출 경로가 주입된 경우 image content가 포함되지 않는지 검증한다.
 
+// ─── [중간-2] isWasmAbortedError 오탐 축소 + [중간-3,4] handleWasmError 동작 ───
+// SDK 함수가 WASM 에러를 throw할 때 MCP 핸들러가 재초기화 메시지를 반환하는지,
+// 재초기화 실패 시 정직하게 실패를 보고하는지 검증한다.
+
+describe("MCP 서버 — WASM 에러 처리 (항목 2·3·4 회귀)", () => {
+  afterEach(() => {
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
+
+  it("[항목-3] generate_app_map 핸들러: Aborted() WASM 에러 시 재초기화 메시지 반환", async () => {
+    vi.resetModules();
+    vi.doMock("@karax/sdk", async () => {
+      const actual = await vi.importActual<typeof import("@karax/sdk")>("@karax/sdk");
+      return {
+        ...actual,
+        generateAppMap: vi.fn().mockRejectedValue(
+          Object.assign(new Error("Aborted(OOM: cannot enlarge memory arrays)"), {})
+        ),
+        resetParserState: vi.fn().mockResolvedValue(undefined),
+      };
+    });
+
+    process.env.KARAX_SKIP_ENSURE = "1";
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const { createMcpServer: freshServer } = await import("../server.js");
+    const srv = freshServer();
+    await srv.connect(serverTransport);
+    const cli = new Client({ name: "test", version: "0.0.1" }, { capabilities: {} });
+    await cli.connect(clientTransport);
+
+    try {
+      const result = await cli.callTool({
+        name: "generate_app_map",
+        arguments: { projectPath: FLUTTER_FIXTURE },
+      });
+
+      // isError: true 이어야 하고 WASM 재초기화 메시지를 포함해야 한다
+      expect(result.isError).toBe(true);
+      const text = (result.content as Array<{ type: string; text: string }>)
+        .find((c) => c.type === "text")?.text ?? "";
+      expect(text).toContain("WASM");
+    } finally {
+      await cli.close();
+      await srv.close();
+    }
+  });
+
+  it("[항목-3] run_e2e_test 핸들러: RuntimeError: unreachable WASM 에러 시 재초기화 메시지 반환", async () => {
+    vi.resetModules();
+    vi.doMock("@karax/e2e", () => ({
+      runE2eTest: vi.fn().mockRejectedValue(
+        new WebAssembly.RuntimeError("unreachable")
+      ),
+    }));
+    vi.doMock("@karax/sdk", async () => {
+      const actual = await vi.importActual<typeof import("@karax/sdk")>("@karax/sdk");
+      return {
+        ...actual,
+        resetParserState: vi.fn().mockResolvedValue(undefined),
+      };
+    });
+
+    process.env.KARAX_SKIP_ENSURE = "1";
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const { createMcpServer: freshServer } = await import("../server.js");
+    const srv = freshServer();
+    await srv.connect(serverTransport);
+    const cli = new Client({ name: "test", version: "0.0.1" }, { capabilities: {} });
+    await cli.connect(clientTransport);
+
+    try {
+      const result = await cli.callTool({
+        name: "run_e2e_test",
+        arguments: { projectPath: FLUTTER_FIXTURE, platform: "android" },
+      });
+
+      expect(result.isError).toBe(true);
+      const text = (result.content as Array<{ type: string; text: string }>)
+        .find((c) => c.type === "text")?.text ?? "";
+      expect(text).toContain("WASM");
+    } finally {
+      await cli.close();
+      await srv.close();
+    }
+  });
+
+  it("[항목-4] handleWasmError: resetParserState 실패 시 재초기화 실패 메시지 반환", async () => {
+    vi.resetModules();
+    vi.doMock("@karax/sdk", async () => {
+      const actual = await vi.importActual<typeof import("@karax/sdk")>("@karax/sdk");
+      return {
+        ...actual,
+        generateAppMap: vi.fn().mockRejectedValue(
+          new Error("Aborted(OOM)")
+        ),
+        resetParserState: vi.fn().mockRejectedValue(new Error("MOCK: 재초기화 실패")),
+      };
+    });
+
+    process.env.KARAX_SKIP_ENSURE = "1";
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const { createMcpServer: freshServer } = await import("../server.js");
+    const srv = freshServer();
+    await srv.connect(serverTransport);
+    const cli = new Client({ name: "test", version: "0.0.1" }, { capabilities: {} });
+    await cli.connect(clientTransport);
+
+    try {
+      const result = await cli.callTool({
+        name: "generate_app_map",
+        arguments: { projectPath: FLUTTER_FIXTURE },
+      });
+
+      expect(result.isError).toBe(true);
+      const text = (result.content as Array<{ type: string; text: string }>)
+        .find((c) => c.type === "text")?.text ?? "";
+      // 재초기화 실패를 정직하게 보고해야 한다
+      expect(text).toMatch(/재초기화 실패|재시작/);
+    } finally {
+      await cli.close();
+      await srv.close();
+    }
+  });
+
+  it("[항목-2] 일반 RuntimeError(WASM 아님)는 WASM 에러로 오탐하지 않는다", async () => {
+    vi.resetModules();
+    // 일반 JS RuntimeError (WebAssembly.RuntimeError가 아님)
+    const normalError = new Error("RuntimeError: some other runtime issue");
+    vi.doMock("@karax/sdk", async () => {
+      const actual = await vi.importActual<typeof import("@karax/sdk")>("@karax/sdk");
+      return {
+        ...actual,
+        generateAppMap: vi.fn().mockRejectedValue(normalError),
+        resetParserState: vi.fn().mockResolvedValue(undefined),
+      };
+    });
+
+    process.env.KARAX_SKIP_ENSURE = "1";
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const { createMcpServer: freshServer } = await import("../server.js");
+    const srv = freshServer();
+    await srv.connect(serverTransport);
+    const cli = new Client({ name: "test", version: "0.0.1" }, { capabilities: {} });
+    await cli.connect(clientTransport);
+
+    try {
+      const result = await cli.callTool({
+        name: "generate_app_map",
+        arguments: { projectPath: FLUTTER_FIXTURE },
+      });
+
+      expect(result.isError).toBe(true);
+      const text = (result.content as Array<{ type: string; text: string }>)
+        .find((c) => c.type === "text")?.text ?? "";
+      // 일반 에러는 WASM 재초기화 메시지를 포함하지 않아야 한다
+      expect(text).not.toContain("WASM 힙 고갈");
+    } finally {
+      await cli.close();
+      await srv.close();
+    }
+  });
+});
+
 describe("MCP 서버 — run_e2e_test screenshot path traversal 방어", () => {
   afterEach(() => {
     vi.resetModules();

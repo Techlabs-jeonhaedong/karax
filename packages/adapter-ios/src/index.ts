@@ -37,42 +37,46 @@ async function discoverSwiftUIScreens(
   includeCandidates: boolean
 ): Promise<ScreenSummary[]> {
   const symbolTable = await buildSwiftSymbolTable(projectPath);
-  const { routes } = await discoverSwiftRouteGraph(projectPath, symbolTable);
-  const routeClassSet = new Set(routes.map(r => r.className));
+  try {
+    const { routes } = await discoverSwiftRouteGraph(projectPath, symbolTable);
+    const routeClassSet = new Set(routes.map(r => r.className));
 
-  const screens: ScreenSummary[] = [];
+    const screens: ScreenSummary[] = [];
 
-  for (const route of routes) {
-    const info = symbolTable.structs.get(route.className);
-    screens.push({
-      id: route.className,
-      title: classNameToTitle(route.className),
-      discovery: "route",
-      confidence: 1.0,
-      sourceRef: info
-        ? { file: info.file, line: info.line, symbol: route.className }
-        : undefined,
-    });
-  }
-
-  if (includeCandidates) {
-    const candidates = findSwiftHeuristicCandidates(symbolTable, routeClassSet);
-    for (const c of candidates) {
+    for (const route of routes) {
+      const info = symbolTable.structs.get(route.className);
       screens.push({
-        id: c.className,
-        title: classNameToTitle(c.className),
-        discovery: "candidate",
-        confidence: 0.6,
-        sourceRef: {
-          file: c.structInfo.file,
-          line: c.structInfo.line,
-          symbol: c.className,
-        },
+        id: route.className,
+        title: classNameToTitle(route.className),
+        discovery: "route",
+        confidence: 1.0,
+        sourceRef: info
+          ? { file: info.file, line: info.line, symbol: route.className }
+          : undefined,
       });
     }
-  }
 
-  return screens;
+    if (includeCandidates) {
+      const candidates = findSwiftHeuristicCandidates(symbolTable, routeClassSet);
+      for (const c of candidates) {
+        screens.push({
+          id: c.className,
+          title: classNameToTitle(c.className),
+          discovery: "candidate",
+          confidence: 0.6,
+          sourceRef: {
+            file: c.structInfo.file,
+            line: c.structInfo.line,
+            symbol: c.className,
+          },
+        });
+      }
+    }
+
+    return screens;
+  } finally {
+    symbolTable.dispose();
+  }
 }
 
 // ── iosAdapter ────────────────────────────────────────────────────────────────
@@ -188,7 +192,11 @@ export const iosAdapter: FrameworkAdapter = {
 
   async discoverNavigation(ctx: AdapterContext): Promise<NavigationGraph> {
     const symbolTable = await buildSwiftSymbolTable(ctx.projectPath);
-    return discoverIOSNavGraph(ctx.projectPath, symbolTable);
+    try {
+      return await discoverIOSNavGraph(ctx.projectPath, symbolTable);
+    } finally {
+      symbolTable.dispose();
+    }
   },
 
   async readAppName(ctx: AdapterContext): Promise<string | undefined> {
