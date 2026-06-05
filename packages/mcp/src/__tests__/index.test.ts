@@ -759,3 +759,58 @@ describe("MCP 서버 — run_e2e_test tool (핸들러 계약, @karax/e2e mock)",
     }
   });
 });
+
+// ─── run_e2e_test — screenshot path traversal 방어 (이중 방어 회귀) ──────────
+// steps에 탈출 경로가 주입된 경우 image content가 포함되지 않는지 검증한다.
+
+describe("MCP 서버 — run_e2e_test screenshot path traversal 방어", () => {
+  afterEach(() => {
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
+
+  it("steps에 탈출 경로(../../etc/passwd)가 있으면 image content를 포함하지 않는다", async () => {
+    vi.resetModules();
+    // screenshotsDir 밖으로 탈출하는 경로를 주입
+    vi.doMock("@karax/e2e", () => ({
+      runE2eTest: vi.fn().mockResolvedValue({
+        outcome: "pass",
+        sessionDir: "/tmp/karax-e2e-traversal-test",
+        reportJsonPath: "/tmp/karax-e2e-traversal-test/report.json",
+        reportMdPath: "/tmp/karax-e2e-traversal-test/report.md",
+        screenshotsDir: "/tmp/karax-e2e-traversal-test/screenshots",
+        summary: "통과",
+        steps: [
+          { index: 1, description: "탈출 시도", status: "pass", screenshot: "../../etc/passwd" },
+        ],
+      }),
+    }));
+
+    process.env.SFC_SKIP_ENSURE = "1";
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const { createMcpServer: freshServer } = await import("../server.js");
+    const srv = freshServer();
+    await srv.connect(serverTransport);
+    const cli = new Client({ name: "test", version: "0.0.1" }, { capabilities: {} });
+    await cli.connect(clientTransport);
+
+    try {
+      const result = await cli.callTool({
+        name: "run_e2e_test",
+        // FLUTTER_FIXTURE는 존재하는 경로이므로 validateProjectPath 통과
+        arguments: { projectPath: FLUTTER_FIXTURE, platform: "android" },
+      });
+
+      // 에러가 아닌 정상 응답이어야 한다 (탈출 경로는 이미지 첨부만 건너뜀)
+      expect(result.isError).toBeFalsy();
+
+      const contents = result.content as Array<{ type: string }>;
+      // image content가 포함되지 않아야 한다
+      const imageContent = contents.find((c) => c.type === "image");
+      expect(imageContent).toBeUndefined();
+    } finally {
+      await cli.close();
+      await srv.close();
+    }
+  });
+});

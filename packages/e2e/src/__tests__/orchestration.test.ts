@@ -167,4 +167,46 @@ describe("runE2eTest", () => {
 
     expect(mockManager.shutdown).not.toHaveBeenCalled();
   });
+
+  it("path traversal 탈출 경로가 포함된 step은 screenshot 필드가 제거된다", async () => {
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({
+      outcome: "pass",
+      summary: "통과",
+      steps: [
+        { index: 1, description: "정상 스텝", status: "pass", screenshot: "step1.png" },
+        { index: 2, description: "탈출 시도", status: "pass", screenshot: "../../etc/passwd" },
+        { index: 3, description: "절대경로 시도", status: "pass", screenshot: "/etc/shadow" },
+      ],
+    });
+
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    // 탈출 경로 step의 screenshot 필드는 제거되어야 한다
+    const step2 = result.steps.find((s) => s.index === 2);
+    const step3 = result.steps.find((s) => s.index === 3);
+    expect(step2?.screenshot).toBeUndefined();
+    expect(step3?.screenshot).toBeUndefined();
+
+    // 정상 경로 step의 screenshot은 유지된다
+    const step1 = result.steps.find((s) => s.index === 1);
+    expect(step1?.screenshot).toBeDefined();
+
+    // 스텝 자체는 유지된다 (3개 모두)
+    expect(result.steps).toHaveLength(3);
+
+    // report.json 에도 탈출 경로가 없어야 한다
+    const reportJson = JSON.parse(fs.readFileSync(result.reportJsonPath, "utf-8")) as {
+      steps: Array<{ index: number; screenshot?: string }>;
+    };
+    const reportStep2 = reportJson.steps.find((s) => s.index === 2);
+    const reportStep3 = reportJson.steps.find((s) => s.index === 3);
+    expect(reportStep2?.screenshot).toBeUndefined();
+    expect(reportStep3?.screenshot).toBeUndefined();
+  });
 });

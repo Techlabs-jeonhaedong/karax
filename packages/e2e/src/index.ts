@@ -23,6 +23,7 @@ import { buildAgentPrompt } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
 import { writeReport } from "./report/write.js";
 import type { E2eReport } from "./report/schema.js";
+import { sanitizeScreenshotPath } from "./report/sanitize.js";
 
 export type { RunE2eTestOptions, E2eTestResult, Platform };
 export { E2eError, E2E_ERROR_CODES } from "./types.js";
@@ -113,6 +114,18 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
 
     const durationMs = Date.now() - startTime;
 
+    // screenshot 경로 sanitize — path traversal 방어
+    const sanitizedSteps = agentResult.steps.map((step) => {
+      if (!step.screenshot) return step;
+      const safe = sanitizeScreenshotPath(session.screenshotsDir, step.screenshot);
+      if (safe === null) {
+        // 탈출 감지: screenshot 필드 제거, 스텝 자체는 유지
+        const { screenshot: _dropped, ...rest } = step;
+        return rest;
+      }
+      return step;
+    });
+
     // 리포트 작성
     const report: E2eReport = {
       sessionId: session.sessionId,
@@ -122,7 +135,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       scenarioPath,
       outcome: agentResult.outcome,
       summary: agentResult.summary,
-      steps: agentResult.steps,
+      steps: sanitizedSteps,
       screenshotsDir: session.screenshotsDir,
       durationMs,
       createdAt: new Date().toISOString(),
@@ -144,7 +157,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       reportMdPath,
       screenshotsDir: session.screenshotsDir,
       summary: agentResult.summary,
-      steps: agentResult.steps,
+      steps: sanitizedSteps,
     };
   } catch (e) {
     // 인프라 에러 → outcome: "error"로 리포트 작성

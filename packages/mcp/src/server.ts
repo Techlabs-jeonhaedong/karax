@@ -443,12 +443,17 @@ export function createMcpServer(): McpServer {
         ];
 
         if (lastScreenshot?.screenshot) {
-          const screenshotPath = `${result.screenshotsDir}/${lastScreenshot.screenshot}`;
-          try {
-            const base64 = pngToBase64(screenshotPath);
-            content.push({ type: "image", data: base64, mimeType: "image/png" });
-          } catch {
-            // 스크린샷 첨부 실패는 무시
+          // 이중 방어: path traversal 차단 — screenshotsDir 밖 경로는 첨부 생략
+          const resolvedScreenshot = path.resolve(result.screenshotsDir, lastScreenshot.screenshot);
+          const screenshotsDirNormalized = path.resolve(result.screenshotsDir) + path.sep;
+          const isSafe = resolvedScreenshot.startsWith(screenshotsDirNormalized);
+          if (isSafe) {
+            try {
+              const base64 = pngToBase64(resolvedScreenshot);
+              content.push({ type: "image", data: base64, mimeType: "image/png" });
+            } catch {
+              // 스크린샷 첨부 실패는 무시
+            }
           }
         }
 
