@@ -20,6 +20,7 @@ import type {
   FrameworkId,
   CaptureMode,
 } from "@karax/adapter-api";
+export { resetParserState } from "@karax/adapter-api";
 import { detectFramework as coreDetectFramework } from "@karax/core";
 import type { DetectResult } from "@karax/core";
 import { computeProjectConfidence, expandVariants } from "@karax/core";

@@ -11,7 +11,7 @@
 
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
-import { parseSource } from "@karax/adapter-api";
+import { parseWithTree } from "@karax/adapter-api";
 import type { SyntaxNode } from "@karax/adapter-api";
 
 // ── 타입 ──────────────────────────────────────────────────────────────────────
@@ -31,6 +31,8 @@ export interface ParsedFile {
   structs: StructInfo[];
   root: SyntaxNode;
   source: string;
+  /** Emscripten 힙의 tree-sitter Tree를 해제한다. ParsedFile이 더 이상 필요 없을 때 호출해야 한다. */
+  disposeTree: () => void;
 }
 
 export interface SwiftSymbolTable {
@@ -39,6 +41,8 @@ export interface SwiftSymbolTable {
   files: Map<string, ParsedFile>;
   aliasMap: Map<string, string>;   // typealias 원본 → 대상
   mainApp: string | undefined;     // @main App struct 이름
+  /** 모든 ParsedFile의 tree-sitter Tree를 해제한다. SwiftSymbolTable이 더 이상 필요 없을 때 호출. */
+  dispose: () => void;
 }
 
 // ── Swift 파일 수집 ───────────────────────────────────────────────────────────
@@ -96,7 +100,7 @@ export async function parseSwiftFile(
   projectPath: string
 ): Promise<ParsedFile> {
   const source = await readFile(absolutePath, "utf-8");
-  const root = await parseSource("swift", source);
+  const { rootNode: root, disposeTree } = await parseWithTree("swift", source);
   const relPath = path.relative(projectPath, absolutePath);
 
   // struct 선언 파싱
@@ -141,7 +145,7 @@ export async function parseSwiftFile(
     structs.push({ name, file: relPath, line, conformsToView, conformsToApp, isMain, isPrivate });
   }
 
-  return { filePath: relPath, structs, root, source };
+  return { filePath: relPath, structs, root, source, disposeTree };
 }
 
 // ── 심볼 테이블 구축 ──────────────────────────────────────────────────────────
@@ -156,34 +160,45 @@ export async function buildSwiftSymbolTable(
     files: new Map(),
     aliasMap: new Map(),
     mainApp: undefined,
+    dispose: () => {
+      for (const parsed of table.files.values()) {
+        parsed.disposeTree();
+      }
+    },
   };
 
-  for (const absPath of swiftFiles) {
-    const parsed = await parseSwiftFile(absPath, projectPath);
-    table.files.set(parsed.filePath, parsed);
+  try {
+    for (const absPath of swiftFiles) {
+      const parsed = await parseSwiftFile(absPath, projectPath);
+      table.files.set(parsed.filePath, parsed);
 
-    for (const s of parsed.structs) {
-      table.structs.set(s.name, s);
-      table.fileByStruct.set(s.name, parsed);
-      if (s.isMain && s.conformsToApp) {
-        table.mainApp = s.name;
+      for (const s of parsed.structs) {
+        table.structs.set(s.name, s);
+        table.fileByStruct.set(s.name, parsed);
+        if (s.isMain && s.conformsToApp) {
+          table.mainApp = s.name;
+        }
+      }
+
+      // typealias 파싱
+      const typealiasDecls = findAllNodes(parsed.root, "typealias_declaration");
+      for (const ta of typealiasDecls) {
+        // typealias_declaration: [typealias, type_identifier(alias), =, user_type(target)]
+        const typeIds = filterChildren(ta, "type_identifier");
+        const userTypes = filterChildren(ta, "user_type");
+        const alias = typeIds[0]?.text;
+        // user_type 내의 type_identifier
+        const targetTypeId = userTypes[0] ? findChild(userTypes[0], "type_identifier") : undefined;
+        const target = targetTypeId?.text;
+        if (alias && target) {
+          table.aliasMap.set(alias, target);
+        }
       }
     }
-
-    // typealias 파싱
-    const typealiasDecls = findAllNodes(parsed.root, "typealias_declaration");
-    for (const ta of typealiasDecls) {
-      // typealias_declaration: [typealias, type_identifier(alias), =, user_type(target)]
-      const typeIds = filterChildren(ta, "type_identifier");
-      const userTypes = filterChildren(ta, "user_type");
-      const alias = typeIds[0]?.text;
-      // user_type 내의 type_identifier
-      const targetTypeId = userTypes[0] ? findChild(userTypes[0], "type_identifier") : undefined;
-      const target = targetTypeId?.text;
-      if (alias && target) {
-        table.aliasMap.set(alias, target);
-      }
-    }
+  } catch (e) {
+    // 루프 도중 파싱 실패 시 지금까지 파싱된 모든 Tree를 해제하고 재던진다.
+    table.dispose();
+    throw e;
   }
 
   return table;

@@ -9,7 +9,7 @@
 
 import { readFile } from "fs/promises";
 import path from "path";
-import { parseSource } from "@karax/adapter-api";
+import { withParsedSource } from "@karax/adapter-api";
 import type { SyntaxNode } from "@karax/adapter-api";
 import {
   findAllNodes,
@@ -137,104 +137,104 @@ export async function resolveTheme(projectPath: string): Promise<ThemeResult> {
   }
 
   try {
-    const root = await parseSource("dart", source);
+    return await withParsedSource("dart", source, (root) => {
+      // ColorScheme identifier를 named_argument 안에서 찾아 fromSeed 패턴 탐색
+      // 구조: named_argument [label: "colorScheme:", identifier: "ColorScheme", selector: ".fromSeed", selector: "(...)"]
+      const allIdentifiers = findAllNodes(root, "identifier");
+      const colorSchemeIds = allIdentifiers.filter(n => n.text === "ColorScheme");
 
-    // ColorScheme identifier를 named_argument 안에서 찾아 fromSeed 패턴 탐색
-    // 구조: named_argument [label: "colorScheme:", identifier: "ColorScheme", selector: ".fromSeed", selector: "(...)"]
-    const allIdentifiers = findAllNodes(root, "identifier");
-    const colorSchemeIds = allIdentifiers.filter(n => n.text === "ColorScheme");
+      for (const csId of colorSchemeIds) {
+        const parent = csId.parent;
+        if (!parent) continue;
 
-    for (const csId of colorSchemeIds) {
-      const parent = csId.parent;
-      if (!parent) continue;
+        // named_argument 또는 그 상위 형제에서 fromSeed 패턴 찾기
+        // ColorScheme + selector(.fromSeed) + selector(arguments) 구조
+        const siblings = parent.children.filter(c => c !== null);
+        const csIdx = siblings.findIndex(c => c === csId);
 
-      // named_argument 또는 그 상위 형제에서 fromSeed 패턴 찾기
-      // ColorScheme + selector(.fromSeed) + selector(arguments) 구조
-      const siblings = parent.children.filter(c => c !== null);
-      const csIdx = siblings.findIndex(c => c === csId);
+        // csId 다음 형제들에서 .fromSeed 와 argument_part 찾기
+        let foundFromSeed = false;
+        let argsSelector: SyntaxNode | undefined;
 
-      // csId 다음 형제들에서 .fromSeed 와 argument_part 찾기
-      let foundFromSeed = false;
-      let argsSelector: SyntaxNode | undefined;
+        for (let i = csIdx + 1; i < siblings.length; i++) {
+          const sib = siblings[i]!;
+          if (sib.type === "selector") {
+            const text = sib.text;
+            if (text === ".fromSeed") {
+              foundFromSeed = true;
+            } else if (foundFromSeed && text.startsWith("(")) {
+              argsSelector = sib;
+              break;
+            }
+          }
+        }
 
-      for (let i = csIdx + 1; i < siblings.length; i++) {
-        const sib = siblings[i]!;
-        if (sib.type === "selector") {
-          const text = sib.text;
-          if (text === ".fromSeed") {
-            foundFromSeed = true;
-          } else if (foundFromSeed && text.startsWith("(")) {
-            argsSelector = sib;
-            break;
+        if (!foundFromSeed || !argsSelector) continue;
+
+        // argument_part → arguments
+        const ap = findChild(argsSelector, "argument_part");
+        const args = ap ? findChild(ap, "arguments") : findChild(argsSelector, "arguments") ?? argsSelector;
+        if (!args) continue;
+
+        const seedArg = getDirectNamedArg(args, "seedColor");
+        if (!seedArg) continue;
+
+        const seedColor = parseColorNode(seedArg) ?? MATERIAL3_LIGHT_DEFAULTS.primary;
+        return {
+          colors: derivePaletteFromSeed(seedColor),
+          diagnostics: [],
+        };
+      }
+
+      // 명시적 colorScheme: ColorScheme(...) 파싱 시도 — fromSeed가 아닌 경우
+      const colors: Record<string, string> = { ...MATERIAL3_LIGHT_DEFAULTS };
+      let found = false;
+
+      for (const csId of colorSchemeIds) {
+        const parent = csId.parent;
+        if (!parent) continue;
+
+        const siblings = parent.children.filter(c => c !== null);
+        const csIdx = siblings.findIndex(c => c === csId);
+
+        // 바로 다음 selector가 (arguments) 형태인지 확인
+        const nextSib = siblings[csIdx + 1];
+        if (!nextSib || nextSib.type !== "selector") continue;
+
+        const ap = findChild(nextSib, "argument_part");
+        const args = ap ? findChild(ap, "arguments") : undefined;
+        if (!args) continue;
+
+        const colorKeys = ["primary", "onPrimary", "primaryContainer", "onPrimaryContainer",
+          "secondary", "onSecondary", "surface", "onSurface", "error", "onError",
+          "background", "onBackground", "outline"];
+
+        for (const key of colorKeys) {
+          const arg = getDirectNamedArg(args, key);
+          if (arg) {
+            const color = parseColorNode(arg);
+            if (color) {
+              colors[key] = color;
+              found = true;
+            }
           }
         }
       }
 
-      if (!foundFromSeed || !argsSelector) continue;
+      if (found) {
+        return { colors, diagnostics: [] };
+      }
 
-      // argument_part → arguments
-      const ap = findChild(argsSelector, "argument_part");
-      const args = ap ? findChild(ap, "arguments") : findChild(argsSelector, "arguments") ?? argsSelector;
-      if (!args) continue;
-
-      const seedArg = getDirectNamedArg(args, "seedColor");
-      if (!seedArg) continue;
-
-      const seedColor = parseColorNode(seedArg) ?? MATERIAL3_LIGHT_DEFAULTS.primary;
+      // ThemeData 발견했지만 색상 못 찾음 — 기본값
       return {
-        colors: derivePaletteFromSeed(seedColor),
-        diagnostics: [],
+        colors: { ...MATERIAL3_LIGHT_DEFAULTS },
+        diagnostics: [{
+          level: "info" as const,
+          code: "THEME_DEFAULTED",
+          message: "ThemeData에서 색상 스킴을 파싱하지 못해 Material3 기본 토큰을 사용합니다",
+        }],
       };
-    }
-
-    // 명시적 colorScheme: ColorScheme(...) 파싱 시도 — fromSeed가 아닌 경우
-    const colors: Record<string, string> = { ...MATERIAL3_LIGHT_DEFAULTS };
-    let found = false;
-
-    for (const csId of colorSchemeIds) {
-      const parent = csId.parent;
-      if (!parent) continue;
-
-      const siblings = parent.children.filter(c => c !== null);
-      const csIdx = siblings.findIndex(c => c === csId);
-
-      // 바로 다음 selector가 (arguments) 형태인지 확인
-      const nextSib = siblings[csIdx + 1];
-      if (!nextSib || nextSib.type !== "selector") continue;
-
-      const ap = findChild(nextSib, "argument_part");
-      const args = ap ? findChild(ap, "arguments") : undefined;
-      if (!args) continue;
-
-      const colorKeys = ["primary", "onPrimary", "primaryContainer", "onPrimaryContainer",
-        "secondary", "onSecondary", "surface", "onSurface", "error", "onError",
-        "background", "onBackground", "outline"];
-
-      for (const key of colorKeys) {
-        const arg = getDirectNamedArg(args, key);
-        if (arg) {
-          const color = parseColorNode(arg);
-          if (color) {
-            colors[key] = color;
-            found = true;
-          }
-        }
-      }
-    }
-
-    if (found) {
-      return { colors, diagnostics: [] };
-    }
-
-    // ThemeData 발견했지만 색상 못 찾음 — 기본값
-    return {
-      colors: { ...MATERIAL3_LIGHT_DEFAULTS },
-      diagnostics: [{
-        level: "info",
-        code: "THEME_DEFAULTED",
-        message: "ThemeData에서 색상 스킴을 파싱하지 못해 Material3 기본 토큰을 사용합니다",
-      }],
-    };
+    });
   } catch {
     return {
       colors: { ...MATERIAL3_LIGHT_DEFAULTS },

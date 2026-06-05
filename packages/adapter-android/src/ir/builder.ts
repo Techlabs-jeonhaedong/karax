@@ -42,7 +42,7 @@ export async function buildScreenIR(
 
   // 1. 심볼 테이블 구축
   const symbolTable = await buildSymbolTable(projectPath);
-
+  try {
   // 2. 화면 발견 — discovery 판단
   const { routes } = await discoverRouteGraph(projectPath, symbolTable);
   const routeNameSet = new Set(routes.map((r) => r.composableName));
@@ -187,6 +187,9 @@ export async function buildScreenIR(
   };
 
   return parseIRDocument(rawDoc);
+  } finally {
+    symbolTable.dispose();
+  }
 }
 
 // ── 최상위 Composable 추출 ────────────────────────────────────────────────────

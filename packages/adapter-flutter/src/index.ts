@@ -79,51 +79,54 @@ export const flutterAdapter: FrameworkAdapter = {
 
     // 심볼 테이블 구축
     const symbolTable = await buildSymbolTable(projectPath, packageName);
+    try {
+      // Route-graph 발견
+      const { routes } = await discoverRouteGraph(projectPath, symbolTable);
 
-    // Route-graph 발견
-    const { routes, diagnostics } = await discoverRouteGraph(projectPath, symbolTable);
+      const screens: ScreenSummary[] = [];
+      const routeClassSet = new Set(routes.map((r) => r.className));
 
-    const screens: ScreenSummary[] = [];
-    const routeClassSet = new Set(routes.map((r) => r.className));
-
-    // route → ScreenSummary 변환
-    for (const route of routes) {
-      const classInfo = symbolTable.classes.get(route.className);
-      const screen: ScreenSummary = {
-        id: route.className,
-        title: classNameToTitle(route.className),
-        discovery: "route",
-        confidence: 1.0,
-        sourceRef: classInfo
-          ? {
-              file: classInfo.file,
-              line: classInfo.line,
-              symbol: route.className,
-            }
-          : undefined,
-      };
-      screens.push(screen);
-    }
-
-    // Heuristic 발견
-    if (includeCandidates) {
-      const candidates = findHeuristicCandidates(symbolTable, routeClassSet);
-      for (const candidate of candidates) {
-        screens.push({
-          id: candidate.className,
-          title: classNameToTitle(candidate.className),
-          discovery: "candidate",
-          confidence: 0.6,
-          sourceRef: {
-            file: candidate.classInfo.file,
-            line: candidate.classInfo.line,
-            symbol: candidate.className,
-          },
-        });
+      // route → ScreenSummary 변환
+      for (const route of routes) {
+        const classInfo = symbolTable.classes.get(route.className);
+        const screen: ScreenSummary = {
+          id: route.className,
+          title: classNameToTitle(route.className),
+          discovery: "route",
+          confidence: 1.0,
+          sourceRef: classInfo
+            ? {
+                file: classInfo.file,
+                line: classInfo.line,
+                symbol: route.className,
+              }
+            : undefined,
+        };
+        screens.push(screen);
       }
-    }
 
-    return screens;
+      // Heuristic 발견
+      if (includeCandidates) {
+        const candidates = findHeuristicCandidates(symbolTable, routeClassSet);
+        for (const candidate of candidates) {
+          screens.push({
+            id: candidate.className,
+            title: classNameToTitle(candidate.className),
+            discovery: "candidate",
+            confidence: 0.6,
+            sourceRef: {
+              file: candidate.classInfo.file,
+              line: candidate.classInfo.line,
+              symbol: candidate.className,
+            },
+          });
+        }
+      }
+
+      return screens;
+    } finally {
+      symbolTable.dispose();
+    }
   },
 
   async buildScreenIR(ctx: AdapterContext, screenId: string): Promise<IRDocument> {
@@ -139,7 +142,11 @@ export const flutterAdapter: FrameworkAdapter = {
       packageName = "";
     }
     const symbolTable = await buildSymbolTable(projectPath, packageName);
-    return discoverFlutterNavGraph(projectPath, symbolTable);
+    try {
+      return await discoverFlutterNavGraph(projectPath, symbolTable);
+    } finally {
+      symbolTable.dispose();
+    }
   },
 
   async readAppName(ctx: AdapterContext): Promise<string | undefined> {
