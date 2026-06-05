@@ -12,7 +12,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "@karax/mcp": "./dist/bin.js"
+    "karax-mcp": "./dist/bin.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
