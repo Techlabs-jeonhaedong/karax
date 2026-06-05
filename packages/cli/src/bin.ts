@@ -9,6 +9,8 @@
  */
 
 import { Command } from "commander";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
 import {
   EXIT_CODES,
   parseDetectArgs,
@@ -19,6 +21,10 @@ import {
   parseTestArgs,
 } from "./commands.js";
 import type { DeviceProfileId } from "@karax/sdk";
+
+// repo 루트: packages/cli/dist/bin.js → ../../../ (= repo root)
+const __filename = fileURLToPath(import.meta.url);
+const REPO_ROOT = resolve(dirname(__filename), "../../..");
 
 // SDK 는 커맨드 핸들러에서 동적으로 import (초기 로드 최소화)
 
@@ -315,11 +321,13 @@ program
 
 function runMcpConfig(): void {
   parseMcpConfigArgs([]);
+  // git clone 기반 런처 — npm 배포 없이 사용 가능
+  const launcherPath = join(REPO_ROOT, "scripts/mcp-launcher.mjs");
   const snippet = {
     mcpServers: {
       karax: {
-        command: "npx",
-        args: ["-y", "@karax/mcp"],
+        command: "node",
+        args: [launcherPath],
       },
     },
   };
