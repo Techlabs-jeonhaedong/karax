@@ -76,6 +76,17 @@ export const NavigationEdgeSchema = z
     trigger: TriggerInfoSchema,
     confidence: z.number().min(0).max(1),
     diagnostics: DiagnosticEntrySchema.array(),
+    /** from 식별 방식 — screen: 위젯 클래스, controller: 컨트롤러/매니저, global: 특정 불가 */
+    fromKind: z.enum(["screen", "controller", "global"]).optional(),
+    /** 실제 네비게이션 호출 위치 */
+    fromRef: z
+      .object({
+        file: z.string(),
+        line: z.number().int().nonnegative().optional(),
+        symbol: z.string().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

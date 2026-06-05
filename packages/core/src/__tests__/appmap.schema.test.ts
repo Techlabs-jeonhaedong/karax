@@ -67,6 +67,121 @@ describe("AppMap schema", () => {
         })
       ).toThrow();
     });
+
+    it("fromKind 필드를 포함한 엣지를 파싱한다 (screen)", () => {
+      const edge = {
+        from: "HomeScreen",
+        to: "DetailScreen",
+        action: "push",
+        trigger: { kind: "button" },
+        confidence: 1.0,
+        diagnostics: [],
+        fromKind: "screen",
+      };
+      const result = NavigationEdgeSchema.parse(edge);
+      expect(result.fromKind).toBe("screen");
+    });
+
+    it("fromKind=controller 엣지를 파싱한다", () => {
+      const edge = {
+        from: "HomeScreen",
+        to: "DetailScreen",
+        action: "push",
+        trigger: { kind: "button" },
+        confidence: 0.6,
+        diagnostics: [],
+        fromKind: "controller",
+      };
+      const result = NavigationEdgeSchema.parse(edge);
+      expect(result.fromKind).toBe("controller");
+    });
+
+    it("fromKind=global 엣지를 파싱한다", () => {
+      const edge = {
+        from: "(global)",
+        to: "SplashScreen",
+        action: "push",
+        trigger: { kind: "button" },
+        confidence: 0.4,
+        diagnostics: [],
+        fromKind: "global",
+      };
+      const result = NavigationEdgeSchema.parse(edge);
+      expect(result.fromKind).toBe("global");
+    });
+
+    it("fromRef 필드를 포함한 엣지를 파싱한다", () => {
+      const edge = {
+        from: "HomeScreen",
+        to: "DetailScreen",
+        action: "push",
+        trigger: { kind: "button" },
+        confidence: 1.0,
+        diagnostics: [],
+        fromRef: { file: "lib/home/controller/home_controller.dart", line: 42, symbol: "_onTap" },
+      };
+      const result = NavigationEdgeSchema.parse(edge);
+      expect(result.fromRef?.file).toBe("lib/home/controller/home_controller.dart");
+      expect(result.fromRef?.line).toBe(42);
+      expect(result.fromRef?.symbol).toBe("_onTap");
+    });
+
+    it("fromRef.line, fromRef.symbol 없이도 파싱된다", () => {
+      const edge = {
+        from: "HomeScreen",
+        to: null,
+        action: "push",
+        trigger: { kind: "button" },
+        confidence: 0.4,
+        diagnostics: [],
+        fromRef: { file: "lib/util/some_util.dart" },
+      };
+      const result = NavigationEdgeSchema.parse(edge);
+      expect(result.fromRef?.file).toBe("lib/util/some_util.dart");
+      expect(result.fromRef?.line).toBeUndefined();
+    });
+
+    it("fromKind가 허용되지 않은 값이면 에러를 던진다", () => {
+      expect(() =>
+        NavigationEdgeSchema.parse({
+          from: "A",
+          to: "B",
+          action: "push",
+          trigger: { kind: "button" },
+          confidence: 1.0,
+          diagnostics: [],
+          fromKind: "unknown_kind",
+        })
+      ).toThrow();
+    });
+
+    it("fromKind, fromRef 없이도 기존 엣지가 하위호환으로 파싱된다", () => {
+      const legacy = {
+        from: "HomeScreen",
+        to: "DetailScreen",
+        action: "push",
+        trigger: { kind: "button", label: "Go" },
+        confidence: 1.0,
+        diagnostics: [],
+      };
+      const result = NavigationEdgeSchema.parse(legacy);
+      expect(result.fromKind).toBeUndefined();
+      expect(result.fromRef).toBeUndefined();
+    });
+
+    it("fromRef에 미지 필드가 있으면 strict 위반으로 에러를 던진다", () => {
+      expect(() =>
+        NavigationEdgeSchema.parse({
+          from: "A",
+          to: "B",
+          action: "push",
+          trigger: { kind: "button" },
+          confidence: 1.0,
+          diagnostics: [],
+          fromRef: { file: "lib/a.dart", unknownField: true },
+        })
+      ).toThrow();
+    });
   });
 
   describe("ScreenNodeSchema", () => {

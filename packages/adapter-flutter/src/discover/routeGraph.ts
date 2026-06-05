@@ -3,6 +3,7 @@ import { readFile } from "fs/promises";
 import { withParsedSource, type SyntaxNode } from "@karax/adapter-api";
 import { findNodes, findChild, filterChildren } from "../parse/scanner.js";
 import type { SymbolTable } from "../parse/scanner.js";
+import { discoverGetxRoutes } from "./getx.js";
 
 // ── AST 유틸 ────────────────────────────────────────────────────────────────
 
@@ -286,7 +287,7 @@ async function extractFromMainDart(projectPath: string): Promise<MaterialAppArgs
 
 export interface RouteEntry {
   className: string;
-  source: "routes-table" | "home" | "on-generate-route" | "go-router" | "navigator-push";
+  source: "routes-table" | "home" | "on-generate-route" | "go-router" | "navigator-push" | "getx-page";
 }
 
 export interface DiagnosticEntry {
@@ -331,6 +332,12 @@ export async function discoverRouteGraph(
   if (mainArgs.homeClass) addRoute(mainArgs.homeClass, "home");
   for (const cls of mainArgs.onGenerateRouteClasses) addRoute(cls, "on-generate-route");
   for (const cls of mainArgs.goRouterClasses) addRoute(cls, "go-router");
+
+  // GetX: 프로젝트 전체에서 GetPage(name:, page:) 스캔 (라우트 테이블이 별도 파일이어도 발견)
+  const getx = discoverGetxRoutes(symbolTable);
+  for (const page of getx.pages) {
+    if (page.className) addRoute(page.className, "getx-page");
+  }
 
   // 프로젝트 전체 파일에서 Navigator.push 스캔
   for (const [, parsedFile] of symbolTable.files) {

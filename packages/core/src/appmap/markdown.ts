@@ -86,6 +86,41 @@ function formatStyle(style: ElementStyle | undefined): string {
   return parts.length > 0 ? parts.join(" · ") : "-";
 }
 
+// ── 엣지 셀 포맷 헬퍼 ─────────────────────────────────────────────────
+
+/** 트리거 셀: `라벨 @(x,y) W×H [스타일]` */
+function formatEdgeTrigger(edge: NavigationEdge): string {
+  const baseLabel = edge.trigger.label ?? edge.trigger.kind;
+  const boundsInfo = edge.trigger.bounds
+    ? ` @${formatPosition(edge.trigger.bounds)} ${formatSize(edge.trigger.bounds)}`
+    : "";
+  const styleInfo = edge.trigger.style ? ` [${formatStyle(edge.trigger.style)}]` : "";
+  return escapeMarkdownCell(`${baseLabel}${boundsInfo}${styleInfo}`);
+}
+
+/** 목적지 셀: 링크 / `↗ 라우트 (미해석)` / `❓ 미확인` / `↩ 뒤로` */
+function formatEdgeDest(
+  edge: NavigationEdge,
+  docFileNameFn: (screenId: string) => string
+): string {
+  if (edge.to !== null) {
+    const destAnchor = edge.to.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    return `[${escapeMarkdownCell(edge.to)}](${docFileNameFn(edge.to)}#${destAnchor})`;
+  }
+  if (edge.action === "pop") return "↩ 뒤로";
+  if (edge.toRouteName) {
+    return `↗ \`${escapeMarkdownCell(edge.toRouteName)}\` (미해석)`;
+  }
+  return "❓ 미확인";
+}
+
+/** 호출 위치 셀: `file:line` 코드 표기 (경로도 분석 대상 입력이므로 이스케이프) */
+function formatFromRef(edge: NavigationEdge): string {
+  if (!edge.fromRef?.file) return "-";
+  const line = edge.fromRef.line !== undefined ? `:${edge.fromRef.line}` : "";
+  return `\`${escapeMarkdownCell(`${edge.fromRef.file}${line}`)}\``;
+}
+
 // ── Mermaid 렌더 ──────────────────────────────────────────────────────
 
 /** Mermaid 노드 ID로 사용 가능하도록 특수문자를 제거한다 */
@@ -106,19 +141,28 @@ function renderMermaid(appMap: AppMap): string {
 
   // 엣지 정의
   const unknownNode = "__unknown__";
+  const backNode = "__back__";
+  const globalNode = "__global__";
+  const screenIdSet = new Set(appMap.screens.map((s) => s.id));
   let hasUnknown = false;
+  let hasBack = false;
+  let hasGlobal = false;
 
   for (const edge of appMap.edges) {
-    const fromId = mermaidId(edge.from);
+    // 화면에 귀속되지 않은 from((global) 등)은 전역 노드로 표현
+    const isGlobalFrom = !screenIdSet.has(edge.from);
+    if (isGlobalFrom) hasGlobal = true;
+    const fromId = isGlobalFrom ? globalNode : mermaidId(edge.from);
+
     const rawLabel = edge.trigger.label ? edge.trigger.label : edge.action;
     const label = escapeMermaidLabel(rawLabel);
 
     if (edge.to === null) {
-      // 미해석 목적지
-      hasUnknown = true;
       if (edge.action === "pop") {
-        lines.push(`  ${fromId} -.->|"${label}"| [뒤로]`);
+        hasBack = true;
+        lines.push(`  ${fromId} -.->|"${label}"| ${backNode}`);
       } else {
+        hasUnknown = true;
         lines.push(`  ${fromId} -->|"${label}"| ${unknownNode}`);
       }
     } else {
@@ -133,6 +177,12 @@ function renderMermaid(appMap: AppMap): string {
 
   if (hasUnknown) {
     lines.push(`  ${unknownNode}["❓ 미확인"]`);
+  }
+  if (hasBack) {
+    lines.push(`  ${backNode}["↩ 뒤로"]`);
+  }
+  if (hasGlobal) {
+    lines.push(`  ${globalNode}["🌐 공통/전역"]`);
   }
 
   lines.push("```");
@@ -183,27 +233,15 @@ function renderScreenSection(
   // 이동 테이블
   if (screen.outgoing.length > 0) {
     lines.push("\n**이동 경로**:");
-    lines.push("| 트리거 | 동작 | 목적지 | 신뢰도 |");
-    lines.push("|--------|------|--------|--------|");
+    lines.push("| 트리거 | 동작 | 목적지 | 호출 위치 | 신뢰도 |");
+    lines.push("|--------|------|--------|-----------|--------|");
     for (const edge of screen.outgoing) {
-      const baseLabel = edge.trigger.label ?? edge.trigger.kind;
-      // bounds 있으면 `라벨 @(x,y) W×H` 형태 추가
-      const boundsInfo = edge.trigger.bounds
-        ? ` @${formatPosition(edge.trigger.bounds)} ${formatSize(edge.trigger.bounds)}`
-        : "";
-      // style 있으면 요약 추가
-      const styleInfo = edge.trigger.style ? ` [${formatStyle(edge.trigger.style)}]` : "";
-      const triggerCell = escapeMarkdownCell(`${baseLabel}${boundsInfo}${styleInfo}`);
+      const triggerCell = formatEdgeTrigger(edge);
       const action = escapeMarkdownCell(edge.action);
-      let dest: string;
-      if (edge.to === null) {
-        dest = "❓ 미확인";
-      } else {
-        const destAnchor = edge.to.toLowerCase().replace(/[^a-z0-9]/g, "-");
-        dest = `[${escapeMarkdownCell(edge.to)}](${docFileNameFn(edge.to)}#${destAnchor})`;
-      }
+      const dest = formatEdgeDest(edge, docFileNameFn);
+      const callSite = formatFromRef(edge);
       const conf = (edge.confidence * 100).toFixed(0) + "%";
-      lines.push(`| ${triggerCell} | ${action} | ${dest} | ${conf} |`);
+      lines.push(`| ${triggerCell} | ${action} | ${dest} | ${callSite} | ${conf} |`);
     }
   }
 
@@ -245,6 +283,27 @@ function renderIndex(appMap: AppMap, indexFileName: string): string {
     lines.push(`| ${link} | ${disc} | ${entry} | ${conf} |`);
   }
   lines.push("");
+
+  // 공통/전역 이동 — 어떤 화면에도 귀속되지 않은 엣지 (util/세션 만료 등)
+  const screenIdSet = new Set(appMap.screens.map((s) => s.id));
+  const globalEdges = appMap.edges.filter((e) => !screenIdSet.has(e.from));
+  if (globalEdges.length > 0) {
+    lines.push("## 공통/전역 이동");
+    lines.push("");
+    lines.push("어느 화면에서든 발생할 수 있는 이동입니다 (유틸/세션 로직 등에서 호출).");
+    lines.push("");
+    lines.push("| 발생 위치 | 트리거 | 동작 | 목적지 | 신뢰도 |");
+    lines.push("|-----------|--------|------|--------|--------|");
+    for (const edge of globalEdges) {
+      const origin = formatFromRef(edge);
+      const trigger = formatEdgeTrigger(edge);
+      const action = escapeMarkdownCell(edge.action);
+      const dest = formatEdgeDest(edge, () => indexFileName);
+      const conf = (edge.confidence * 100).toFixed(0) + "%";
+      lines.push(`| ${origin} | ${trigger} | ${action} | ${dest} | ${conf} |`);
+    }
+    lines.push("");
+  }
 
   // 진단
   if (appMap.diagnostics.length > 0) {

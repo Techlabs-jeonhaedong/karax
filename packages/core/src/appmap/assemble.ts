@@ -163,6 +163,12 @@ function enrichEdge(edge: NavigationEdge, elements: MapElement[]): NavigationEdg
     return edge;
   }
 
+  // 매칭 단서(elementRef/label)가 아예 없는 트리거(전역/시스템 이동)는
+  // 매칭 실패가 아니라 매칭 비대상 — diagnostic을 붙이지 않는다.
+  if (!edge.trigger.elementRef && !edge.trigger.label) {
+    return edge;
+  }
+
   // 매칭 실패 시 TRIGGER_UNMATCHED diagnostic 추가
   return {
     ...edge,

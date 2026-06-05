@@ -647,3 +647,99 @@ describe("renderAppMapMarkdown", () => {
     }
   });
 });
+
+// ── 단계 7: 보고서 개선 — fromRef·미해석 라우트·전역 이동 ────────────────────
+
+describe("renderAppMapMarkdown — 호출 위치(fromRef) 컬럼", () => {
+  it("outgoing 엣지에 fromRef가 있으면 이동 경로 테이블에 호출 위치가 표시된다", () => {
+    const appMap = makeAppMap();
+    appMap.screens[0]!.outgoing[0]!.fromRef = { file: "lib/screens/home.dart", line: 42 };
+    const docs = renderAppMapMarkdown(appMap);
+    const all = docs.map((d) => d.content).join("\n");
+    expect(all).toContain("lib/screens/home.dart:42");
+    expect(all).toContain("호출 위치");
+  });
+
+  it("fromRef가 없으면 호출 위치 셀이 '-'로 표시된다", () => {
+    const docs = renderAppMapMarkdown(makeAppMap());
+    const all = docs.map((d) => d.content).join("\n");
+    expect(all).toContain("호출 위치");
+  });
+});
+
+describe("renderAppMapMarkdown — 미해석 라우트(toRouteName) 표시", () => {
+  it("to=null이지만 toRouteName이 있으면 라우트 원문이 표시된다", () => {
+    const appMap = makeAppMap();
+    appMap.screens[0]!.outgoing.push({
+      from: "HomeScreen",
+      to: null,
+      toRouteName: "/payment",
+      action: "push",
+      trigger: { kind: "button", label: "Pay" },
+      confidence: 0.6,
+      diagnostics: [{ code: "UNRESOLVED_NAV", message: "x" }],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const all = docs.map((d) => d.content).join("\n");
+    expect(all).toContain("/payment");
+    expect(all).toContain("미해석");
+  });
+});
+
+describe("renderAppMapMarkdown — 전역/공통 이동 섹션", () => {
+  function withGlobalEdge(): AppMap {
+    const appMap = makeAppMap();
+    appMap.edges.push({
+      from: "(global)",
+      to: "HomeScreen",
+      action: "replace",
+      trigger: { kind: "system" },
+      confidence: 0.4,
+      diagnostics: [],
+      fromKind: "global",
+      fromRef: { file: "lib/util/session.dart", line: 10, symbol: "SessionUtil" },
+    });
+    return appMap;
+  }
+
+  it("화면에 귀속되지 않은 엣지가 '공통/전역 이동' 섹션에 표시된다", () => {
+    const docs = renderAppMapMarkdown(withGlobalEdge());
+    const all = docs.map((d) => d.content).join("\n");
+    expect(all).toContain("공통/전역 이동");
+    expect(all).toContain("lib/util/session.dart:10");
+  });
+
+  it("전역 엣지가 없으면 '공통/전역 이동' 섹션이 없다", () => {
+    const docs = renderAppMapMarkdown(makeAppMap());
+    const all = docs.map((d) => d.content).join("\n");
+    expect(all).not.toContain("공통/전역 이동");
+  });
+
+  it("Mermaid에 전역 노드가 구분 표시된다", () => {
+    const docs = renderAppMapMarkdown(withGlobalEdge());
+    const all = docs.map((d) => d.content).join("\n");
+    expect(all).toContain("__global__");
+  });
+});
+
+describe("renderAppMapMarkdown — Mermaid pop 노드 유효성", () => {
+  it("목적지 없는 pop 엣지는 유효한 뒤로가기 노드로 렌더된다", () => {
+    const docs = renderAppMapMarkdown(makeAppMap());
+    const all = docs.map((d) => d.content).join("\n");
+    // 노드 정의 없는 `| [뒤로]` 같은 invalid mermaid 구문이 없어야 함
+    expect(all).not.toMatch(/\|\s*\[뒤로\]/);
+    expect(all).toContain("__back__");
+  });
+});
+
+describe("renderAppMapMarkdown — fromRef 경로 이스케이핑 (마크다운 인젝션 방지)", () => {
+  it("파일 경로에 파이프가 있어도 테이블이 깨지지 않는다", () => {
+    const appMap = makeAppMap();
+    appMap.screens[0]!.outgoing[0]!.fromRef = { file: "lib/evil|path.dart", line: 1 };
+    const docs = renderAppMapMarkdown(appMap);
+    const all = docs.map((d) => d.content).join("\n");
+    // 파이프가 이스케이프되어야 함
+    expect(all).toContain("evil\\|path");
+    expect(all).not.toContain("| `lib/evil|path.dart:1` |");
+  });
+});

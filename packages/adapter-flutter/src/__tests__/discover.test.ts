@@ -268,3 +268,26 @@ describe("엣지 케이스", () => {
     expect(candidates).toHaveLength(0);
   });
 });
+
+// ── flutter-getx fixture — GetX 라우트 발견 ──────────────────────────────────
+
+describe("flutter-getx fixture — discoverScreens (GetPage)", () => {
+  it("GetPage에 등록된 화면 4개가 모두 route로 발견된다", async () => {
+    const ctx = fixtureCtx("flutter-getx");
+    const screens = await flutterAdapter.discoverScreens(ctx);
+    for (const id of ["SplashScreen", "HomeScreen", "DetailScreen", "SettingsScreen"]) {
+      const s = screenById(screens, id);
+      expect(s, `${id} should be discovered`).toBeDefined();
+      expect(s!.discovery).toBe("route");
+      expect(s!.confidence).toBe(1.0);
+      expect(s!.sourceRef?.file).toBeTruthy();
+    }
+  });
+
+  it("라우트 이름이 상수 참조(AppPath.X)여도 화면이 발견된다", async () => {
+    const ctx = fixtureCtx("flutter-getx");
+    const screens = await flutterAdapter.discoverScreens(ctx);
+    // AppPath.SETTINGS = '/settings' (single quote) 케이스 포함
+    expect(screenById(screens, "SettingsScreen")).toBeDefined();
+  });
+});
