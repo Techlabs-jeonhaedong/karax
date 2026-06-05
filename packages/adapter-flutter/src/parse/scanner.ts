@@ -122,9 +122,21 @@ export async function parseDartFile(
   packageName: string
 ): Promise<ParsedFile> {
   const source = await readFile(absolutePath, "utf-8");
-  const root = await parseSource("dart", source);
   const relPath = path.relative(projectPath, absolutePath);
   const fileDir = path.dirname(absolutePath);
+  return parseDartSource(source, relPath, { packageName, fileDir, projectPath });
+}
+
+/**
+ * 소스 문자열을 직접 파싱해 ParsedFile을 만든다. (fs 비의존 — 테스트에서 재사용)
+ * resolveCtx가 없으면 import는 resolved 없이 raw만 기록한다.
+ */
+export async function parseDartSource(
+  source: string,
+  relPath: string,
+  resolveCtx?: { packageName: string; fileDir: string; projectPath: string }
+): Promise<ParsedFile> {
+  const root = await parseSource("dart", source);
 
   // 클래스 선언 파싱
   const classDefs = findNodes(root, "class_definition");
@@ -152,7 +164,9 @@ export async function parseDartFile(
   const imports: ImportInfo[] = importSpecs.map((imp) => {
     const strLit = findNodes(imp, "string_literal")[0];
     const raw = strLit?.text ?? "";
-    const resolved = resolveImport(raw, packageName, fileDir, projectPath);
+    const resolved = resolveCtx
+      ? resolveImport(raw, resolveCtx.packageName, resolveCtx.fileDir, resolveCtx.projectPath)
+      : undefined;
     return { raw, resolved };
   });
 
@@ -172,26 +186,36 @@ export interface SymbolTable {
   stringConstants: Map<string, string>;
 }
 
-export async function buildSymbolTable(
-  projectPath: string,
-  packageName: string
-): Promise<SymbolTable> {
-  const dartFiles = await collectDartFiles(projectPath);
-  const table: SymbolTable = {
+/** 빈 SymbolTable을 생성한다. */
+export function createSymbolTable(): SymbolTable {
+  return {
     classes: new Map(),
     fileByClass: new Map(),
     files: new Map(),
     stringConstants: new Map(),
   };
+}
+
+/** ParsedFile을 테이블에 등록한다 (클래스 색인 + 문자열 상수 수집). */
+export function addParsedFile(table: SymbolTable, parsed: ParsedFile): void {
+  table.files.set(parsed.filePath, parsed);
+  for (const cls of parsed.classes) {
+    table.classes.set(cls.name, cls);
+    table.fileByClass.set(cls.name, parsed);
+  }
+  buildConstTable(parsed.root, parsed.filePath, table);
+}
+
+export async function buildSymbolTable(
+  projectPath: string,
+  packageName: string
+): Promise<SymbolTable> {
+  const dartFiles = await collectDartFiles(projectPath);
+  const table = createSymbolTable();
 
   for (const absPath of dartFiles) {
     const parsed = await parseDartFile(absPath, projectPath, packageName);
-    table.files.set(parsed.filePath, parsed);
-    for (const cls of parsed.classes) {
-      table.classes.set(cls.name, cls);
-      table.fileByClass.set(cls.name, parsed);
-    }
-    buildConstTable(parsed.root, parsed.filePath, table);
+    addParsedFile(table, parsed);
   }
 
   return table;
