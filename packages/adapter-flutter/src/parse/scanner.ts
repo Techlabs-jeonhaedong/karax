@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
 import { parseSource, type SyntaxNode } from "@karax/adapter-api";
+import { buildConstTable } from "./constResolver.js";
 
 // ── 타입 ──────────────────────────────────────────────────────────────────────
 
@@ -167,6 +168,8 @@ export interface SymbolTable {
   fileByClass: Map<string, ParsedFile>;
   /** 파일 상대경로 → ParsedFile */
   files: Map<string, ParsedFile>;
+  /** "ClassName.MEMBER" → 정적 문자열 상수 값 (constResolver가 채움) */
+  stringConstants: Map<string, string>;
 }
 
 export async function buildSymbolTable(
@@ -178,6 +181,7 @@ export async function buildSymbolTable(
     classes: new Map(),
     fileByClass: new Map(),
     files: new Map(),
+    stringConstants: new Map(),
   };
 
   for (const absPath of dartFiles) {
@@ -187,6 +191,7 @@ export async function buildSymbolTable(
       table.classes.set(cls.name, cls);
       table.fileByClass.set(cls.name, parsed);
     }
+    buildConstTable(parsed.root, parsed.filePath, table);
   }
 
   return table;
