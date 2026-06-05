@@ -311,3 +311,75 @@ describe("generateAppMap — measureScreenLayouts 실패 시 graceful degradatio
     60_000,
   );
 });
+
+// ── flutter-getx — 풀 파이프 통합 (discover→nav→assemble→markdown) ───────────
+
+describe("generateAppMap — flutter-getx (GetX 실전 패턴)", () => {
+  it("GetPage 화면 4개가 발견되고 entry가 SplashScreen이다", async () => {
+    const appMap = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-getx"),
+      framework: "flutter",
+      includeLayout: false,
+    });
+    const ids = appMap.screens.map((s) => s.id);
+    for (const id of ["SplashScreen", "HomeScreen", "DetailScreen", "SettingsScreen"]) {
+      expect(ids).toContain(id);
+    }
+    expect(appMap.entryScreenId).toBe("SplashScreen");
+  });
+
+  it("엣지가 6개 이상 추출되고 화면 outgoing에 분배된다", async () => {
+    const appMap = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-getx"),
+      framework: "flutter",
+      includeLayout: false,
+    });
+    expect(appMap.edges.length).toBeGreaterThanOrEqual(6);
+
+    const splash = appMap.screens.find((s) => s.id === "SplashScreen");
+    expect(splash?.outgoing.some((e) => e.to === "HomeScreen")).toBe(true);
+
+    const home = appMap.screens.find((s) => s.id === "HomeScreen");
+    expect(home?.outgoing.some((e) => e.to === "DetailScreen")).toBe(true);
+    expect(home?.outgoing.some((e) => e.to === "SettingsScreen")).toBe(true);
+  });
+
+  it("전역(util) 엣지가 보존되고 fromKind=global이다", async () => {
+    const appMap = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-getx"),
+      framework: "flutter",
+      includeLayout: false,
+    });
+    const globalEdge = appMap.edges.find((e) => e.fromKind === "global");
+    expect(globalEdge).toBeDefined();
+    expect(globalEdge!.to).toBe("SplashScreen");
+  });
+
+  it("모든 엣지에 fromRef가 있고 zod 스키마를 통과한다", async () => {
+    const { AppMapSchema } = await import("@karax/core");
+    const appMap = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-getx"),
+      framework: "flutter",
+      includeLayout: false,
+    });
+    expect(() => AppMapSchema.parse(appMap)).not.toThrow();
+    for (const edge of appMap.edges) {
+      expect(edge.fromRef?.file).toBeTruthy();
+    }
+  });
+
+  it("markdown 렌더에 이동 경로·호출 위치·전역 이동이 포함된다", async () => {
+    const { renderAppMapMarkdown } = await import("@karax/core");
+    const appMap = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-getx"),
+      framework: "flutter",
+      includeLayout: false,
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const all = docs.map((d) => d.content).join("\n");
+    expect(all).toContain("호출 위치");
+    expect(all).toContain("공통/전역 이동");
+    expect(all).toContain("Open Detail");
+    expect(all).toContain("lib/controller/home_controller.dart");
+  });
+});
