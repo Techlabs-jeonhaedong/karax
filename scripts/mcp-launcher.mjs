@@ -10,13 +10,14 @@
  */
 
 import { spawnSync, spawn } from "node:child_process";
-import { existsSync, readFileSync, writeSync, unlinkSync, openSync, closeSync } from "node:fs";
+import { existsSync, readFileSync, writeSync, unlinkSync, openSync, closeSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // ─── 경로 계산 ───────────────────────────────────────────────────────
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+// realpathSync로 symlink를 실제 경로로 정규화해 경로 우회 공격 방지
+const ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const MCP_BIN = join(ROOT, "packages/mcp/dist/bin.js");
 // 루트에 락 파일 배치 — node_modules 안에 두면 ensureNodeModulesDir가 빈 디렉토리를 만들어
 // isInstalled() 재체크 시 installed=true로 오판하는 문제가 생긴다
@@ -141,6 +142,49 @@ async function acquireLock() {
 // ─── install / build 실행 ────────────────────────────────────────────
 
 /**
+ * pnpm/corepack 실행에 필요한 최소 env를 구성한다.
+ * process.env 전체를 서브프로세스에 전파하지 않아 민감한 환경 변수 노출을 방지한다.
+ * @returns {Record<string, string>}
+ */
+function buildMinimalEnv() {
+  const e = process.env;
+  /** @type {Record<string, string>} */
+  const env = {};
+
+  // 공통 필수 항목
+  const common = ["PATH", "HOME", "TMPDIR", "TEMP", "TMP", "LANG", "LC_ALL"];
+  for (const key of common) {
+    if (e[key] !== undefined) env[key] = e[key];
+  }
+
+  // Node.js / pnpm / corepack 관련
+  const nodeKeys = [
+    "NODE_PATH", "NODE_OPTIONS",
+    "npm_config_user_agent",
+    "PNPM_HOME",
+    "COREPACK_HOME",
+  ];
+  for (const key of nodeKeys) {
+    if (e[key] !== undefined) env[key] = e[key];
+  }
+
+  // Windows 전용 필수 항목
+  if (process.platform === "win32") {
+    const winKeys = [
+      "SystemRoot", "COMSPEC",
+      "APPDATA", "LOCALAPPDATA",
+      "USERPROFILE",
+      "ProgramFiles", "ProgramFiles(x86)",
+    ];
+    for (const key of winKeys) {
+      if (e[key] !== undefined) env[key] = e[key];
+    }
+  }
+
+  return env;
+}
+
+/**
  * spawnSync로 명령 실행. stdout을 stderr로 리다이렉트.
  * @param {string} cmd
  * @param {string[]} args
@@ -148,6 +192,9 @@ async function acquireLock() {
  */
 function runSync(cmd, args, cwd) {
   const isWin = process.platform === "win32";
+  // env 최소화: pnpm/corepack 동작에 필요한 항목만 명시 전달
+  // (프로세스 전체 env를 서브프로세스에 전파하지 않아 환경 변수 누수 방지)
+  const minimalEnv = buildMinimalEnv();
   const result = spawnSync(cmd, args, {
     cwd,
     // stdout → stderr (MCP 프로토콜 채널 보호), stderr → 그대로
@@ -155,7 +202,7 @@ function runSync(cmd, args, cwd) {
     // Windows에서 .cmd 래퍼(corepack/pnpm)는 CVE-2024-27980 패치 이후
     // shell 없이 spawnSync하면 EINVAL 발생. 인자는 전부 하드코딩 상수라 injection 불가.
     shell: isWin,
-    env: process.env,
+    env: minimalEnv,
   });
 
   if (result.error) {

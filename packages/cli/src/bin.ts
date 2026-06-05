@@ -10,6 +10,7 @@
 
 import { Command } from "commander";
 import { fileURLToPath } from "node:url";
+import { realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import {
   EXIT_CODES,
@@ -23,7 +24,8 @@ import {
 import type { DeviceProfileId } from "@karax/sdk";
 
 // repo 루트: packages/cli/dist/bin.js → ../../../ (= repo root)
-const __filename = fileURLToPath(import.meta.url);
+// realpathSync로 symlink를 실제 경로로 정규화해 경로 우회 공격 방지
+const __filename = realpathSync(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(dirname(__filename), "../../..");
 
 // SDK 는 커맨드 핸들러에서 동적으로 import (초기 로드 최소화)
