@@ -178,6 +178,8 @@ interface NavCallInfo {
   routeName?: string;
   /** 해당 Navigator 호출이 속한 onPressed/onTap 값 노드 */
   handlerValueNode?: SyntaxNode;
+  /** onPressed/onTap named_argument 노드의 1-based 라인 */
+  triggerLine?: number;
 }
 
 /**
@@ -272,11 +274,15 @@ function scanNavCalls(root: SyntaxNode, routeMap: Map<string, string>): NavCallI
     );
     if (!handlerValue) continue;
 
+    // named_argument 노드 자체의 라인(1-based)을 트리거 라인으로 사용
+    const triggerLine = na.startPosition.row + 1;
+
     const calls = extractNavCallsFromHandler(handlerValue, routeMap);
     for (const call of calls) {
       results.push({
         ...call,
         handlerValueNode: handlerValue,
+        triggerLine,
       });
     }
   }
@@ -382,9 +388,15 @@ export async function discoverFlutterNavGraph(
         ? findButtonLabelForHandlerValue(call.handlerValueNode)
         : undefined;
 
+      // elementRef: 트리거 위젯(onPressed/onTap named_argument)의 위치
+      const elementRef: TriggerInfo["elementRef"] = call.triggerLine !== undefined
+        ? { file: parsedFile.filePath, line: call.triggerLine }
+        : undefined;
+
       const trigger: TriggerInfo = {
         kind: "button",
         ...(label ? { label } : {}),
+        ...(elementRef ? { elementRef } : {}),
       };
 
       if (call.kind === "push" && call.targetClass) {
@@ -443,7 +455,7 @@ export async function discoverFlutterNavGraph(
           from: mainClass,
           to: null,
           action: "pop",
-          trigger: { kind: "back" },
+          trigger: { kind: "back", ...(elementRef ? { elementRef } : {}) },
           confidence: 1.0,
           diagnostics: [],
         });

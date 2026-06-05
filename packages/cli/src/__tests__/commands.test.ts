@@ -259,6 +259,28 @@ describe("parseMapArgs", () => {
     const result = parseMapArgs(["/p", "--max-chars", "500"]);
     expect(result.maxChars).toBe(500);
   });
+
+  it("기본값으로 layout=true이다", () => {
+    const result = parseMapArgs(["/p"]);
+    expect(result.layout).toBe(true);
+  });
+
+  it("--no-layout 플래그로 layout=false가 된다", () => {
+    const result = parseMapArgs(["/p", "--no-layout"]);
+    expect(result.layout).toBe(false);
+  });
+
+  it("--no-layout과 --out을 함께 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--no-layout", "--out", "/tmp/out"]);
+    expect(result.layout).toBe(false);
+    expect(result.out).toBe("/tmp/out");
+  });
+
+  it("--no-layout과 --json을 함께 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--no-layout", "--json"]);
+    expect(result.layout).toBe(false);
+    expect(result.json).toBe(true);
+  });
 });
 
 // ─── EXIT_CODES ────────────────────────────────────────────────────

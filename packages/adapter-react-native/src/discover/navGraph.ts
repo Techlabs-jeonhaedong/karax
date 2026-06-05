@@ -87,8 +87,9 @@ function extractNavCallsFromHandler(handlerNode: SyntaxNode): NavCallInfo[] {
 function scanOnPressHandlers(root: SyntaxNode): Array<{
   calls: NavCallInfo[];
   label?: string;
+  triggerLine?: number;
 }> {
-  const results: Array<{ calls: NavCallInfo[]; label?: string }> = [];
+  const results: Array<{ calls: NavCallInfo[]; label?: string; triggerLine?: number }> = [];
 
   // JSX attribute에서 onPress를 찾는다
   const attrs = findNodes(root, "jsx_attribute");
@@ -109,6 +110,9 @@ function scanOnPressHandlers(root: SyntaxNode): Array<{
 
     const calls = extractNavCallsFromHandler(handlerNode);
     if (calls.length === 0) continue;
+
+    // onPress attr 자체의 1-based 라인을 트리거 라인으로 사용
+    const triggerLine = attr.startPosition.row + 1;
 
     // 라벨 탐색: 이 attr의 상위 JSX 요소에서 title 또는 Text 자식 추출
     let label: string | undefined;
@@ -149,7 +153,7 @@ function scanOnPressHandlers(root: SyntaxNode): Array<{
     }
 
     for (const call of calls) {
-      results.push({ calls: [call], label });
+      results.push({ calls: [call], label, triggerLine });
     }
   }
 
@@ -227,11 +231,17 @@ export async function discoverRNNavGraph(
     const fromId = comp.name;
 
     const handlers = scanOnPressHandlers(parsedFile.root);
-    for (const { calls: handlerCalls, label } of handlers) {
+    for (const { calls: handlerCalls, label, triggerLine } of handlers) {
+      // elementRef: onPress attr의 위치
+      const elementRef: TriggerInfo["elementRef"] = triggerLine !== undefined
+        ? { file: parsedFile.filePath, line: triggerLine }
+        : undefined;
+
       for (const call of handlerCalls) {
         const trigger: TriggerInfo = {
           kind: "button",
           ...(label ? { label } : {}),
+          ...(elementRef ? { elementRef } : {}),
         };
 
         if (call.kind === "navigate" || call.kind === "push") {
@@ -270,7 +280,7 @@ export async function discoverRNNavGraph(
             from: fromId,
             to: null,
             action: "pop",
-            trigger: { kind: "back" },
+            trigger: { kind: "back", ...(elementRef ? { elementRef } : {}) },
             confidence: 1.0,
             diagnostics: [],
           });
