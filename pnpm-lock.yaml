@@ -305,6 +305,9 @@ importers:
       '@sfc/core':
         specifier: workspace:*
         version: link:../core
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -324,6 +327,9 @@ importers:
       '@sfc/sdk':
         specifier: workspace:*
         version: link:../sdk
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.0.0

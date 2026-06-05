@@ -345,3 +345,27 @@ export function captureAll(opts: AnalyzeOptions & { outDir: string }):
 - `packages/renderer/src/html/irToHtml.ts` — IR→HTML/CSS 매핑 (렌더 품질의 핵심)
 - `packages/adapter-flutter/src/index.ts` — 첫 세로 슬라이스 어댑터
 - `packages/sdk/src/index.ts` — 공개 API 조립
+
+---
+
+## 배포 전략 결정: no-npm (2026-06-05)
+
+**결정**: npm 배포 없이 git clone만으로 MCP 서버를 사용할 수 있게 만든다.
+
+**배경**: `@sfc/mcp`를 npm에 발행하지 않기로 결정. playwright Chromium·tree-sitter-wasms·esbuild 네이티브 바이너리 때문에 node_modules가 어차피 필요해 "패키지만 설치"로는 해결 불가.
+
+**채택 방식**: 자가 부트스트랩 런처 + `.mcp.json` + 사전 setup 스크립트 하이브리드
+- `scripts/mcp-launcher.mjs`: 외부 의존성 0. node_modules/dist 상태 검사 → 없으면 pnpm install + pnpm -r build → `packages/mcp/dist/bin.js`로 stdio 핸드오프
+- `.mcp.json`: Claude Code 자동 인식용. `{ command: "node", args: ["scripts/mcp-launcher.mjs"] }`
+- `scripts/setup.mjs`: 첫 실행 지연 제거용 사전 워밍업 (`pnpm bootstrap`)
+- `packages/cli/src/bin.ts`: `runMcpConfig()`가 절대경로 기반 런처 스니펫 출력으로 변경
+
+**기각된 대안**:
+- 번들 커밋(C): playwright Chromium 바이너리가 플랫폼별로 달라 범용 불가
+- tsx 직접 실행(D): exports가 dist 기준이라 install이 여전히 필요
+- npm 발행: 배포 유지보수 오버헤드 + 플랫폼별 바이너리 문제
+
+**주요 수정 파일**:
+- `scripts/lib/bootstrap.mjs`: isInstalled/isBuilt/isStale/planSteps/resolvePnpmCommand 순수 결정 로직
+- `scripts/__tests__/bootstrap.test.ts`: 24개 단위 테스트 (TDD)
+- `packages/doctor/src/ensure.ts`: ensureChromium()의 stdio "inherit" → `{ stdin:"ignore", stdout:process.stderr, stderr:"inherit" }` (MCP stdout 오염 차단)

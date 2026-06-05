@@ -5,8 +5,10 @@
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "test": "pnpm -r test && pnpm test:scripts",
+    "test:scripts": "vitest run --config scripts/vitest.config.ts",
+    "typecheck": "pnpm -r typecheck",
+    "bootstrap": "node scripts/setup.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
