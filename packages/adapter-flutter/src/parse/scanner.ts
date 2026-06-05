@@ -11,6 +11,7 @@ export interface ClassInfo {
   line: number;       // 1-based
   superclass: string; // 단순 이름 (type_arguments 제외)
   stateOf?: string;   // State<X> 패턴인 경우 X의 클래스명
+  superTypeArg?: string; // superclass 첫 번째 타입 인자 (GetView<T>, State<X> 등)
 }
 
 export interface ImportInfo {
@@ -146,17 +147,20 @@ export async function parseDartSource(
     const superclass = superclassNode ? findChild(superclassNode, "type_identifier")?.text ?? "" : "";
     const line = cls.startPosition.row + 1;
 
-    // State<ScreenClassName> 패턴에서 stateOf 추출
-    let stateOf: string | undefined;
-    if (superclass === "State" && superclassNode) {
+    // superclass 첫 번째 타입 인자 (State<X>, GetView<T> 등)
+    let superTypeArg: string | undefined;
+    if (superclassNode) {
       const typeArgs = findChild(superclassNode, "type_arguments");
       if (typeArgs) {
         const typeId = findNodes(typeArgs, "type_identifier")[0];
-        stateOf = typeId?.text;
+        superTypeArg = typeId?.text;
       }
     }
 
-    return { name, file: relPath, line, superclass, stateOf };
+    // State<ScreenClassName> 패턴에서 stateOf 추출
+    const stateOf = superclass === "State" ? superTypeArg : undefined;
+
+    return { name, file: relPath, line, superclass, stateOf, superTypeArg };
   });
 
   // import 파싱
