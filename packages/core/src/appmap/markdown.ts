@@ -12,6 +12,33 @@ export interface RenderOptions {
   maxChars?: number;
 }
 
+// ── 이스케이핑 헬퍼 ──────────────────────────────────────────────────
+
+/**
+ * Mermaid 노드 라벨 이스케이핑
+ * - `"` → `#quot;`
+ * - `[` / `]` → `(` / `)` (Mermaid 노드 구문 보호)
+ * - 개행 → 공백
+ */
+function escapeMermaidLabel(label: string): string {
+  return label
+    .replace(/\r?\n/g, " ")
+    .replace(/"/g, "#quot;")
+    .replace(/\[/g, "(")
+    .replace(/\]/g, ")");
+}
+
+/**
+ * 마크다운 테이블 셀 이스케이핑
+ * - `|` → `\|`
+ * - 개행 → 공백
+ */
+function escapeMarkdownCell(value: string): string {
+  return value
+    .replace(/\r?\n/g, " ")
+    .replace(/\|/g, "\\|");
+}
+
 // ── Mermaid 렌더 ──────────────────────────────────────────────────────
 
 /** Mermaid 노드 ID로 사용 가능하도록 특수문자를 제거한다 */
@@ -25,8 +52,8 @@ function renderMermaid(appMap: AppMap): string {
   // 노드 정의
   for (const screen of appMap.screens) {
     const mid = mermaidId(screen.id);
-    const label = screen.title ?? screen.id;
-    const nodeLabel = screen.isEntry ? `🏠 ${label}` : label;
+    const rawLabel = screen.title ?? screen.id;
+    const nodeLabel = escapeMermaidLabel(screen.isEntry ? `🏠 ${rawLabel}` : rawLabel);
     lines.push(`  ${mid}["${nodeLabel}"]`);
   }
 
@@ -36,7 +63,8 @@ function renderMermaid(appMap: AppMap): string {
 
   for (const edge of appMap.edges) {
     const fromId = mermaidId(edge.from);
-    const label = edge.trigger.label ? edge.trigger.label : edge.action;
+    const rawLabel = edge.trigger.label ? edge.trigger.label : edge.action;
+    const label = escapeMermaidLabel(rawLabel);
 
     if (edge.to === null) {
       // 미해석 목적지
@@ -75,9 +103,9 @@ function renderScreenSection(
   const lines: string[] = [];
   const anchor = screen.id.toLowerCase().replace(/[^a-z0-9]/g, "-");
 
-  lines.push(`\n### ${screen.id} {#${anchor}}`);
+  lines.push(`\n### ${escapeMarkdownCell(screen.id)} {#${anchor}}`);
   if (screen.title && screen.title !== screen.id) {
-    lines.push(`**타이틀**: ${screen.title}`);
+    lines.push(`**타이틀**: ${escapeMarkdownCell(screen.title)}`);
   }
 
   const discoveryLabel = screen.discovery === "route" ? "라우트 발견" : "후보 (heuristic)";
@@ -98,7 +126,7 @@ function renderScreenSection(
     lines.push("| 타입 | 라벨 |");
     lines.push("|------|------|");
     for (const elem of interactiveElements) {
-      lines.push(`| ${elem.type} | ${elem.label ?? "-"} |`);
+      lines.push(`| ${escapeMarkdownCell(elem.type)} | ${escapeMarkdownCell(elem.label ?? "-")} |`);
     }
   }
 
@@ -108,14 +136,14 @@ function renderScreenSection(
     lines.push("| 트리거 | 동작 | 목적지 | 신뢰도 |");
     lines.push("|--------|------|--------|--------|");
     for (const edge of screen.outgoing) {
-      const triggerLabel = edge.trigger.label ?? edge.trigger.kind;
-      const action = edge.action;
+      const triggerLabel = escapeMarkdownCell(edge.trigger.label ?? edge.trigger.kind);
+      const action = escapeMarkdownCell(edge.action);
       let dest: string;
       if (edge.to === null) {
         dest = "❓ 미확인";
       } else {
         const destAnchor = edge.to.toLowerCase().replace(/[^a-z0-9]/g, "-");
-        dest = `[${edge.to}](${docFileNameFn(edge.to)}#${destAnchor})`;
+        dest = `[${escapeMarkdownCell(edge.to)}](${docFileNameFn(edge.to)}#${destAnchor})`;
       }
       const conf = (edge.confidence * 100).toFixed(0) + "%";
       lines.push(`| ${triggerLabel} | ${action} | ${dest} | ${conf} |`);
@@ -130,7 +158,7 @@ function renderScreenSection(
 function renderIndex(appMap: AppMap, indexFileName: string): string {
   const lines: string[] = [];
 
-  lines.push(`# ${appMap.appName} — 프로그램 지도`);
+  lines.push(`# ${escapeMarkdownCell(appMap.appName)} — 프로그램 지도`);
   lines.push("");
   lines.push(`- **프레임워크**: ${appMap.framework}`);
   lines.push(`- **화면 수**: ${appMap.screens.length}`);
@@ -153,7 +181,7 @@ function renderIndex(appMap: AppMap, indexFileName: string): string {
 
   for (const screen of appMap.screens) {
     const anchor = screen.id.toLowerCase().replace(/[^a-z0-9]/g, "-");
-    const link = `[${screen.id}](#${anchor})`;
+    const link = `[${escapeMarkdownCell(screen.id)}](#${anchor})`;
     const disc = screen.discovery === "route" ? "route" : "candidate";
     const entry = screen.isEntry ? "✓" : "-";
     const conf = (screen.confidence * 100).toFixed(0) + "%";

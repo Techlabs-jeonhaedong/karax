@@ -21,6 +21,7 @@ import {
   ensureDependencies,
   generateAppMap,
 } from "@sfc/sdk";
+import { renderAppMapMarkdown } from "@sfc/core";
 import type { FrameworkId, DeviceProfileId, CaptureMode } from "@sfc/sdk";
 
 // ── 입력 스키마 (zod) ────────────────────────────────────────────────
@@ -396,14 +397,27 @@ export function createMcpServer(): McpServer {
           projectPath,
           ...(framework ? { framework: framework as FrameworkId } : {}),
         });
-        return {
-          content: [
+
+        const docs = renderAppMapMarkdown(appMap);
+        const summaryContent = {
+          type: "text" as const,
+          text: JSON.stringify(
             {
-              type: "text" as const,
-              text: JSON.stringify({ appMap }, null, 2),
+              appMap,
+              documentCount: docs.length,
+              fileNames: docs.map((d) => d.fileName),
             },
-          ],
+            null,
+            2
+          ),
         };
+
+        const docContents = docs.map((doc) => ({
+          type: "text" as const,
+          text: `# ${doc.fileName}\n\n${doc.content}`,
+        }));
+
+        return { content: [summaryContent, ...docContents] };
       } catch (e) {
         return errorContent(`generate_app_map 오류: ${wrapError(e)}`);
       }

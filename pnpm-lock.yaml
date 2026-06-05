@@ -324,6 +324,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.0
         version: 1.29.0(zod@3.25.76)
+      '@sfc/core':
+        specifier: workspace:*
+        version: link:../core
       '@sfc/sdk':
         specifier: workspace:*
         version: link:../sdk

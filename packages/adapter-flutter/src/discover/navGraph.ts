@@ -15,74 +15,12 @@ import type { NavigationGraph, NavigationEdge, TriggerInfo } from "@sfc/core";
 import type { SymbolTable } from "../parse/scanner.js";
 import { findNodes, findChild, filterChildren } from "../parse/scanner.js";
 import { readPackageName } from "../parse/pubspec.js";
-
-// ── AST 유틸 ────────────────────────────────────────────────────────────────
-
-function findByIdentifier(
-  node: SyntaxNode,
-  name: string,
-  results: SyntaxNode[] = []
-): SyntaxNode[] {
-  if (node.type === "identifier" && node.text === name) results.push(node);
-  for (const child of node.children) {
-    if (child) findByIdentifier(child, name, results);
-  }
-  return results;
-}
-
-function getNamedArg(
-  argsNode: SyntaxNode,
-  label: string
-): SyntaxNode | undefined {
-  const namedArgs = findNodes(argsNode, "named_argument");
-  for (const na of namedArgs) {
-    const labelNode = findChild(na, "label");
-    const id = labelNode ? findChild(labelNode, "identifier") : undefined;
-    if (id?.text === label) {
-      return (
-        na.children.find(
-          (c): c is SyntaxNode => c !== null && c.type !== "label"
-        ) ?? undefined
-      );
-    }
-  }
-  return undefined;
-}
-
-function extractWidgetClassFromBuilder(node: SyntaxNode): string | undefined {
-  const body = findNodes(node, "function_expression_body")[0];
-  if (body) {
-    const constObj = findNodes(body, "const_object_expression")[0];
-    if (constObj) {
-      return findChild(constObj, "type_identifier")?.text;
-    }
-    const firstId = body.children.find(
-      (c): c is SyntaxNode => c !== null && c.type === "identifier"
-    );
-    if (firstId) return firstId.text;
-  }
-  const retStmts = findNodes(node, "return_statement");
-  for (const ret of retStmts) {
-    const constObj = findNodes(ret, "const_object_expression")[0];
-    if (constObj) {
-      return findChild(constObj, "type_identifier")?.text;
-    }
-    const firstId = ret.children.find(
-      (c): c is SyntaxNode => c !== null && c.type === "identifier"
-    );
-    if (firstId && firstId.text !== "return") return firstId.text;
-  }
-  return undefined;
-}
-
-/** MaterialPageRoute args에서 위젯 클래스명 추출 */
-export function extractFromMaterialPageRoute(
-  mprArgs: SyntaxNode
-): string | undefined {
-  const builderArg = getNamedArg(mprArgs, "builder");
-  if (!builderArg) return undefined;
-  return extractWidgetClassFromBuilder(builderArg);
-}
+import {
+  findByIdentifier,
+  getNamedArg,
+  extractWidgetClassFromBuilder,
+  extractFromMaterialPageRoute,
+} from "./routeGraph.js";
 
 // ── routes 테이블 파싱 (route → className 맵) ──────────────────────────────
 

@@ -343,6 +343,7 @@ program
         // 마크다운 렌더링 후 파일 저장
         const { renderAppMapMarkdown } = await import("@sfc/core");
         const { mkdir, writeFile } = await import("fs/promises");
+        const path = await import("path");
         const outDir = args.out ?? ".";
 
         const docs = renderAppMapMarkdown(appMap, {
@@ -351,8 +352,16 @@ program
 
         await mkdir(outDir, { recursive: true });
 
+        const resolvedOutDir = path.resolve(outDir);
+
         for (const doc of docs) {
-          const filePath = `${outDir}/${doc.fileName}`;
+          // path.basename으로 경로 탈출 방어 — doc.fileName은 항상 단순 파일명이어야 함
+          const safeFileName = path.basename(doc.fileName);
+          const filePath = path.resolve(resolvedOutDir, safeFileName);
+          // outDir 내부인지 검증
+          if (!filePath.startsWith(resolvedOutDir + path.sep) && filePath !== resolvedOutDir) {
+            throw new Error(`경로 탈출 감지: ${doc.fileName}`);
+          }
           await writeFile(filePath, doc.content, "utf-8");
           console.log(`생성됨: ${filePath}`);
         }

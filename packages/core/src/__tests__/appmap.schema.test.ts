@@ -157,9 +157,9 @@ describe("AppMap schema", () => {
       expect(sanitizeAppName("  MyApp  ")).toBe("MyApp");
     });
 
-    it("빈 문자열이면 unnamed를 반환한다", () => {
-      expect(sanitizeAppName("")).toBe("unnamed");
-      expect(sanitizeAppName("   ")).toBe("unnamed");
+    it("빈 문자열이면 app을 반환한다", () => {
+      expect(sanitizeAppName("")).toBe("app");
+      expect(sanitizeAppName("   ")).toBe("app");
     });
 
     it("특수문자를 처리한다", () => {
@@ -168,6 +168,38 @@ describe("AppMap schema", () => {
 
     it("이모지와 한글을 그대로 유지한다", () => {
       expect(sanitizeAppName("내앱")).toBe("내앱");
+    });
+
+    // ── 악성 입력 보안 케이스 ─────────────────────────────────────────
+    it("경로 탈출 시퀀스(..)를 차단한다 — 결과에 / \\ .. 미포함", () => {
+      const result = sanitizeAppName("../../etc/passwd");
+      expect(result).not.toContain("..");
+      expect(result).not.toContain("/");
+      expect(result).not.toContain("\\");
+      // 보안: 결과가 빈 문자열이 아니어야 함
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("절대경로 형태를 차단한다 (/abs/path) — 결과에 / 미포함", () => {
+      const result = sanitizeAppName("/abs/path");
+      expect(result).not.toContain("/");
+      expect(result).not.toContain("..");
+    });
+
+    it("Windows 드라이브 경로를 차단한다 (C:\\Windows) — 결과에 \\ : 미포함", () => {
+      const result = sanitizeAppName("C:\\Windows");
+      expect(result).not.toContain("\\");
+      expect(result).not.toContain(":");
+    });
+
+    it("널바이트를 제거한다", () => {
+      // 널바이트 후 유효한 이름이 남으면 그 이름 반환
+      expect(sanitizeAppName("app\x00x")).toBe("appx");
+    });
+
+    it("순수 경로 구분자만 있으면 app을 반환한다", () => {
+      expect(sanitizeAppName("/")).toBe("app");
+      expect(sanitizeAppName("\\")).toBe("app");
     });
   });
 });

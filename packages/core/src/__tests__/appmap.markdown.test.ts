@@ -236,4 +236,131 @@ describe("renderAppMapMarkdown", () => {
     const docs = renderAppMapMarkdown(appMap);
     expect(docs[0]!.content).toContain("NAV_UNSUPPORTED");
   });
+
+  // ── 이스케이핑 보안 케이스 ────────────────────────────────────────
+  it("라벨에 파이프(|)가 있어도 테이블 구조가 깨지지 않는다", () => {
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [{ type: "Button", label: "OK | Cancel" }],
+          outgoing: [
+            {
+              from: "HomeScreen",
+              to: "DetailScreen",
+              action: "push",
+              trigger: { kind: "button", label: "Go | Next" },
+              confidence: 1.0,
+              diagnostics: [],
+            },
+          ],
+        },
+        {
+          id: "DetailScreen",
+          discovery: "route",
+          isEntry: false,
+          confidence: 1.0,
+          elements: [],
+          outgoing: [],
+        },
+      ],
+      edges: [
+        {
+          from: "HomeScreen",
+          to: "DetailScreen",
+          action: "push",
+          trigger: { kind: "button", label: "Go | Next" },
+          confidence: 1.0,
+          diagnostics: [],
+        },
+      ],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs[0]!.content;
+    // \| 형태로 이스케이핑되어야 함
+    expect(content).toContain("\\|");
+    // 각 테이블 행이 정확히 파이프로 시작하고 끝나야 함 (구조 깨짐 없음)
+    const tableRows = content.split("\n").filter((l) => l.startsWith("|"));
+    for (const row of tableRows) {
+      // 테이블 행은 |로 끝나야 함
+      expect(row.endsWith("|")).toBe(true);
+    }
+  });
+
+  it('라벨에 큰따옴표(")가 있어도 Mermaid 구조가 깨지지 않는다', () => {
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          title: 'Home "Main" Screen',
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [],
+          outgoing: [],
+        },
+      ],
+      edges: [
+        {
+          from: "HomeScreen",
+          to: null,
+          action: "push",
+          trigger: { kind: "button", label: 'Click "here"' },
+          confidence: 0.5,
+          diagnostics: [],
+        },
+      ],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs[0]!.content;
+    // #quot; 로 이스케이핑되어야 함
+    expect(content).toContain("#quot;");
+    // Mermaid 블록이 존재해야 함
+    expect(content).toContain("```mermaid");
+  });
+
+  it("라벨에 개행이 있어도 Mermaid/테이블 구조가 깨지지 않는다", () => {
+    const appMap = makeAppMap({
+      edges: [
+        {
+          from: "HomeScreen",
+          to: "DetailScreen",
+          action: "push",
+          trigger: { kind: "button", label: "Line1\nLine2" },
+          confidence: 1.0,
+          diagnostics: [],
+        },
+      ],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs[0]!.content;
+    // 개행이 공백으로 치환되어 단일 라인 유지
+    expect(content).toContain("Line1 Line2");
+  });
+
+  it("라벨에 마크다운 링크 문법이 있어도 테이블 셀이 올바르게 렌더된다", () => {
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [{ type: "Button", label: "[Click Me](http://evil.com)" }],
+          outgoing: [],
+        },
+      ],
+      edges: [],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs[0]!.content;
+    // 파이프는 없지만 개행도 없어야 함
+    const tableRows = content.split("\n").filter((l) => l.startsWith("|"));
+    for (const row of tableRows) {
+      expect(row.endsWith("|")).toBe(true);
+    }
+  });
 });

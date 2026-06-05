@@ -495,16 +495,27 @@ describe("MCP 서버 — generate_app_map tool", () => {
 
     expect(result.isError).toBeFalsy();
 
-    const text = (result.content as Array<{ type: string; text: string }>).find(
-      (c) => c.type === "text"
-    );
-    expect(text).toBeDefined();
+    const contents = result.content as Array<{ type: string; text: string }>;
 
-    const parsed = JSON.parse(text!.text);
+    // 첫 번째 content: 요약 JSON
+    const summaryText = contents[0];
+    expect(summaryText).toBeDefined();
+    expect(summaryText!.type).toBe("text");
+
+    const parsed = JSON.parse(summaryText!.text);
     expect(parsed.appMap).toBeDefined();
     expect(parsed.appMap.schemaVersion).toBe("appmap/1");
     expect(Array.isArray(parsed.appMap.screens)).toBe(true);
     expect(parsed.appMap.screens.length).toBeGreaterThan(0);
+    expect(typeof parsed.documentCount).toBe("number");
+    expect(parsed.documentCount).toBeGreaterThanOrEqual(1);
+
+    // 두 번째 이후 content: 마크다운 문서 본문 (mermaid 블록 포함)
+    const markdownContents = contents.slice(1);
+    expect(markdownContents.length).toBeGreaterThanOrEqual(1);
+    const combinedMarkdown = markdownContents.map((c) => c.text).join("\n");
+    expect(combinedMarkdown).toContain("```mermaid");
+    expect(combinedMarkdown).toContain("flowchart TD");
   }, 30_000);
 
   it("projectPath 누락 → isError", async () => {

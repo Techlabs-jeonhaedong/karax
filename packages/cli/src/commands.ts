@@ -175,8 +175,14 @@ export function parseMapArgs(argv: string[]): MapArgs {
   prog.parse(["node", "map", ...argv]);
 
   const opts = prog.opts<{ out?: string; maxChars?: string; json: boolean }>();
-  const maxChars =
-    opts.maxChars !== undefined ? parseInt(opts.maxChars, 10) : undefined;
+  let maxChars: number | undefined;
+  if (opts.maxChars !== undefined) {
+    const parsed = parseInt(opts.maxChars, 10);
+    if (isNaN(parsed) || parsed < 500) {
+      throw new Error(`--max-chars는 500 이상이어야 합니다 (입력값: ${opts.maxChars})`);
+    }
+    maxChars = parsed;
+  }
 
   return {
     path: prog.args[0],

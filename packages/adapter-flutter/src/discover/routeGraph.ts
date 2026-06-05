@@ -6,7 +6,7 @@ import type { SymbolTable } from "../parse/scanner.js";
 
 // ── AST 유틸 ────────────────────────────────────────────────────────────────
 
-function findByIdentifier(node: SyntaxNode, name: string, results: SyntaxNode[] = []): SyntaxNode[] {
+export function findByIdentifier(node: SyntaxNode, name: string, results: SyntaxNode[] = []): SyntaxNode[] {
   if (node.type === "identifier" && node.text === name) results.push(node);
   for (const child of node.children) {
     if (child) findByIdentifier(child, name, results);
@@ -15,7 +15,7 @@ function findByIdentifier(node: SyntaxNode, name: string, results: SyntaxNode[] 
 }
 
 /** named_argument 목록에서 label명으로 값 노드를 찾는다 */
-function getNamedArg(argsNode: SyntaxNode, label: string): SyntaxNode | undefined {
+export function getNamedArg(argsNode: SyntaxNode, label: string): SyntaxNode | undefined {
   const namedArgs = findNodes(argsNode, "named_argument");
   for (const na of namedArgs) {
     const labelNode = findChild(na, "label");
@@ -32,7 +32,7 @@ function getNamedArg(argsNode: SyntaxNode, label: string): SyntaxNode | undefine
  * function_expression_body(=> expr) 또는 block return 에서
  * 생성되는 위젯 클래스명을 추출한다.
  */
-function extractWidgetClassFromBuilder(node: SyntaxNode): string | undefined {
+export function extractWidgetClassFromBuilder(node: SyntaxNode): string | undefined {
   const body = findNodes(node, "function_expression_body")[0];
   if (body) {
     const constObj = findNodes(body, "const_object_expression")[0];
@@ -58,7 +58,7 @@ function extractWidgetClassFromBuilder(node: SyntaxNode): string | undefined {
 
 // ── MaterialPageRoute builder 에서 위젯 클래스명 추출 ────────────────────────
 
-function extractFromMaterialPageRoute(mprArgs: SyntaxNode): string | undefined {
+export function extractFromMaterialPageRoute(mprArgs: SyntaxNode): string | undefined {
   const builderArg = getNamedArg(mprArgs, "builder");
   if (!builderArg) return undefined;
   return extractWidgetClassFromBuilder(builderArg);

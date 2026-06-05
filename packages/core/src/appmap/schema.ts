@@ -126,14 +126,23 @@ export type NavigationGraph = z.infer<typeof NavigationGraphSchema>;
 
 /**
  * 앱 이름에서 파일 경로 위험 문자를 제거하고 공백을 언더스코어로 치환한다.
- * 빈 문자열이 되면 "unnamed"를 반환한다.
+ * - 널바이트(\0) 제거
+ * - 경로 구분자(/, \) → _
+ * - 콜론(:) → _
+ * - .. (경로 탈출 시퀀스) → _
+ * - 공백 → _
+ * 빈 문자열이 되면 "app"을 반환한다.
  */
 export function sanitizeAppName(name: string): string {
   const trimmed = name.trim();
-  if (!trimmed) return "unnamed";
+  if (!trimmed) return "app";
 
-  return trimmed
-    .replace(/[\\/]/g, "_")   // 경로 구분자 → _
+  const sanitized = trimmed
+    .replace(/\0/g, "")        // 널바이트 제거
+    .replace(/\.\./g, "_")     // .. (경로 탈출) → _
+    .replace(/[\\/]/g, "_")    // 경로 구분자 → _
     .replace(/:/g, "_")        // 콜론 → _
-    .replace(/\s+/g, "_");     // 공백 → _
+    .replace(/\s+/g, "_")      // 공백 → _
+    .replace(/^_+|_+$/g, "");  // 앞뒤 언더스코어 trim
+  return sanitized || "app";   // 치환 후 빈 문자열이면 "app" fallback
 }
