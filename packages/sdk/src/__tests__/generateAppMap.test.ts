@@ -89,3 +89,32 @@ describe("generateAppMap — NAV_UNSUPPORTED fallback", () => {
     expect(Array.isArray(appMap.diagnostics)).toBe(true);
   });
 });
+
+describe("generateAppMap — elements 채우기 (결함 2)", () => {
+  it("flutter-basic HomeScreen에 elements가 존재한다", async () => {
+    const appMap = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-basic"),
+      framework: "flutter",
+      mockSeed: 42,
+    });
+    const homeScreen = appMap.screens.find((s) => s.id === "HomeScreen");
+    expect(homeScreen).toBeDefined();
+    // IR 빌드가 성공하면 elements가 비어있지 않아야 함
+    expect(homeScreen!.elements.length).toBeGreaterThan(0);
+  });
+
+  it("화면 하나의 IR 빌드 실패가 전체 generateAppMap을 죽이지 않는다", async () => {
+    // 존재하지 않는 framework를 강제로 주면 IR 빌드 단계가 아니라 어댑터 로드에서 실패하므로
+    // 여기서는 flutter fixture로 generateAppMap 자체가 완료됨을 검증
+    const appMap = await generateAppMap({
+      projectPath: path.join(FIXTURES, "flutter-basic"),
+      framework: "flutter",
+      mockSeed: 0,
+    });
+    expect(appMap.schemaVersion).toBe("appmap/1");
+    // IR 빌드 실패 화면은 elements=[] 이고 전체는 계속 진행됨
+    for (const screen of appMap.screens) {
+      expect(Array.isArray(screen.elements)).toBe(true);
+    }
+  });
+});

@@ -250,10 +250,11 @@ export async function discoverRouteGraph(
     }
   }
 
-  if (routes.length === 0 && rootComponentName) {
+  if (routes.length === 0) {
+    const appLabel = rootComponentName ?? path.basename(projectPath);
     diagnostics.push({
       code: "NO_NAVIGATOR",
-      message: `네비게이터를 찾을 수 없음 — '${rootComponentName}'은 단일 화면 앱일 수 있음`,
+      message: `네비게이터를 찾을 수 없음 — '${appLabel}'은 단일 화면 앱일 수 있음`,
     });
   }
 

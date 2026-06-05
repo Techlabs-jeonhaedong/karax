@@ -13,7 +13,7 @@ import type {
 } from "@sfc/adapter-api";
 import { detectFramework as coreDetectFramework } from "@sfc/core";
 import { assembleAppMap, sanitizeAppName, renderAppMapMarkdown } from "@sfc/core";
-import type { AppMap, AppMapDocument, AppMapRenderOptions } from "@sfc/core";
+import type { AppMap, AppMapDocument, AppMapRenderOptions, IRDocument } from "@sfc/core";
 
 export { renderAppMapMarkdown };
 export type { AppMap, AppMapDocument, AppMapRenderOptions };
@@ -108,11 +108,23 @@ export async function generateAppMap(
   }
   const appName = sanitizeAppName(rawAppName ?? path.basename(opts.projectPath));
 
+  // 각 화면의 IR을 빌드해 elements를 채운다.
+  // 화면 하나의 실패가 전체를 중단시키지 않도록 try/catch로 건너뜀.
+  const irDocs: IRDocument[] = [];
+  for (const screen of screens) {
+    try {
+      const irDoc = await adapter.buildScreenIR(ctx, screen.id);
+      irDocs.push(irDoc);
+    } catch {
+      // IR 빌드 실패 — 해당 화면은 elements=[]로 처리 (계속 진행)
+    }
+  }
+
   return assembleAppMap({
     appName,
     framework: frameworkId,
     screens,
     navGraph,
-    irDocs: [],
+    irDocs,
   });
 }
