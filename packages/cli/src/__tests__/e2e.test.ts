@@ -368,9 +368,9 @@ describe("karax mcp-config", () => {
     expect(code).toBe(0);
     // JSON이어야 한다
     const parsed = JSON.parse(stdout);
-    // npx 형태의 command가 있어야 한다
-    expect(JSON.stringify(parsed)).toContain("npx");
-    expect(JSON.stringify(parsed)).toContain("@karax/mcp");
+    // git clone 기반 런처 — node + mcp-launcher.mjs 형태여야 한다
+    expect(parsed?.mcpServers?.karax?.command).toBe("node");
+    expect(JSON.stringify(parsed)).toContain("mcp-launcher.mjs");
   });
 });
 
@@ -380,8 +380,8 @@ describe("karax mcp install-config", () => {
     const { stdout, code } = await runCli(["mcp", "install-config"]);
     expect(code).toBe(0);
     const parsed = JSON.parse(stdout);
-    expect(JSON.stringify(parsed)).toContain("npx");
-    expect(JSON.stringify(parsed)).toContain("@karax/mcp");
+    expect(parsed?.mcpServers?.karax?.command).toBe("node");
+    expect(JSON.stringify(parsed)).toContain("mcp-launcher.mjs");
   });
 });
 

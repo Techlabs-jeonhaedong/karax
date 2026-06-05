@@ -22,7 +22,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "@karax/sdk": "workspace:*"
+    "@karax/core": "workspace:*",
+    "@karax/e2e": "workspace:*",
+    "@karax/sdk": "workspace:*",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

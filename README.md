@@ -34,32 +34,58 @@
 
 ## 설치
 
-### MCP 서버 (Claude Code / Cursor 등)
+### MCP 서버 — git clone 방식 (npm 배포 없음)
+
+karax는 npm에 발행되지 않습니다. git clone 후 바로 MCP 서버로 사용할 수 있습니다.
+
+#### Claude Code (권장)
+
+```bash
+git clone <repo-url> karax
+```
+
+프로젝트를 열면 `.mcp.json`을 자동으로 인식합니다. **첫 실행 시 `pnpm install` + 빌드가 자동으로 수행되므로 수 분이 소요될 수 있습니다.** 지연을 없애려면 사전 워밍업을 먼저 실행하세요.
+
+```bash
+# 사전 워밍업 (선택) — install + build + Chromium 설치까지 미리 완료
+pnpm bootstrap
+```
+
+#### 다른 MCP 클라이언트 (Cursor, 직접 등록)
+
+```bash
+# 방법 1: claude mcp add 명령
+claude mcp add karax -- node "$(pwd)/scripts/mcp-launcher.mjs"
+
+# 방법 2: karax mcp-config로 스니펫 생성
+node packages/cli/dist/bin.js mcp-config
+```
+
+방법 2 출력 예시:
 
 ```json
 {
   "mcpServers": {
     "karax": {
-      "command": "npx",
-      "args": ["-y", "@karax/mcp"]
+      "command": "node",
+      "args": ["/절대/경로/karax/scripts/mcp-launcher.mjs"]
     }
   }
 }
 ```
 
-> 주의: `@karax/mcp`는 아직 npm에 발행되지 않았습니다. 로컬 개발 환경에서는 아래 CLI 설치를 사용하세요.
+이 JSON을 클라이언트의 설정 파일에 붙여넣으세요.
 
-> **마이그레이션**: 기존에 `"sfc": { "command": "npx", "args": ["-y", "@sfc/mcp"] }`로 등록한 클라이언트 설정은 위와 같이 키를 `"karax"`로, 패키지를 `@karax/mcp`로 교체해야 합니다.
+> **첫 실행 지연**: node_modules나 dist가 없으면 자동으로 install + build를 수행합니다. MCP 클라이언트의 연결 타임아웃이 짧은 경우 `pnpm bootstrap`을 먼저 실행해 사전 워밍업하세요.
 
-```bash
-# 로컬 저장소 클론 후
-pnpm install
-pnpm -r build
-```
+> **보안**: 런처는 첫 실행 시 `pnpm install`을 자동 수행하며 이 과정에서 의존성 postinstall 스크립트가 실행된다. 신뢰할 수 있는 출처(공식 저장소)에서 클론한 경우에만 사용할 것.
 
 ### CLI 직접 실행
 
 ```bash
+# 의존성 설치 및 빌드 (처음 한 번)
+pnpm install && pnpm -r build
+
 node packages/cli/dist/bin.js <command>
 ```
 

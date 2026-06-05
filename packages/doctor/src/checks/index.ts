@@ -7,3 +7,6 @@ export { checkGradle } from "./gradle.js";
 export { checkXcodebuild } from "./xcode.js";
 export { checkCocoaPods } from "./cocoapods.js";
 export { checkAndroidSdk, detectAndroidSdkPath } from "./androidSdk.js";
+export { checkAdb } from "./adb.js";
+export { checkEmulator } from "./emulator.js";
+export { checkAgentClis } from "./agentClis.js";

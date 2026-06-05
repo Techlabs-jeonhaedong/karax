@@ -154,6 +154,12 @@ importers:
 
   packages/cli:
     dependencies:
+      '@karax/core':
+        specifier: workspace:*
+        version: link:../core
+      '@karax/e2e':
+        specifier: workspace:*
+        version: link:../e2e
       '@karax/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -300,11 +306,39 @@ importers:
         specifier: ^3.0.0
         version: 3.2.6(@types/node@22.19.19)
 
+  packages/e2e:
+    dependencies:
+      '@karax/adapter-api':
+        specifier: workspace:*
+        version: link:../adapter-api
+      '@karax/doctor':
+        specifier: workspace:*
+        version: link:../doctor
+      execa:
+        specifier: ^9.0.0
+        version: 9.6.1
+      zod:
+        specifier: ^3.22.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.6(@types/node@22.19.19)
+
   packages/enrich-llm:
     dependencies:
       '@karax/core':
         specifier: workspace:*
         version: link:../core
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -318,12 +352,21 @@ importers:
 
   packages/mcp:
     dependencies:
+      '@karax/core':
+        specifier: workspace:*
+        version: link:../core
+      '@karax/e2e':
+        specifier: workspace:*
+        version: link:../e2e
       '@karax/sdk':
         specifier: workspace:*
         version: link:../sdk
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.0
         version: 1.29.0(zod@3.25.76)
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -401,6 +444,9 @@ importers:
       '@karax/doctor':
         specifier: workspace:*
         version: link:../doctor
+      '@karax/e2e':
+        specifier: workspace:*
+        version: link:../e2e
       '@karax/renderer':
         specifier: workspace:*
         version: link:../renderer

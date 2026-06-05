@@ -7,6 +7,9 @@
   "include": [
     "src"
   ],
+  "exclude": [
+    "src/**/__tests__"
+  ],
   "references": [
     {
       "path": "../core"
@@ -43,6 +46,9 @@
     },
     {
       "path": "../doctor"
+    },
+    {
+      "path": "../e2e"
     }
   ]
 }
