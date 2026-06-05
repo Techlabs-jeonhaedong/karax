@@ -12,6 +12,7 @@ import {
   parseListArgs,
   parseCaptureArgs,
   parseMcpConfigArgs,
+  parseTestArgs,
   parseMapArgs,
   EXIT_CODES,
 } from "../commands.js";
@@ -150,6 +151,61 @@ describe("parseMcpConfigArgs", () => {
   it("인수 없이도 파싱된다", () => {
     const result = parseMcpConfigArgs([]);
     expect(result).toBeDefined();
+  });
+});
+
+// ─── test ──────────────────────────────────────────────────────────
+
+describe("parseTestArgs", () => {
+  it("필수 옵션(path + platform)을 파싱한다", () => {
+    const result = parseTestArgs(["/some/project", "--platform", "android"]);
+    expect(result.path).toBe("/some/project");
+    expect(result.platform).toBe("android");
+    expect(result.agent).toBe("claude");
+    expect(result.json).toBe(false);
+    expect(result.keepBooted).toBe(false);
+  });
+
+  it("ios 플랫폼을 파싱한다", () => {
+    const result = parseTestArgs(["/proj", "--platform", "ios"]);
+    expect(result.platform).toBe("ios");
+  });
+
+  it("--agent 옵션을 파싱한다", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--agent", "gemini"]);
+    expect(result.agent).toBe("gemini");
+  });
+
+  it("--scenario 옵션을 파싱한다", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--scenario", "/tmp/test.md"]);
+    expect(result.scenario).toBe("/tmp/test.md");
+  });
+
+  it("--keep-booted 플래그를 파싱한다", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--keep-booted"]);
+    expect(result.keepBooted).toBe(true);
+  });
+
+  it("잘못된 플랫폼이면 에러를 던진다", () => {
+    expect(() => parseTestArgs(["/proj", "--platform", "windows"])).toThrow();
+  });
+
+  it("잘못된 에이전트이면 에러를 던진다", () => {
+    expect(() => parseTestArgs(["/proj", "--platform", "android", "--agent", "gpt"])).toThrow();
+  });
+
+  it("platform 없으면 에러를 던진다", () => {
+    expect(() => parseTestArgs(["/proj"])).toThrow();
+  });
+
+  it("--max-steps 옵션을 파싱한다", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--max-steps", "10"]);
+    expect(result.maxSteps).toBe(10);
+  });
+
+  it("--json 플래그를 파싱한다", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--json"]);
+    expect(result.json).toBe(true);
   });
 });
 

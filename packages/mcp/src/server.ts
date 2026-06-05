@@ -51,6 +51,7 @@ function wrapError(e: unknown): string {
 /**
  * projectPath 존재 여부를 검증한다.
  * 빈 문자열, 비정상적인 경로도 여기서 탐지.
+ * 읽기 권한(R_OK)도 확인한다 (MEDIUM-4: 심볼릭 링크는 허용, 오탐 방지).
  */
 function validateProjectPath(projectPath: string): void {
   if (!projectPath || projectPath.trim().length === 0) {
@@ -58,6 +59,11 @@ function validateProjectPath(projectPath: string): void {
   }
   if (!fs.existsSync(projectPath)) {
     throw new Error(`경로를 찾을 수 없습니다: ${projectPath}`);
+  }
+  try {
+    fs.accessSync(projectPath, fs.constants.R_OK);
+  } catch {
+    throw new Error(`projectPath에 읽기 권한이 없습니다: ${projectPath}`);
   }
 }
 
@@ -88,7 +94,9 @@ export function createMcpServer(): McpServer {
         "Flutter/React Native/Android Compose/iOS SwiftUI 4개 프레임워크를 지원한다. " +
         "2-티어 캡처(Tier 1: 부분 컴파일, Tier 2: 정적 IR→Chromium) 전략으로 동작하며, " +
         "captureMode(auto/compile/static), variant 전개, overlay(confidence 시각화), " +
-        "enrich(LLM 보강) 옵션을 제공한다.",
+        "enrich(LLM 보강) 옵션을 제공한다. " +
+        "generate_app_map으로 화면 구조·네비게이션 그래프를 AppMap으로 추출하고, " +
+        "run_e2e_test로 에뮬레이터/시뮬레이터에서 LLM 에이전트 기반 E2E 테스트를 실행할 수 있다.",
     }
   );
 
@@ -420,6 +428,85 @@ export function createMcpServer(): McpServer {
         return { content: [summaryContent, ...docContents] };
       } catch (e) {
         return errorContent(`generate_app_map 오류: ${wrapError(e)}`);
+      }
+    }
+  );
+
+  // ── 9. run_e2e_test ──────────────────────────────────────────────
+  // 주의: 이 툴은 에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요됩니다.
+
+  server.tool(
+    "run_e2e_test",
+    "Android 에뮬레이터 / iOS 시뮬레이터에서 LLM 에이전트로 E2E 테스트를 실행한다. " +
+    "에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요될 수 있습니다.",
+    {
+      projectPath: z.string().min(1),
+      platform: z.enum(["android", "ios"]),
+      agent: z.enum(["claude", "codex", "gemini"]).optional().default("claude"),
+      scenarioPath: z.string().optional(),
+      apiKey: z.string().optional(),
+      deviceId: z.string().optional(),
+      outDir: z.string().optional(),
+      timeoutMs: z.number().int().positive().optional(),
+      maxSteps: z.number().int().positive().optional(),
+      keepBooted: z.boolean().optional().default(false),
+    },
+    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted }) => {
+      try {
+        validateProjectPath(projectPath);
+
+        const { runE2eTest } = await import("@karax/e2e");
+
+        const result = await runE2eTest({
+          projectPath,
+          platform,
+          agent,
+          scenarioPath,
+          apiKey,
+          deviceId,
+          outDir,
+          timeoutMs,
+          maxSteps,
+          keepBooted,
+        });
+
+        // 응답: 요약 텍스트 + 리포트 경로 + 최종 스크린샷 소량 base64
+        const summaryText = [
+          `E2E 테스트 결과: ${result.outcome}`,
+          `요약: ${result.summary}`,
+          `리포트: ${result.reportJsonPath}`,
+          `스크린샷 디렉토리: ${result.screenshotsDir}`,
+          `스텝 수: ${result.steps.length}`,
+        ].join("\n");
+
+        // 마지막 스크린샷 1개만 base64로 포함 (응답 크기 제한)
+        const lastScreenshot = result.steps
+          .slice()
+          .reverse()
+          .find((s) => s.screenshot);
+
+        const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [
+          { type: "text", text: summaryText },
+        ];
+
+        if (lastScreenshot?.screenshot) {
+          // 이중 방어: path traversal 차단 — screenshotsDir 밖 경로는 첨부 생략
+          const resolvedScreenshot = path.resolve(result.screenshotsDir, lastScreenshot.screenshot);
+          const screenshotsDirNormalized = path.resolve(result.screenshotsDir) + path.sep;
+          const isSafe = resolvedScreenshot.startsWith(screenshotsDirNormalized);
+          if (isSafe) {
+            try {
+              const base64 = pngToBase64(resolvedScreenshot);
+              content.push({ type: "image", data: base64, mimeType: "image/png" });
+            } catch {
+              // 스크린샷 첨부 실패는 무시
+            }
+          }
+        }
+
+        return { content };
+      } catch (e) {
+        return errorContent(wrapError(e));
       }
     }
   );

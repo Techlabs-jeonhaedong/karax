@@ -28,6 +28,7 @@
     "@karax/compile-react-native": "workspace:*",
     "@karax/core": "workspace:*",
     "@karax/doctor": "workspace:*",
+    "@karax/e2e": "workspace:*",
     "@karax/renderer": "workspace:*"
   },
   "devDependencies": {

@@ -61,6 +61,22 @@ function setupAllOk() {
     if (cmd === "pod" && args.includes("--version")) {
       return Promise.resolve({ stdout: "1.16.2", stderr: "", exitCode: 0 });
     }
+    // adb version
+    if (args.includes("version") && (cmd === "adb" || cmd.includes("adb"))) {
+      return Promise.resolve({ stdout: "Android Debug Bridge version 1.0.41", stderr: "", exitCode: 0 });
+    }
+    // emulator -version
+    if (args.includes("-version") && cmd.includes("emulator")) {
+      return Promise.resolve({ stdout: "Android emulator version 34.1.9", stderr: "", exitCode: 0 });
+    }
+    // emulator -list-avds
+    if (args.includes("-list-avds")) {
+      return Promise.resolve({ stdout: "Pixel_6_API_34", stderr: "", exitCode: 0 });
+    }
+    // claude/codex/gemini --version
+    if (args.includes("--version") && (cmd === "claude" || cmd === "codex" || cmd === "gemini")) {
+      return Promise.resolve({ stdout: "1.0.0", stderr: "", exitCode: 0 });
+    }
     return Promise.resolve({ stdout: "", stderr: "", exitCode: 0 });
   });
 }
@@ -130,5 +146,30 @@ describe("doctorFix", () => {
     setupAllOk();
     const fixed = await doctorFix();
     expect(fixed).toHaveProperty("checks");
+  });
+});
+
+// ── runAllChecks 병렬성 검증 (항목 7) ────────────────────────────
+// checkAgentClis를 선행 await하지 않고 단일 Promise.all에 포함해야 한다.
+// 결과 배열에 agent CLI 체크 결과가 포함되는지 검증한다.
+
+describe("runDoctor — checkAgentClis가 결과에 포함됨 (병렬성 회귀)", () => {
+  it("agent CLI 체크 결과(claude/codex/gemini)가 checks 배열에 포함된다", async () => {
+    setupAllOk();
+    const report = await runDoctor();
+    const ids = report.checks.map((c) => c.id);
+    // 3개 중 하나 이상 포함되면 병렬 처리가 정상 동작한 것
+    const agentIds = ids.filter((id) => ["claude-cli", "codex-cli", "gemini-cli"].includes(id));
+    expect(agentIds.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("checkAgentClis 결과가 다른 체크 결과와 함께 단일 배열로 반환된다", async () => {
+    setupAllOk();
+    const report = await runDoctor();
+    // node 체크와 agent CLI 체크가 모두 포함돼야 함
+    const ids = report.checks.map((c) => c.id);
+    expect(ids).toContain("node");
+    const hasAnyAgentCli = ids.some((id) => ["claude-cli", "codex-cli", "gemini-cli"].includes(id));
+    expect(hasAnyAgentCli).toBe(true);
   });
 });

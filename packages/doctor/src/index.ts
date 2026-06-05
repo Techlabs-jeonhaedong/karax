@@ -8,12 +8,16 @@ import {
   checkXcodebuild,
   checkCocoaPods,
   checkAndroidSdk,
+  checkAdb,
+  checkEmulator,
+  checkAgentClis,
 } from "./checks/index.js";
 import type { CheckResult } from "./checks/types.js";
 import { computeTiers, type TiersAvailable } from "./tiers.js";
 import { ensureChromium, getManualInstallHints } from "./ensure.js";
 
 export type { CheckResult } from "./checks/index.js";
+export { detectAndroidSdkPath } from "./checks/index.js";
 export type { TiersAvailable } from "./tiers.js";
 
 export interface DoctorReport {
@@ -30,10 +34,11 @@ export async function runDoctor(_projectPath?: string): Promise<DoctorReport> {
   const checks = await runAllChecks();
   const tiersAvailable = computeTiers(checks);
 
-  // overallOk: autoInstallable이 아닌 필수 항목에 missing이 없으면 true
-  // (playwright-chromium은 autoInstallable=true 이므로 overallOk에서 제외)
+  // overallOk: autoInstallable이 아닌 필수(non-optional) 항목에 missing이 없으면 true
+  // (playwright-chromium은 autoInstallable=true 이므로 제외,
+  //  optional=true 항목(E2E 전용 등)도 제외)
   const nonAutoMissing = checks.filter(
-    (c) => c.status === "missing" && !c.autoInstallable
+    (c) => c.status === "missing" && !c.autoInstallable && !c.optional
   );
   const overallOk = nonAutoMissing.length === 0;
 
@@ -72,7 +77,9 @@ export async function doctorFix(report?: DoctorReport): Promise<DoctorReport> {
 }
 
 async function runAllChecks(): Promise<CheckResult[]> {
-  return Promise.all([
+  // checkAgentClis를 선행 await 없이 단일 Promise.all에 포함해 병렬 실행한다.
+  // agentChecks는 배열을 반환하므로 flat()으로 펼친다.
+  const results = await Promise.all([
     checkNode(),
     checkPlaywrightChromium(),
     checkFlutter(),
@@ -82,5 +89,11 @@ async function runAllChecks(): Promise<CheckResult[]> {
     checkXcodebuild(),
     checkCocoaPods(),
     checkAndroidSdk(),
+    // E2E 체크 (E2E 캡처 티어와 직교 — tiers.ts 영향 없음)
+    checkAdb(),
+    checkEmulator(),
+    // agentClis는 배열 반환 — Promise.all 결과가 중첩 배열이 되므로 flat()으로 처리
+    checkAgentClis(),
   ]);
+  return results.flat();
 }

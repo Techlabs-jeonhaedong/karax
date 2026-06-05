@@ -201,3 +201,80 @@ export interface McpConfigArgs {
 export function parseMcpConfigArgs(_argv: string[]): McpConfigArgs {
   return {};
 }
+
+// ── test ─────────────────────────────────────────────────────────────────
+
+export type TestPlatform = "android" | "ios";
+export type TestAgent = "claude" | "codex" | "gemini";
+
+export interface TestArgs {
+  path: string;
+  platform: TestPlatform;
+  scenario?: string;
+  agent: TestAgent;
+  apiKey?: string;
+  device?: string;
+  out?: string;
+  timeout?: number;
+  maxSteps?: number;
+  json: boolean;
+  keepBooted: boolean;
+}
+
+const VALID_PLATFORMS: TestPlatform[] = ["android", "ios"];
+const VALID_AGENTS: TestAgent[] = ["claude", "codex", "gemini"];
+
+export function parseTestArgs(argv: string[]): TestArgs {
+  const prog = makeProgram("test");
+  prog.argument("<path>", "프로젝트 경로");
+  prog.requiredOption("--platform <platform>", "타겟 플랫폼: android|ios");
+  prog.option("--scenario <file>", "시나리오 마크다운 파일 경로");
+  prog.option("--agent <agent>", "LLM 에이전트: claude|codex|gemini", "claude");
+  prog.option("--api-key <key>", "에이전트 API 키 (없으면 CLI 로그인 사용)");
+  prog.option("--device <id>", "디바이스/에뮬레이터 ID");
+  prog.option("--out <dir>", "결과 출력 디렉토리");
+  prog.option("--timeout <ms>", "에이전트 전체 타임아웃 (ms)", "900000");
+  prog.option("--max-steps <n>", "에이전트 최대 스텝 수", "20");
+  prog.option("--json", "JSON 형식으로 출력", false);
+  prog.option("--keep-booted", "테스트 후 디바이스를 종료하지 않음", false);
+  prog.parse(["node", "test", ...argv]);
+
+  const opts = prog.opts<{
+    platform: string;
+    scenario?: string;
+    agent: string;
+    apiKey?: string;
+    device?: string;
+    out?: string;
+    timeout: string;
+    maxSteps: string;
+    json: boolean;
+    keepBooted: boolean;
+  }>();
+
+  if (!VALID_PLATFORMS.includes(opts.platform as TestPlatform)) {
+    throw new Error(
+      `잘못된 --platform 값: '${opts.platform}'. 허용: android, ios`
+    );
+  }
+
+  if (!VALID_AGENTS.includes(opts.agent as TestAgent)) {
+    throw new Error(
+      `잘못된 --agent 값: '${opts.agent}'. 허용: claude, codex, gemini`
+    );
+  }
+
+  return {
+    path: prog.args[0]!,
+    platform: opts.platform as TestPlatform,
+    scenario: opts.scenario,
+    agent: opts.agent as TestAgent,
+    apiKey: opts.apiKey,
+    device: opts.device,
+    out: opts.out,
+    timeout: parseInt(opts.timeout, 10),
+    maxSteps: parseInt(opts.maxSteps, 10),
+    json: opts.json,
+    keepBooted: opts.keepBooted,
+  };
+}
