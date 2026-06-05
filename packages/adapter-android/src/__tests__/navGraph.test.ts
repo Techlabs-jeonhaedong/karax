@@ -10,8 +10,10 @@
  * - OrphanScreen은 NavHost에 없으므로 edges 없음
  * - readAndroidAppName → "Fixture App" (strings.xml app_name)
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 import path from "path";
+import os from "os";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { buildSymbolTable } from "../parse/scanner.js";
 import { discoverAndroidNavGraph, readAndroidAppName } from "../discover/navGraph.js";
@@ -169,5 +171,204 @@ describe("readAndroidAppName — fixture", () => {
   it("strings.xml app_name을 반환한다", async () => {
     const name = await readAndroidAppName(FIXTURE);
     expect(name).toBe("Fixture App");
+  });
+});
+
+// ── DYNAMIC_NAV (콜백 간접 전달) + UNRESOLVED_NAV 분리 — 합성 임시 픽스처 ───
+
+describe("Android navGraph — DYNAMIC_NAV (콜백 3단계 간접 전달) 진단 분리", () => {
+  const tmpDirs: string[] = [];
+
+  function mkProject(files: Record<string, string>): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-android-nav-"));
+    tmpDirs.push(dir);
+    for (const [relPath, content] of Object.entries(files)) {
+      const abs = path.join(dir, relPath);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, content, "utf8");
+    }
+    return dir;
+  }
+
+  afterEach(() => {
+    for (const d of tmpDirs.splice(0)) {
+      fs.rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("NavHost에 없는 콜백 파라미터로 Button 클릭 — DYNAMIC_NAV diagnostic(conf 0.3), 엣지는 생성 안 됨", async () => {
+    // HomeScreen은 NavHost에서 onNavigate 콜백을 전달받는다.
+    // 그런데 NavHost 코드에는 HomeScreen(onNavigate = { ... }) 람다가 없다 — 3단계 간접 전달.
+    // 현재는 조용히 누락 → Red: DYNAMIC_NAV diagnostic이 graph.diagnostics에 있어야 한다.
+    const dir = mkProject({
+      "app/src/main/java/com/example/AppNavHost.kt": `
+package com.example
+
+import androidx.compose.runtime.Composable
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+
+object AppRoutes {
+    const val HOME = "home"
+}
+
+@Composable
+fun AppNavHost() {
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = AppRoutes.HOME) {
+        composable(route = AppRoutes.HOME) {
+            // onNavigate 콜백은 NavHost가 직접 주입하지 않음 (3단계 이상 간접 전달)
+            HomeScreen()
+        }
+    }
+}
+`,
+      "app/src/main/java/com/example/screens/HomeScreen.kt": `
+package com.example.screens
+
+import androidx.compose.material.Button
+import androidx.compose.material.Text
+import androidx.compose.runtime.Composable
+
+@Composable
+fun HomeScreen(onNavigate: () -> Unit = {}) {
+    Button(onClick = onNavigate) {
+        Text("Go Next")
+    }
+}
+`,
+    });
+
+    const symbolTable = await buildSymbolTable(dir);
+    const graph = await discoverAndroidNavGraph(dir, symbolTable);
+
+    // 3단계 간접 전달 → DYNAMIC_NAV diagnostic이 graph.diagnostics에 있어야 한다 (현재는 없음 — Red)
+    const dynDiag = graph.diagnostics.find((d) => d.code === "DYNAMIC_NAV");
+    expect(dynDiag).toBeDefined();
+
+    // 엣지는 생성되지 않아야 한다 (목적지를 알 수 없으므로)
+    const homeEdges = graph.edges.filter((e) => e.from === "HomeScreen");
+    expect(homeEdges).toHaveLength(0);
+  });
+
+  it("NavHost에 직접 람다 주입된 콜백은 정상 엣지 생성 (DYNAMIC_NAV 오탐 없음)", async () => {
+    // HomeScreen(onNavigate = { navController.navigate(AppRoutes.DETAIL) }) — 정상 케이스
+    const dir = mkProject({
+      "app/src/main/java/com/example/AppNavHost.kt": `
+package com.example
+
+import androidx.compose.runtime.Composable
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+
+object AppRoutes {
+    const val HOME = "home"
+    const val DETAIL = "detail"
+}
+
+@Composable
+fun AppNavHost() {
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = AppRoutes.HOME) {
+        composable(route = AppRoutes.HOME) {
+            HomeScreen(onNavigate = { navController.navigate(AppRoutes.DETAIL) })
+        }
+        composable(route = AppRoutes.DETAIL) {
+            DetailScreen()
+        }
+    }
+}
+`,
+      "app/src/main/java/com/example/screens/HomeScreen.kt": `
+package com.example.screens
+
+import androidx.compose.material.Button
+import androidx.compose.material.Text
+import androidx.compose.runtime.Composable
+
+@Composable
+fun HomeScreen(onNavigate: () -> Unit = {}) {
+    Button(onClick = onNavigate) {
+        Text("Go Detail")
+    }
+}
+`,
+      "app/src/main/java/com/example/screens/DetailScreen.kt": `
+package com.example.screens
+
+import androidx.compose.runtime.Composable
+import androidx.compose.material.Text
+
+@Composable
+fun DetailScreen() {
+    Text("Detail")
+}
+`,
+    });
+
+    const symbolTable = await buildSymbolTable(dir);
+    const graph = await discoverAndroidNavGraph(dir, symbolTable);
+
+    // 정상 push 엣지가 생성돼야 한다
+    const edge = graph.edges.find((e) => e.from === "HomeScreen" && e.to === "DetailScreen");
+    expect(edge).toBeDefined();
+    expect(edge!.action).toBe("push");
+
+    // DYNAMIC_NAV diagnostic이 없어야 한다 (오탐 없음)
+    const dynDiag = graph.diagnostics.find((d) => d.code === "DYNAMIC_NAV");
+    expect(dynDiag).toBeUndefined();
+  });
+
+  it("로컬 람다 onClick(nav과 무관한 콜백)은 DYNAMIC_NAV 오탐 없음", async () => {
+    // HomeScreen에서 onClick = onLocalAction — 파라미터지만 네비게이션과 무관한 로컬 액션
+    // NavHost에서 직접 람다 주입도 없음
+    const dir = mkProject({
+      "app/src/main/java/com/example/AppNavHost.kt": `
+package com.example
+
+import androidx.compose.runtime.Composable
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+
+object AppRoutes {
+    const val HOME = "home"
+}
+
+@Composable
+fun AppNavHost() {
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = AppRoutes.HOME) {
+        composable(route = AppRoutes.HOME) {
+            HomeScreen()
+        }
+    }
+}
+`,
+      "app/src/main/java/com/example/screens/HomeScreen.kt": `
+package com.example.screens
+
+import androidx.compose.material.Button
+import androidx.compose.material.Text
+import androidx.compose.runtime.Composable
+
+@Composable
+fun HomeScreen() {
+    val onLocalAction = { println("local") }
+    Button(onClick = onLocalAction) {
+        Text("Do something")
+    }
+}
+`,
+    });
+
+    const symbolTable = await buildSymbolTable(dir);
+    const graph = await discoverAndroidNavGraph(dir, symbolTable);
+
+    // 로컬 변수(파라미터가 아님)이므로 DYNAMIC_NAV 오탐 없음
+    const dynDiag = graph.diagnostics.find((d) => d.code === "DYNAMIC_NAV");
+    expect(dynDiag).toBeUndefined();
   });
 });

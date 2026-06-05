@@ -11,8 +11,17 @@ import { parseAdbDevices, parseEmulatorListAvds } from "./parse.js";
 import type { DeviceManager, DeviceInfo } from "./types.js";
 
 const ADB_TIMEOUT = 60_000;
-const EMULATOR_BOOT_TIMEOUT = 180_000;
-const EMULATOR_POLL_INTERVAL = 3_000;
+const EMULATOR_BOOT_TIMEOUT_DEFAULT = 180_000;
+const EMULATOR_POLL_INTERVAL_DEFAULT = 3_000;
+
+// ── 옵션 타입 ────────────────────────────────────────────────────────────
+
+export interface AndroidDeviceManagerOptions {
+  /** 에뮬레이터 부팅 폴링 타임아웃 (ms). 기본값: 180000 */
+  bootTimeoutMs?: number;
+  /** 부팅 폴링 간격 (ms). 기본값: 3000 */
+  pollIntervalMs?: number;
+}
 
 // ── 인자 검증 ────────────────────────────────────────────────────────────
 
@@ -54,9 +63,13 @@ function validateArtifactPath(artifactPath: string): void {
   }
 }
 
-export function createAndroidDeviceManager(sdkPath: string): DeviceManager & {
-  listAvds(): Promise<string[]>;
-} {
+export function createAndroidDeviceManager(
+  sdkPath: string,
+  options: AndroidDeviceManagerOptions = {}
+): DeviceManager & { listAvds(): Promise<string[]> } {
+  const bootTimeoutMs = options.bootTimeoutMs ?? EMULATOR_BOOT_TIMEOUT_DEFAULT;
+  const pollIntervalMs = options.pollIntervalMs ?? EMULATOR_POLL_INTERVAL_DEFAULT;
+
   const adbBin = path.join(sdkPath, "platform-tools", "adb");
   const emulatorBin = path.join(sdkPath, "emulator", "emulator");
 
@@ -97,6 +110,8 @@ export function createAndroidDeviceManager(sdkPath: string): DeviceManager & {
     },
 
     async ensureBooted(preferredId?: string): Promise<DeviceInfo> {
+      // preferredId가 지정된 경우 먼저 검증 (adb -s / emulator -avd 인자로 흘러가므로)
+      if (preferredId !== undefined) validateDeviceId(preferredId);
       // 이미 부팅된 디바이스 재사용
       const running = await this.list();
       if (running.length > 0) {
@@ -129,9 +144,9 @@ export function createAndroidDeviceManager(sdkPath: string): DeviceManager & {
       emulatorProc.unref();
 
       // 부팅 완료 폴링
-      const deadline = Date.now() + EMULATOR_BOOT_TIMEOUT;
+      const deadline = Date.now() + bootTimeoutMs;
       while (Date.now() < deadline) {
-        await sleep(EMULATOR_POLL_INTERVAL);
+        await sleep(pollIntervalMs);
         try {
           const devicesResult = await execa(adbBin, ["devices"], {
             timeout: ADB_TIMEOUT,
@@ -168,7 +183,7 @@ export function createAndroidDeviceManager(sdkPath: string): DeviceManager & {
 
       throw new E2eError(
         "EMULATOR_BOOT_TIMEOUT",
-        `Android 에뮬레이터 부팅 타임아웃 (${EMULATOR_BOOT_TIMEOUT / 1000}s)`
+        `Android 에뮬레이터 부팅 타임아웃 (${bootTimeoutMs / 1000}s)`
       );
     },
 
@@ -201,6 +216,7 @@ export function createAndroidDeviceManager(sdkPath: string): DeviceManager & {
     },
 
     async screenshot(deviceId: string, destPngPath: string): Promise<void> {
+      validateDeviceId(deviceId);
       const result = await execa(
         ...adbArgs(deviceId, "exec-out", "screencap", "-p")
       );
@@ -211,6 +227,7 @@ export function createAndroidDeviceManager(sdkPath: string): DeviceManager & {
     },
 
     async shutdown(deviceId: string): Promise<void> {
+      validateDeviceId(deviceId);
       try {
         await execa(...adbArgs(deviceId, "emu", "kill"));
       } catch {

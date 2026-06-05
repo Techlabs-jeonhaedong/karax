@@ -20,6 +20,8 @@ import { discoverRouteGraph } from "./routeGraph.js";
 interface NavCallInfo {
   kind: "navigate" | "push" | "pop";
   routeName?: string;
+  /** routeName이 없는 동적 인자(변수/표현식) 케이스 */
+  isDynamic?: boolean;
   label?: string;
 }
 
@@ -66,13 +68,21 @@ function extractNavCallsFromHandler(handlerNode: SyntaxNode): NavCallInfo[] {
     const methText = methodId.text;
 
     if (methText === "navigate" || methText === "push") {
-      // 첫 번째 인자: 라우트명 string
+      // 첫 번째 인자: 라우트명 string 또는 동적 표현식
       const args = findChild(call, "arguments");
       if (!args) continue;
       const strFrag = findNodes(args, "string_fragment")[0];
       const routeName = strFrag?.text;
       if (routeName) {
         results.push({ kind: methText === "push" ? "push" : "navigate", routeName });
+      } else {
+        // 인자가 있는데 string이 아닌 경우 = 동적 표현식 → isDynamic 플래그
+        const hasArg = args.children.some(
+          (c): c is typeof args.children[number] => c !== null && c.type !== "," && c.type !== "(" && c.type !== ")"
+        );
+        if (hasArg) {
+          results.push({ kind: methText === "push" ? "push" : "navigate", isDynamic: true });
+        }
       }
     } else if (methText === "goBack") {
       results.push({ kind: "pop" });
@@ -245,6 +255,24 @@ export async function discoverRNNavGraph(
         };
 
         if (call.kind === "navigate" || call.kind === "push") {
+          // 동적 인자 케이스: DYNAMIC_NAV emit
+          if (call.isDynamic) {
+            edges.push({
+              from: fromId,
+              to: null,
+              action: "navigate",
+              trigger,
+              confidence: 0.3,
+              diagnostics: [
+                {
+                  code: "DYNAMIC_NAV",
+                  message: "navigate() 인자가 동적 표현식이라 정적 해석 불가",
+                },
+              ],
+            });
+            continue;
+          }
+
           const targetComp = routeToComponent.get(call.routeName ?? "");
           const toId = targetComp ?? null;
           const toRouteName = call.routeName;

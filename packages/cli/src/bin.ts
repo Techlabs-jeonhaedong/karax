@@ -354,10 +354,19 @@ program
   .option("--max-chars <n>", "문서 분할 기준 최대 글자 수")
   .option("--json", "JSON 형식으로 AppMap 출력", false)
   .option("--no-layout", "정적 좌표 측정 비활성화 (Chromium 미사용)")
+  .option("--framework <id>", "프레임워크 강제 지정: flutter|react-native|android|ios")
+  .option("--stdout", "파일 저장 없이 마크다운을 stdout으로 출력", false)
   .action(
     async (
       pathArg: string,
-      opts: { out?: string; maxChars?: string; json: boolean; layout: boolean }
+      opts: {
+        out?: string;
+        maxChars?: string;
+        json: boolean;
+        layout: boolean;
+        framework?: string;
+        stdout: boolean;
+      }
     ) => {
       try {
         const args = parseMapArgs([
@@ -366,45 +375,54 @@ program
           ...(opts.maxChars ? ["--max-chars", opts.maxChars] : []),
           ...(opts.json ? ["--json"] : []),
           ...(opts.layout === false ? ["--no-layout"] : []),
+          ...(opts.framework ? ["--framework", opts.framework] : []),
+          ...(opts.stdout ? ["--stdout"] : []),
         ]);
 
-        const { generateAppMap } = await import("@karax/sdk");
-        const appMap = await generateAppMap({ projectPath: args.path, includeLayout: args.layout });
+        const { generateAppMap, renderAppMapMarkdown, writeAppMapDocuments } =
+          await import("@karax/sdk");
+
+        const generateOpts = {
+          projectPath: args.path,
+          includeLayout: args.layout,
+          ...(args.framework ? { framework: args.framework } : {}),
+        };
 
         if (args.json) {
+          // JSON 출력: AppMap 직접 반환 (기존 오버로드)
+          const appMap = await generateAppMap(generateOpts);
           console.log(JSON.stringify(appMap, null, 2));
           process.exit(EXIT_CODES.SUCCESS);
           return;
         }
 
-        // 마크다운 렌더링 후 파일 저장
-        const { renderAppMapMarkdown } = await import("@karax/core");
-        const { mkdir, writeFile } = await import("fs/promises");
-        const path = await import("path");
-        const outDir = args.out ?? ".";
+        if (args.stdout) {
+          // --stdout: 파일 저장 없이 마크다운 본문을 stdout으로 출력
+          const appMap = await generateAppMap(generateOpts);
+          const docs = renderAppMapMarkdown(appMap, {
+            ...(args.maxChars !== undefined ? { maxChars: args.maxChars } : {}),
+          });
+          const separator = "\n\n---\n\n";
+          console.log(docs.map((d) => d.content).join(separator));
+          process.exit(EXIT_CODES.SUCCESS);
+          return;
+        }
 
-        const docs = renderAppMapMarkdown(appMap, {
-          ...(args.maxChars !== undefined ? { maxChars: args.maxChars } : {}),
+        // 파일 저장: SDK write 오버로드 사용 (중복 로직 제거)
+        const outDir = args.out ?? ".";
+        const result = await generateAppMap({
+          ...generateOpts,
+          write: true,
+          outDir,
+          ...(args.maxChars !== undefined ? { maxCharsPerDoc: args.maxChars } : {}),
         });
 
-        await mkdir(outDir, { recursive: true });
-
-        const resolvedOutDir = path.resolve(outDir);
-
-        for (const doc of docs) {
-          // path.basename으로 경로 탈출 방어 — doc.fileName은 항상 단순 파일명이어야 함
-          const safeFileName = path.basename(doc.fileName);
-          const filePath = path.resolve(resolvedOutDir, safeFileName);
-          // outDir 내부인지 검증
-          if (!filePath.startsWith(resolvedOutDir + path.sep) && filePath !== resolvedOutDir) {
-            throw new Error(`경로 탈출 감지: ${doc.fileName}`);
-          }
-          await writeFile(filePath, doc.content, "utf-8");
-          console.log(`생성됨: ${filePath}`);
+        for (const p of result.writtenPaths) {
+          console.log(`생성됨: ${p}`);
         }
 
         console.log(
-          `\n앱 지도 생성 완료 (${docs.length}개 파일, confidence: ${(appMap.overallConfidence * 100).toFixed(1)}%)\n`
+          `\n앱 지도 생성 완료 (${result.writtenPaths.length}개 파일, confidence: ${(result.appMap.overallConfidence * 100).toFixed(1)}%)\n`
         );
         process.exit(EXIT_CODES.SUCCESS);
       } catch (e) {

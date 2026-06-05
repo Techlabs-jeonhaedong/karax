@@ -59,7 +59,7 @@ export function findApk(projectPath: string, appModule: string = "app"): string 
   // fallback: 전체 build 재귀 탐색 (최신 mtime)
   const buildDir = path.join(projectPath, appModule, "build");
   if (fs.existsSync(buildDir)) {
-    return findNewestApk(buildDir);
+    return findNewestByExtension(buildDir, ".apk");
   }
 
   return null;
@@ -79,26 +79,26 @@ export function findFlutterApk(projectPath: string): string | null {
   );
   if (fs.existsSync(expected)) return expected;
 
-  // fallback
-  return findNewestApk(path.join(projectPath, "build", "app", "outputs"));
+  // fallback: build/app/outputs 아래 최신 mtime APK
+  return findNewestByExtension(path.join(projectPath, "build", "app", "outputs"), ".apk");
 }
 
 /**
- * flutter/ios .app 경로.
+ * flutter/ios .app 경로 — 최신 mtime 기준.
  */
 export function findFlutterIosApp(projectPath: string): string | null {
   const dir = path.join(projectPath, "build", "ios", "iphonesimulator");
   if (!fs.existsSync(dir)) return null;
-  return findFirstDotApp(dir);
+  return findNewestByExtension(dir, ".app");
 }
 
 /**
- * derivedData 산하 .app 경로 탐색.
+ * derivedData 산하 .app 경로 탐색 — 최신 mtime 기준.
  */
 export function findDerivedDataApp(derivedDataPath: string): string | null {
   const buildDir = path.join(derivedDataPath, "Build", "Products");
   if (!fs.existsSync(buildDir)) return null;
-  return findFirstDotApp(buildDir);
+  return findNewestByExtension(buildDir, ".app");
 }
 
 // ── 내부 유틸 ────────────────────────────────────────────────────────────
@@ -114,7 +114,16 @@ function findFirstApk(dir: string): string | null {
   return null;
 }
 
-function findNewestApk(dir: string): string | null {
+/**
+ * 디렉토리를 재귀 탐색해 특정 확장자 파일/디렉토리 중 최신 mtime 항목을 반환한다.
+ * .app은 디렉토리이므로 isDirectory 케이스도 처리한다.
+ *
+ * 설계 의도: .app도 .apk와 동일하게 최신 mtime 선택 (계획 §80: *.apk/*.app 모두
+ * 최신 mtime 재귀 fallback). 이전의 첫 매칭 방식(findFirstApk)은 readdir 순서에
+ * 의존해 비결정론적이었음 — 동일 디렉토리에 복수 빌드 결과물이 있을 때
+ * 실행마다 다른 파일을 선택할 수 있었다.
+ */
+function findNewestByExtension(dir: string, ext: string): string | null {
   let newestPath: string | null = null;
   let newestMtime = 0;
 
@@ -124,11 +133,11 @@ function findNewestApk(dir: string): string | null {
         const full = path.join(d, entry);
         try {
           const stat = fs.statSync(full);
-          if (stat.isDirectory()) {
-            recurse(full);
-          } else if (entry.endsWith(".apk") && stat.mtimeMs > newestMtime) {
+          if (entry.endsWith(ext) && stat.mtimeMs > newestMtime) {
             newestMtime = stat.mtimeMs;
             newestPath = full;
+          } else if (stat.isDirectory() && !entry.endsWith(ext)) {
+            recurse(full);
           }
         } catch {
           // ignore
@@ -141,24 +150,4 @@ function findNewestApk(dir: string): string | null {
 
   recurse(dir);
   return newestPath;
-}
-
-function findFirstDotApp(dir: string): string | null {
-  try {
-    for (const entry of fs.readdirSync(dir)) {
-      if (entry.endsWith(".app")) return path.join(dir, entry);
-      const full = path.join(dir, entry);
-      try {
-        if (fs.statSync(full).isDirectory()) {
-          const found = findFirstDotApp(full);
-          if (found) return found;
-        }
-      } catch {
-        // ignore
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return null;
 }

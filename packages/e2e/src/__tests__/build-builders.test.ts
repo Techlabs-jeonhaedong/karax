@@ -21,6 +21,7 @@ import { FlutterAndroidBuilder, FlutterIosBuilder } from "../build/flutter.js";
 import { RnAndroidBuilder, RnIosBuilder } from "../build/reactNative.js";
 import { AndroidNativeBuilder } from "../build/androidNative.js";
 import { IosNativeBuilder } from "../build/iosNative.js";
+import { selectBuilder } from "../build/index.js";
 
 const mockExeca = vi.mocked(execa);
 
@@ -142,5 +143,267 @@ describe("IosNativeBuilder", () => {
     const result = await builder.build(tmpDir);
 
     expect(result.appId).toBe("com.example.ios");
+  });
+
+  it("BUILD_FAILED 에러를 던진다 (빌드 실패)", async () => {
+    fs.mkdirSync(path.join(tmpDir, "Pods"), { recursive: true });
+    const workspace = path.join(tmpDir, "App.xcworkspace");
+    fs.mkdirSync(workspace);
+
+    mockExeca.mockResolvedValueOnce({
+      stdout: JSON.stringify({ workspace: { schemes: ["App"] } }),
+      stderr: "",
+      exitCode: 0,
+    });
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "xcodebuild error", exitCode: 1 });
+
+    const builder = new IosNativeBuilder(path.join(tmpDir, "derived"));
+    await expect(builder.build(tmpDir)).rejects.toMatchObject({ code: "BUILD_FAILED" });
+  });
+
+  it("ARTIFACT_NOT_FOUND — .app 없으면 에러", async () => {
+    fs.mkdirSync(path.join(tmpDir, "Pods"), { recursive: true });
+    const workspace = path.join(tmpDir, "App.xcworkspace");
+    fs.mkdirSync(workspace);
+
+    mockExeca.mockResolvedValueOnce({
+      stdout: JSON.stringify({ workspace: { schemes: ["App"] } }),
+      stderr: "",
+      exitCode: 0,
+    });
+    mockExeca.mockResolvedValueOnce({ stdout: "** BUILD SUCCEEDED **", stderr: "", exitCode: 0 });
+
+    const derivedDataPath = path.join(tmpDir, "derived-empty");
+    // Build/Products 디렉토리 없음
+    const builder = new IosNativeBuilder(derivedDataPath);
+    await expect(builder.build(tmpDir)).rejects.toMatchObject({ code: "ARTIFACT_NOT_FOUND" });
+  });
+});
+
+// ── flutter/ios ─────────────────────────────────────────────────────
+
+describe("FlutterIosBuilder", () => {
+  it("flutter build ios --simulator --debug 를 호출한다", async () => {
+    const simDir = path.join(tmpDir, "build", "ios", "iphonesimulator");
+    const appDir = path.join(simDir, "Runner.app");
+    fs.mkdirSync(appDir, { recursive: true });
+    const plistContent = `<plist><dict><key>CFBundleIdentifier</key><string>com.example.flutterios</string></dict></plist>`;
+    fs.writeFileSync(path.join(appDir, "Info.plist"), plistContent);
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+
+    const builder = new FlutterIosBuilder();
+    const result = await builder.build(tmpDir);
+
+    expect(mockExeca).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.arrayContaining(["build", "ios", "--simulator", "--debug"]),
+      expect.any(Object)
+    );
+    expect(result.artifactPath).toBe(appDir);
+    expect(result.appId).toBe("com.example.flutterios");
+  });
+
+  it("BUILD_FAILED 에러를 던진다", async () => {
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "Flutter ios error", exitCode: 1 });
+
+    const builder = new FlutterIosBuilder();
+    await expect(builder.build(tmpDir)).rejects.toMatchObject({ code: "BUILD_FAILED" });
+  });
+
+  it("ARTIFACT_NOT_FOUND — .app 없으면 에러", async () => {
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+    // iphonesimulator 디렉토리 없음
+
+    const builder = new FlutterIosBuilder();
+    await expect(builder.build(tmpDir)).rejects.toMatchObject({ code: "ARTIFACT_NOT_FOUND" });
+  });
+
+  it("Info.plist에서 bundleId를 추출한다", async () => {
+    const simDir = path.join(tmpDir, "build", "ios", "iphonesimulator");
+    const appDir = path.join(simDir, "MyApp.app");
+    fs.mkdirSync(appDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(appDir, "Info.plist"),
+      `<plist><dict><key>CFBundleIdentifier</key><string>com.my.bundleid</string></dict></plist>`
+    );
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+
+    const builder = new FlutterIosBuilder();
+    const result = await builder.build(tmpDir);
+    expect(result.appId).toBe("com.my.bundleid");
+  });
+});
+
+// ── rn/ios ─────────────────────────────────────────────────────────
+
+describe("RnIosBuilder", () => {
+  it("ios/Pods/ 없으면 COCOAPODS_REQUIRED 에러를 던진다", async () => {
+    // ios 디렉토리만 생성 (Pods 없음)
+    const iosDir = path.join(tmpDir, "ios");
+    fs.mkdirSync(iosDir);
+    fs.mkdirSync(path.join(iosDir, "App.xcworkspace"));
+
+    const builder = new RnIosBuilder(path.join(tmpDir, "derived"));
+    await expect(builder.build(tmpDir)).rejects.toMatchObject({ code: "COCOAPODS_REQUIRED" });
+  });
+
+  it("xcworkspace glob, xcodebuild 스킴 선택, derivedData .app + bundleId", async () => {
+    const iosDir = path.join(tmpDir, "ios");
+    fs.mkdirSync(path.join(iosDir, "Pods"), { recursive: true });
+    const workspace = path.join(iosDir, "MyRNApp.xcworkspace");
+    fs.mkdirSync(workspace);
+
+    // xcodebuild -list 응답
+    mockExeca.mockResolvedValueOnce({
+      stdout: JSON.stringify({ workspace: { schemes: ["MyRNApp", "MyRNAppTests"] } }),
+      stderr: "",
+      exitCode: 0,
+    });
+    // xcodebuild build 응답
+    mockExeca.mockResolvedValueOnce({ stdout: "** BUILD SUCCEEDED **", stderr: "", exitCode: 0 });
+
+    const derivedDataPath = path.join(tmpDir, "rn-derived");
+    const appPath = path.join(derivedDataPath, "Build", "Products", "Debug-iphonesimulator", "MyRNApp.app");
+    fs.mkdirSync(appPath, { recursive: true });
+    fs.writeFileSync(
+      path.join(appPath, "Info.plist"),
+      `<plist><dict><key>CFBundleIdentifier</key><string>com.example.rnios</string></dict></plist>`
+    );
+
+    const builder = new RnIosBuilder(derivedDataPath);
+    const result = await builder.build(tmpDir);
+
+    // xcodebuild -workspace 인자 확인
+    expect(mockExeca).toHaveBeenNthCalledWith(
+      1,
+      "xcodebuild",
+      expect.arrayContaining(["-workspace", workspace, "-list", "-json"]),
+      expect.any(Object)
+    );
+    // 스킴 선택: Tests 접미사 제외 → MyRNApp 선택
+    expect(mockExeca).toHaveBeenNthCalledWith(
+      2,
+      "xcodebuild",
+      expect.arrayContaining(["-scheme", "MyRNApp", "-sdk", "iphonesimulator"]),
+      expect.any(Object)
+    );
+    expect(result.artifactPath).toBe(appPath);
+    expect(result.appId).toBe("com.example.rnios");
+  });
+
+  it("BUILD_FAILED 에러를 던진다", async () => {
+    const iosDir = path.join(tmpDir, "ios");
+    fs.mkdirSync(path.join(iosDir, "Pods"), { recursive: true });
+    fs.mkdirSync(path.join(iosDir, "App.xcworkspace"));
+
+    mockExeca.mockResolvedValueOnce({
+      stdout: JSON.stringify({ workspace: { schemes: ["App"] } }),
+      stderr: "",
+      exitCode: 0,
+    });
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "xcodebuild failed", exitCode: 1 });
+
+    const builder = new RnIosBuilder(path.join(tmpDir, "rn-derived"));
+    await expect(builder.build(tmpDir)).rejects.toMatchObject({ code: "BUILD_FAILED" });
+  });
+});
+
+// ── android native ─────────────────────────────────────────────────
+
+describe("AndroidNativeBuilder", () => {
+  it("settings.gradle 모듈 탐지 후 :<module>:assembleDebug --no-daemon 호출", async () => {
+    const settings = `include ':app', ':lib'\n`;
+    fs.writeFileSync(path.join(tmpDir, "settings.gradle"), settings);
+
+    const gradlew = path.join(tmpDir, "gradlew");
+    fs.writeFileSync(gradlew, "#!/bin/sh");
+
+    const apkDir = path.join(tmpDir, "app", "build", "outputs", "apk", "debug");
+    fs.mkdirSync(apkDir, { recursive: true });
+    fs.writeFileSync(path.join(apkDir, "app-debug.apk"), "fake");
+
+    fs.writeFileSync(
+      path.join(tmpDir, "app", "build.gradle"),
+      'applicationId "com.example.native"'
+    );
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+
+    const builder = new AndroidNativeBuilder();
+    const result = await builder.build(tmpDir);
+
+    expect(mockExeca).toHaveBeenCalledWith(
+      expect.stringContaining("gradlew"),
+      expect.arrayContaining([":app:assembleDebug", "--no-daemon"]),
+      expect.any(Object)
+    );
+    expect(result.appId).toBe("com.example.native");
+  });
+
+  it("ANDROID_HOME / ANDROID_SDK_ROOT env 주입 (sdk 경로가 있을 때)", async () => {
+    const { detectAndroidSdkPath } = await import("@karax/doctor");
+    vi.mocked(detectAndroidSdkPath).mockResolvedValueOnce("/custom/sdk");
+
+    const gradlew = path.join(tmpDir, "gradlew");
+    fs.writeFileSync(gradlew, "#!/bin/sh");
+
+    const apkDir = path.join(tmpDir, "app", "build", "outputs", "apk", "debug");
+    fs.mkdirSync(apkDir, { recursive: true });
+    fs.writeFileSync(path.join(apkDir, "app-debug.apk"), "fake");
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+
+    const builder = new AndroidNativeBuilder();
+    await builder.build(tmpDir);
+
+    const callArgs = mockExeca.mock.calls[0]!;
+    const envArg = callArgs[2] as { env?: Record<string, string> };
+    expect(envArg.env?.["ANDROID_HOME"]).toBe("/custom/sdk");
+    expect(envArg.env?.["ANDROID_SDK_ROOT"]).toBe("/custom/sdk");
+  });
+
+  it("BUILD_FAILED 에러를 던진다", async () => {
+    const gradlew = path.join(tmpDir, "gradlew");
+    fs.writeFileSync(gradlew, "#!/bin/sh");
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "build error", exitCode: 1 });
+
+    const builder = new AndroidNativeBuilder();
+    await expect(builder.build(tmpDir)).rejects.toMatchObject({ code: "BUILD_FAILED" });
+  });
+
+  it("ARTIFACT_NOT_FOUND — APK 없으면 에러", async () => {
+    const gradlew = path.join(tmpDir, "gradlew");
+    fs.writeFileSync(gradlew, "#!/bin/sh");
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+    // APK 없음
+
+    const builder = new AndroidNativeBuilder();
+    await expect(builder.build(tmpDir)).rejects.toMatchObject({ code: "ARTIFACT_NOT_FOUND" });
+  });
+});
+
+// ── selectBuilder 팩토리 ────────────────────────────────────────────
+
+describe("selectBuilder", () => {
+  it.each([
+    ["flutter", "android", "FlutterAndroidBuilder"],
+    ["flutter", "ios", "FlutterIosBuilder"],
+    ["react-native", "android", "RnAndroidBuilder"],
+    ["react-native", "ios", "RnIosBuilder"],
+    ["android", "android", "AndroidNativeBuilder"],
+    ["ios", "ios", "IosNativeBuilder"],
+  ] as const)("%s/%s → %s 인스턴스를 반환한다", (framework, platform, builderName) => {
+    const builder = selectBuilder(framework, platform);
+    expect(builder.constructor.name).toBe(builderName);
+  });
+
+  it("지원하지 않는 조합이면 에러를 던진다", () => {
+    expect(() => selectBuilder("flutter" as any, "ios" as any)).not.toThrow(); // flutter/ios는 지원
+    expect(() => selectBuilder("android" as any, "ios" as any)).toThrow();
+    expect(() => selectBuilder("ios" as any, "android" as any)).toThrow();
   });
 });
