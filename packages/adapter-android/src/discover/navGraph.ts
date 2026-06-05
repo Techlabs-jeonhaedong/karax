@@ -13,7 +13,7 @@
 
 import type { SymbolTable } from "../parse/scanner.js";
 import { loadResources } from "../parse/resources.js";
-import type { NavigationGraph, NavigationEdge } from "@karax/core";
+import type { NavigationGraph, NavigationEdge, TriggerInfo } from "@karax/core";
 
 interface CallbackAction {
   type: "push" | "pop";
@@ -116,18 +116,26 @@ function buildCallbackDestMap(
 }
 
 /**
- * 화면 함수 소스에서 Button/OutlinedButton의 onClick 파라미터명과 Text 라벨을 추출한다.
+ * 소스 문자열에서 특정 인덱스까지의 1-based 라인 번호를 계산한다.
+ */
+function indexToLine(source: string, index: number): number {
+  return source.slice(0, index).split("\n").length;
+}
+
+/**
+ * 화면 함수 소스에서 Button/OutlinedButton의 onClick 파라미터명, Text 라벨, 1-based 라인을 추출한다.
  */
 function extractButtonClickLabels(
   screenSource: string,
   stringResources: Map<string, string>
-): { callbackParamName: string; label: string | undefined }[] {
-  const results: { callbackParamName: string; label: string | undefined }[] = [];
+): { callbackParamName: string; label: string | undefined; line: number }[] {
+  const results: { callbackParamName: string; label: string | undefined; line: number }[] = [];
 
   const buttonBlockRe = /(?:OutlinedButton|Button)\s*\(/g;
   let bMatch: RegExpExecArray | null;
 
   while ((bMatch = buttonBlockRe.exec(screenSource)) !== null) {
+    const buttonLine = indexToLine(screenSource, bMatch.index);
     const parenOpen = bMatch.index + bMatch[0].length - 1;
     let depth = 1;
     let pos = parenOpen + 1;
@@ -145,7 +153,7 @@ function extractButtonClickLabels(
 
     const bodyStart = screenSource.indexOf("{", pos - 1);
     if (bodyStart === -1 || bodyStart > pos + 50) {
-      results.push({ callbackParamName, label: undefined });
+      results.push({ callbackParamName, label: undefined, line: buttonLine });
       continue;
     }
 
@@ -172,7 +180,7 @@ function extractButtonClickLabels(
       }
     }
 
-    results.push({ callbackParamName, label });
+    results.push({ callbackParamName, label, line: buttonLine });
   }
 
   return results;
@@ -257,33 +265,46 @@ export async function discoverAndroidNavGraph(
 
   for (const [screenName, callbackActionMap] of screenCallbackMap) {
     let screenSource: string | undefined;
+    let screenFilePath: string | undefined;
     for (const [, parsedFile] of symbolTable.files) {
       if (
         parsedFile.source.includes(`fun ${screenName}(`) &&
         parsedFile.composables.some((c) => c.name === screenName)
       ) {
         screenSource = parsedFile.source;
+        screenFilePath = parsedFile.filePath;
         break;
       }
     }
 
-    const labelByCallback = new Map<string, string | undefined>();
+    const labelByCallback = new Map<string, { label: string | undefined; line: number }>();
     if (screenSource) {
       const buttonLabels = extractButtonClickLabels(screenSource, resources.strings);
-      for (const { callbackParamName, label } of buttonLabels) {
-        labelByCallback.set(callbackParamName, label);
+      for (const { callbackParamName, label, line } of buttonLabels) {
+        labelByCallback.set(callbackParamName, { label, line });
       }
     }
 
     for (const [callbackParam, action] of callbackActionMap) {
-      const label = labelByCallback.get(callbackParam);
+      const callbackInfo = labelByCallback.get(callbackParam);
+      const label = callbackInfo?.label;
+
+      // elementRef: Button 위젯의 위치 (screenFilePath + line)
+      const elementRef: TriggerInfo["elementRef"] =
+        screenFilePath && callbackInfo?.line !== undefined
+          ? { file: screenFilePath, line: callbackInfo.line }
+          : undefined;
 
       if (action.type === "pop") {
         edges.push({
           from: screenName,
           to: null,
           action: "pop",
-          trigger: { kind: "back", ...(label ? { label } : {}) },
+          trigger: {
+            kind: "back",
+            ...(label ? { label } : {}),
+            ...(elementRef ? { elementRef } : {}),
+          },
           confidence: 0.9,
           diagnostics: [],
         });
@@ -293,7 +314,11 @@ export async function discoverAndroidNavGraph(
           from: screenName,
           to: toScreen,
           action: "push",
-          trigger: { kind: "button", ...(label ? { label } : {}) },
+          trigger: {
+            kind: "button",
+            ...(label ? { label } : {}),
+            ...(elementRef ? { elementRef } : {}),
+          },
           confidence: toScreen ? 1.0 : 0.3,
           diagnostics: toScreen
             ? []

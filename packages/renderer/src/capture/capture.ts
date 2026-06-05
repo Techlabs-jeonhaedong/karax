@@ -4,6 +4,17 @@ import type { IRDocument, IRNode } from "@karax/core";
 import { getDeviceProfile } from "../devices/profiles.js";
 import { irToHtml, irToHtmlWithIdx } from "../html/irToHtml.js";
 
+// ── MeasuredBounds ────────────────────────────────────────────────────
+
+export interface MeasuredBounds {
+  nodeType: string;
+  sourceRef?: { file: string; line?: number; symbol?: string };
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface RenderOptions {
   /** 디바이스 프로파일 ID (기본: "iphone-15") */
   device?: string;
@@ -53,7 +64,7 @@ const CONTAINER_TYPES = new Set([
 
 /**
  * IR 트리를 irToHtmlWithIdx의 renderNode와 동일한 순서로 순회하여
- * 각 DOM 요소에 심어진 data-karax-idx와 대응하는 NodeInfo 목록을 반환한다.
+ * idx와 원본 IRNode를 쌍으로 반환한다.
  *
  * Branch는 첫 번째 child만 렌더링하므로(DOM 요소 생성 없음) 건너뛰고,
  * Branch의 첫 child가 다음 idx를 받는다.
@@ -61,34 +72,23 @@ const CONTAINER_TYPES = new Set([
  * Leaf 타입(Text/Image/Icon/Spacer/Divider/Unknown/Slot/Input)은
  * children이 있어도 렌더링하지 않으므로 순회하지 않는다.
  *
- * @internal 테스트에서 직접 검증 가능하도록 export한다.
+ * @public SDK가 idx→노드 매핑에 활용한다.
  */
-export function collectNodeInfoWithIdx(root: IRNode): NodeInfo[] {
-  const result: NodeInfo[] = [];
+export function collectNodesWithIdx(root: IRNode): Array<{ idx: number; node: IRNode }> {
+  const result: Array<{ idx: number; node: IRNode }> = [];
   let idx = 0;
 
   function visit(node: IRNode): void {
     if (node.type === "Branch") {
-      // Branch 자체는 DOM 요소를 생성하지 않음 → idx 소비 없음
-      // 단, renderNode에서 myIdx = idxRef.value++ 를 먼저 실행하고 Branch로 분기하므로
-      // myIdx는 소비되지만 DOM에 심기지 않는다. 여기서도 동일하게 idx를 소비하되 result에 추가하지 않는다.
-      idx++; // myIdx 소비에 대응
+      idx++; // myIdx 소비에 대응 (DOM에 심기지 않음)
       const first = node.children?.[0];
       if (first) visit(first);
-      // 나머지 Branch 자식들(Variant B 등)은 렌더링 안 됨 → 건너뜀
       return;
     }
 
     const myIdx = idx++;
-    result.push({
-      idx: myIdx,
-      confidence: node.confidence,
-      isUnknown: node.type === "Unknown",
-      hasLowConfidence: node.confidence < 0.5,
-    });
+    result.push({ idx: myIdx, node });
 
-    // 컨테이너 타입만 children을 순회한다.
-    // Leaf 타입은 children이 있어도 renderNode가 무시하므로 여기서도 건너뛴다.
     if (node.children && CONTAINER_TYPES.has(node.type)) {
       for (const child of node.children) {
         visit(child);
@@ -98,6 +98,21 @@ export function collectNodeInfoWithIdx(root: IRNode): NodeInfo[] {
 
   visit(root);
   return result;
+}
+
+/**
+ * IR 트리를 irToHtmlWithIdx의 renderNode와 동일한 순서로 순회하여
+ * 각 DOM 요소에 심어진 data-karax-idx와 대응하는 NodeInfo 목록을 반환한다.
+ *
+ * @internal 테스트에서 직접 검증 가능하도록 export한다.
+ */
+export function collectNodeInfoWithIdx(root: IRNode): NodeInfo[] {
+  return collectNodesWithIdx(root).map(({ idx, node }) => ({
+    idx,
+    confidence: node.confidence,
+    isUnknown: node.type === "Unknown",
+    hasLowConfidence: node.confidence < 0.5,
+  }));
 }
 
 /**
@@ -252,4 +267,110 @@ export async function renderScreenshot(
   } finally {
     await browser.close();
   }
+}
+
+// ── 유한성 필터 ──────────────────────────────────────────────────────
+
+/**
+ * MeasuredBounds 배열에서 x/y/width/height 중 유한하지 않은(NaN, Infinity)
+ * 항목과 width/height 가 음수인 항목을 제외한다.
+ *
+ * 이 값들이 그대로 AppMapSchema.parse에 전달되면 스키마 검증 실패로
+ * graceful degradation 대신 전체 크래시가 발생하므로 사전에 필터링한다.
+ *
+ * @public 테스트에서 직접 검증 가능하도록 export한다.
+ */
+export function filterFiniteBounds(bounds: MeasuredBounds[]): MeasuredBounds[] {
+  return bounds.filter(
+    (b) =>
+      Number.isFinite(b.x) &&
+      Number.isFinite(b.y) &&
+      Number.isFinite(b.width) &&
+      Number.isFinite(b.height) &&
+      b.width >= 0 &&
+      b.height >= 0,
+  );
+}
+
+// ── measureScreenLayouts ─────────────────────────────────────────────
+
+/**
+ * 복수의 IR 문서를 Chromium으로 렌더링하고 각 노드의 CSS px 좌표를 반환한다.
+ *
+ * 브라우저는 1회만 launch하고 모든 화면을 측정한다 (화면당 launch 금지).
+ * idx → collectNodesWithIdx로 IR 노드를 식별하고, sourceRef/nodeType을 동봉한다.
+ *
+ * @param irs     측정할 IRDocument 배열
+ * @param options device: 디바이스 프로파일 ID (기본: ir.screen.device ?? "iphone-15")
+ * @returns       Map<screenId, MeasuredBounds[]>
+ */
+export async function measureScreenLayouts(
+  irs: IRDocument[],
+  options?: { device?: string },
+): Promise<Map<string, MeasuredBounds[]>> {
+  const resultMap = new Map<string, MeasuredBounds[]>();
+  if (irs.length === 0) return resultMap;
+
+  const { chromium } = await import("playwright");
+  const browser = await chromium.launch({ headless: true });
+
+  try {
+    for (const ir of irs) {
+      const deviceId = options?.device ?? ir.screen.device ?? "iphone-15";
+      const profile = getDeviceProfile(deviceId);
+      const html = irToHtmlWithIdx(ir, profile);
+
+      // idx → IRNode 매핑 (collectNodesWithIdx 재사용)
+      const nodesByIdx = new Map<number, IRNode>();
+      for (const { idx, node } of collectNodesWithIdx(ir.screen.root)) {
+        nodesByIdx.set(idx, node);
+      }
+
+      const context = await browser.newContext({
+        viewport: { width: profile.width, height: profile.height },
+        deviceScaleFactor: profile.deviceScaleFactor,
+      });
+      const page = await context.newPage();
+      await page.setContent(html, { waitUntil: "networkidle" });
+
+      // page.evaluate로 DOM에서 idx+BoundingClientRect 수집
+      const domEntries = await page.evaluate(() => {
+        const els = document.querySelectorAll("[data-karax-idx]");
+        return Array.from(els).map((el) => {
+          const idxAttr = el.getAttribute("data-karax-idx");
+          const rect = el.getBoundingClientRect();
+          return {
+            idx: parseInt(idxAttr!, 10),
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+          };
+        });
+      });
+
+      await context.close();
+
+      const rawBounds: MeasuredBounds[] = domEntries.map(({ idx, x, y, width, height }) => {
+        const node = nodesByIdx.get(idx);
+        const measured: MeasuredBounds = {
+          nodeType: node?.type ?? "Unknown",
+          x,
+          y,
+          width,
+          height,
+        };
+        if (node?.sourceRef) {
+          measured.sourceRef = node.sourceRef as MeasuredBounds["sourceRef"];
+        }
+        return measured;
+      });
+
+      resultMap.set(ir.screen.id, filterFiniteBounds(rawBounds));
+    }
+  } finally {
+    await browser.close();
+  }
+
+  return resultMap;
 }

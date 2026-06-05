@@ -164,6 +164,8 @@ export interface MapArgs {
   out?: string;
   maxChars?: number;
   json: boolean;
+  /** 정적 좌표 측정 활성화 여부 (기본 true, --no-layout으로 비활성화) */
+  layout: boolean;
 }
 
 export function parseMapArgs(argv: string[]): MapArgs {
@@ -172,9 +174,10 @@ export function parseMapArgs(argv: string[]): MapArgs {
   prog.option("--out <dir>", "마크다운 파일 출력 디렉토리");
   prog.option("--max-chars <n>", "문서 분할 기준 최대 글자 수");
   prog.option("--json", "JSON 형식으로 AppMap 출력", false);
+  prog.option("--no-layout", "정적 좌표 측정 비활성화 (Chromium 미사용)");
   prog.parse(["node", "map", ...argv]);
 
-  const opts = prog.opts<{ out?: string; maxChars?: string; json: boolean }>();
+  const opts = prog.opts<{ out?: string; maxChars?: string; json: boolean; layout: boolean }>();
   let maxChars: number | undefined;
   if (opts.maxChars !== undefined) {
     const parsed = parseInt(opts.maxChars, 10);
@@ -189,6 +192,7 @@ export function parseMapArgs(argv: string[]): MapArgs {
     out: opts.out,
     maxChars,
     json: opts.json,
+    layout: opts.layout,
   };
 }
 

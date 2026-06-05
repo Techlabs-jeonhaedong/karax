@@ -475,6 +475,71 @@ describe("MCP 서버 — capture_all report.failures 계약 (낮음-9 회귀)", 
   );
 });
 
+describe("MCP 서버 — generate_app_map tool (includeLayout 옵션)", () => {
+  let client: Client;
+  let server: Awaited<ReturnType<typeof makeClientServer>>["server"];
+
+  beforeEach(async () => {
+    ({ client, server } = await makeClientServer());
+  });
+
+  afterEach(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  it("includeLayout=false 전달 시 AppMap 반환 (bounds 없음)", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: { projectPath: FLUTTER_FIXTURE, includeLayout: false },
+    });
+
+    expect(result.isError).toBeFalsy();
+
+    const contents = result.content as Array<{ type: string; text: string }>;
+    const summaryText = contents[0];
+    expect(summaryText).toBeDefined();
+
+    const parsed = JSON.parse(summaryText!.text);
+    expect(parsed.appMap).toBeDefined();
+    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+
+    // includeLayout=false → 모든 element에 bounds가 없어야 한다
+    for (const screen of parsed.appMap.screens) {
+      for (const elem of screen.elements) {
+        expect(elem.bounds).toBeUndefined();
+      }
+    }
+  }, 30_000);
+
+  it("includeLayout=true 전달 시 AppMap 반환 (에러 없음)", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: { projectPath: FLUTTER_FIXTURE, includeLayout: true },
+    });
+
+    // includeLayout=true는 Chromium 의존이지만 isError가 아니어야 한다
+    // (Chromium 없으면 LAYOUT_UNAVAILABLE diagnostic 추가 후 좌표 생략 — graceful degradation)
+    expect(result.isError).toBeFalsy();
+
+    const contents = result.content as Array<{ type: string; text: string }>;
+    const parsed = JSON.parse(contents[0]!.text);
+    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+  }, 60_000);
+
+  it("includeLayout 미전달 시 AppMap 반환 (기본 동작)", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: { projectPath: FLUTTER_FIXTURE },
+    });
+
+    expect(result.isError).toBeFalsy();
+    const contents = result.content as Array<{ type: string; text: string }>;
+    const parsed = JSON.parse(contents[0]!.text);
+    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+  }, 60_000);
+});
+
 describe("MCP 서버 — generate_app_map tool", () => {
   let client: Client;
   let server: Awaited<ReturnType<typeof makeClientServer>>["server"];

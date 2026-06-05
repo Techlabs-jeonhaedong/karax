@@ -324,3 +324,172 @@ describe("irToHtml — 구조 단언", () => {
     expect(html).toContain("Item C");
   });
 });
+
+// ── CSS 값 새니타이저 보안 테스트 ───────────────────────────────────────
+
+describe("irToHtml — CSS 값 새니타이저 (보안)", () => {
+  const profile = getDeviceProfile("iphone-15");
+
+  function makeBoxIR(background: string): IRDocument {
+    return {
+      schemaVersion: "0.1",
+      screen: {
+        id: "SecTest",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          style: { background },
+          children: [],
+        },
+      },
+      designTokens: {},
+      diagnostics: [],
+    };
+  }
+
+  function makeDividerIR(background: string): IRDocument {
+    return {
+      schemaVersion: "0.1",
+      screen: {
+        id: "DividerSecTest",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Divider",
+          confidence: 1.0,
+          style: { background },
+        },
+      },
+      designTokens: {},
+      diagnostics: [],
+    };
+  }
+
+  function makeAppBarIR(background: string): IRDocument {
+    return {
+      schemaVersion: "0.1",
+      screen: {
+        id: "AppBarSecTest",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          role: "appbar",
+          confidence: 1.0,
+          style: { background },
+          children: [],
+        },
+      },
+      designTokens: {},
+      diagnostics: [],
+    };
+  }
+
+  function makeTabBarIR(background: string): IRDocument {
+    return {
+      schemaVersion: "0.1",
+      screen: {
+        id: "TabBarSecTest",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          role: "tabbar",
+          confidence: 1.0,
+          style: { background },
+          children: [],
+        },
+      },
+      designTokens: {},
+      diagnostics: [],
+    };
+  }
+
+  // ── 악성 입력: 속성 탈출 시도 ──────────────────────────────────────
+
+  it('Box: 악성 background "><script>alert(1)</script> 가 style 속성에 그대로 삽입되지 않는다', () => {
+    const html = irToHtml(makeBoxIR('"><script>alert(1)</script>'), profile);
+    expect(html).not.toContain('"><script>');
+    expect(html).not.toContain("alert(1)");
+  });
+
+  it("Box: 세미콜론+url(javascript:) 포함 background가 그대로 삽입되지 않는다", () => {
+    const html = irToHtml(makeBoxIR("red;background:url(javascript:alert(1))"), profile);
+    expect(html).not.toContain("javascript:");
+  });
+
+  it("Box: 악성 background가 기본값(#E0E0E0)으로 대체된다", () => {
+    const html = irToHtml(makeBoxIR('"><script>'), profile);
+    expect(html).toContain("background:#E0E0E0");
+  });
+
+  it("Divider: 악성 background가 기본값(#E0E0E0)으로 대체된다", () => {
+    const html = irToHtml(makeDividerIR('"><script>'), profile);
+    expect(html).toContain("background:#E0E0E0");
+    expect(html).not.toContain('"><script>');
+  });
+
+  it("AppBar: 악성 background가 기본값(#1976D2)으로 대체된다", () => {
+    const html = irToHtml(makeAppBarIR('"><script>'), profile);
+    expect(html).toContain("background:#1976D2");
+    expect(html).not.toContain('"><script>');
+  });
+
+  it("TabBar: 악성 background가 기본값(#FFFFFF)으로 대체된다", () => {
+    const html = irToHtml(makeTabBarIR('"><script>'), profile);
+    expect(html).toContain("background:#FFFFFF");
+    expect(html).not.toContain('"><script>');
+  });
+
+  // ── 정상 입력: 통과 보장 ────────────────────────────────────────────
+
+  it("정상 hex 색상(#RRGGBB)은 그대로 출력된다", () => {
+    const html = irToHtml(makeBoxIR("#FF5722"), profile);
+    expect(html).toContain("background:#FF5722");
+  });
+
+  it("rgba(...) 값은 그대로 출력된다", () => {
+    const html = irToHtml(makeBoxIR("rgba(255,87,34,0.5)"), profile);
+    expect(html).toContain("background:rgba(255,87,34,0.5)");
+  });
+
+  it("rgb(...) 값은 그대로 출력된다", () => {
+    const html = irToHtml(makeBoxIR("rgb(255,87,34)"), profile);
+    expect(html).toContain("background:rgb(255,87,34)");
+  });
+
+  it("CSS 색상 키워드(transparent, white)는 그대로 출력된다", () => {
+    const htmlT = irToHtml(makeBoxIR("transparent"), profile);
+    expect(htmlT).toContain("background:transparent");
+    const htmlW = irToHtml(makeBoxIR("white"), profile);
+    expect(htmlW).toContain("background:white");
+  });
+
+  it("token: 접두사 값은 토큰 해석 후 결과가 새니타이징된다", () => {
+    const ir: IRDocument = {
+      schemaVersion: "0.1",
+      screen: {
+        id: "TokenSecTest",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          style: { background: "token:primary" },
+          children: [],
+        },
+      },
+      designTokens: { colors: { primary: "#6750A4" } },
+      diagnostics: [],
+    };
+    const html = irToHtml(ir, profile);
+    expect(html).toContain("background:#6750A4");
+  });
+
+  it("linear-gradient 값은 그대로 출력된다", () => {
+    const html = irToHtml(makeBoxIR("linear-gradient(to bottom, #FF5722, #E91E63)"), profile);
+    expect(html).toContain("linear-gradient");
+  });
+});

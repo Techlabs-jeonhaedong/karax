@@ -12,7 +12,7 @@ import type {
   FrameworkAdapter,
 } from "@karax/adapter-api";
 import { detectFramework as coreDetectFramework } from "@karax/core";
-import { assembleAppMap, sanitizeAppName, renderAppMapMarkdown } from "@karax/core";
+import { assembleAppMap, sanitizeAppName, renderAppMapMarkdown, matchElement, AppMapSchema } from "@karax/core";
 import type { AppMap, AppMapDocument, AppMapRenderOptions, IRDocument } from "@karax/core";
 
 export { renderAppMapMarkdown };
@@ -23,6 +23,10 @@ export interface GenerateAppMapOptions {
   framework?: FrameworkId;
   mockSeed?: number;
   includeCandidates?: boolean;
+  /** 좌표 측정 여부 (기본: true). Chromium 실패 시 LAYOUT_UNAVAILABLE diagnostic 추가 후 좌표 생략. */
+  includeLayout?: boolean;
+  /** 레이아웃 측정 시 사용할 디바이스 프로파일 ID */
+  device?: string;
 }
 
 /** lazy 어댑터 로더 (doctor/renderer 없이) */
@@ -120,11 +124,74 @@ export async function generateAppMap(
     }
   }
 
-  return assembleAppMap({
+  const appMap = assembleAppMap({
     appName,
     framework: frameworkId,
     screens,
     navGraph,
     irDocs,
   });
+
+  // ── 레이아웃 측정 후처리 ────────────────────────────────────────────
+  const shouldMeasure = (opts.includeLayout ?? true) && irDocs.length > 0;
+
+  if (shouldMeasure) {
+    try {
+      const { measureScreenLayouts } = await import("@karax/renderer");
+      const layoutMap = await measureScreenLayouts(irDocs, { device: opts.device });
+
+      // 화면별 bounds 주입
+      for (const screenNode of appMap.screens) {
+        const boundsArr = layoutMap.get(screenNode.id);
+        if (!boundsArr || boundsArr.length === 0) continue;
+
+        // element.sourceRef(file+line) → MeasuredBounds 매핑 (첫 번째 일치)
+        for (const el of screenNode.elements) {
+          if (!el.sourceRef?.file) continue;
+          const matched = boundsArr.find(
+            (b) =>
+              b.sourceRef?.file === el.sourceRef!.file &&
+              (el.sourceRef!.line === undefined ||
+                b.sourceRef?.line === el.sourceRef!.line),
+          );
+          if (matched) {
+            el.bounds = { x: matched.x, y: matched.y, width: matched.width, height: matched.height };
+          }
+        }
+
+        // outgoing edge trigger bounds 주입
+        for (const edge of screenNode.outgoing) {
+          const matchedEl = matchElement(edge.trigger, screenNode.elements);
+          if (matchedEl?.bounds) {
+            (edge.trigger as Record<string, unknown>).bounds = matchedEl.bounds;
+          }
+        }
+      }
+
+      // appMap.edges도 동기화 (screenNode.outgoing과 같은 객체 참조 확인 불가 — 동일 로직 적용)
+      for (const edge of appMap.edges) {
+        const screenNode = appMap.screens.find((s) => s.id === edge.from);
+        if (!screenNode) continue;
+        const matchedEl = matchElement(edge.trigger, screenNode.elements);
+        if (matchedEl?.bounds && !edge.trigger.bounds) {
+          (edge.trigger as Record<string, unknown>).bounds = matchedEl.bounds;
+        }
+      }
+
+      appMap.diagnostics.push({
+        code: "LAYOUT_APPROX",
+        message:
+          "좌표는 Tier 2 정적 렌더 기반 근사값입니다 (CSS px, 디바이스 프로파일 뷰포트 기준)",
+      });
+    } catch (err: unknown) {
+      const cause = err instanceof Error ? err.message : String(err);
+      appMap.diagnostics.push({
+        code: "LAYOUT_UNAVAILABLE",
+        message: `Chromium 렌더 실패 — 좌표를 생략합니다: ${cause}`,
+      });
+    }
+  }
+
+  // 최종 스키마 재검증
+  return AppMapSchema.parse(appMap);
 }

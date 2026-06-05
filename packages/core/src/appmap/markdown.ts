@@ -1,4 +1,4 @@
-import type { AppMap, ScreenNode, NavigationEdge } from "./schema.js";
+import type { AppMap, ScreenNode, NavigationEdge, ElementStyle, Bounds } from "./schema.js";
 
 // ── 출력 타입 ─────────────────────────────────────────────────────────
 
@@ -30,13 +30,60 @@ function escapeMermaidLabel(label: string): string {
 
 /**
  * 마크다운 테이블 셀 이스케이핑
- * - `|` → `\|`
+ * - `\` → `\\`  (먼저 처리해야 이중 이스케이핑 방지)
  * - 개행 → 공백
+ * - `|` → `\|`
+ * - `` ` `` → `` \` ``
+ * - `[` → `\[`
+ * - `]` → `\]`
  */
 function escapeMarkdownCell(value: string): string {
   return value
+    .replace(/\\/g, "\\\\")
     .replace(/\r?\n/g, " ")
-    .replace(/\|/g, "\\|");
+    .replace(/\|/g, "\\|")
+    .replace(/`/g, "\\`")
+    .replace(/\[/g, "\\[")
+    .replace(/\]/g, "\\]");
+}
+
+// ── bounds / style 포맷 헬퍼 ─────────────────────────────────────────
+
+/**
+ * Bounds → 위치 문자열 `(x, y)` (정수 반올림)
+ * 없으면 "-"
+ */
+function formatPosition(bounds: Bounds | undefined): string {
+  if (!bounds) return "-";
+  return `(${Math.round(bounds.x)}, ${Math.round(bounds.y)})`;
+}
+
+/**
+ * Bounds → 크기 문자열 `W×H` (정수 반올림)
+ * 없으면 "-"
+ */
+function formatSize(bounds: Bounds | undefined): string {
+  if (!bounds) return "-";
+  return `${Math.round(bounds.width)}×${Math.round(bounds.height)}`;
+}
+
+/**
+ * ElementStyle → 요약 문자열 (존재하는 속성만 ` · ` 연결)
+ * 없거나 모든 속성 undefined면 "-"
+ */
+function formatStyle(style: ElementStyle | undefined): string {
+  if (!style) return "-";
+  const parts: string[] = [];
+  if (style.background !== undefined) parts.push(`배경 ${style.background}`);
+  if (style.borderRadius !== undefined) parts.push(`r${style.borderRadius}`);
+  if (style.borderColor !== undefined || style.borderWidth !== undefined) {
+    const color = style.borderColor ?? "";
+    const width = style.borderWidth !== undefined ? ` ${style.borderWidth}px` : "";
+    parts.push(`테두리 ${color}${width}`.trim());
+  }
+  if (style.textColor !== undefined) parts.push(`텍스트 ${style.textColor}`);
+  if (style.opacity !== undefined) parts.push(`불투명도 ${style.opacity}`);
+  return parts.length > 0 ? parts.join(" · ") : "-";
 }
 
 // ── Mermaid 렌더 ──────────────────────────────────────────────────────
@@ -123,10 +170,13 @@ function renderScreenSection(
 
   if (interactiveElements.length > 0) {
     lines.push("\n**UI 요소**:");
-    lines.push("| 타입 | 라벨 |");
-    lines.push("|------|------|");
+    lines.push("| 타입 | 라벨 | 위치 | 크기 | 스타일 |");
+    lines.push("|------|------|------|------|--------|");
     for (const elem of interactiveElements) {
-      lines.push(`| ${escapeMarkdownCell(elem.type)} | ${escapeMarkdownCell(elem.label ?? "-")} |`);
+      const pos = escapeMarkdownCell(formatPosition(elem.bounds));
+      const size = escapeMarkdownCell(formatSize(elem.bounds));
+      const style = escapeMarkdownCell(formatStyle(elem.style));
+      lines.push(`| ${escapeMarkdownCell(elem.type)} | ${escapeMarkdownCell(elem.label ?? "-")} | ${pos} | ${size} | ${style} |`);
     }
   }
 
@@ -136,7 +186,14 @@ function renderScreenSection(
     lines.push("| 트리거 | 동작 | 목적지 | 신뢰도 |");
     lines.push("|--------|------|--------|--------|");
     for (const edge of screen.outgoing) {
-      const triggerLabel = escapeMarkdownCell(edge.trigger.label ?? edge.trigger.kind);
+      const baseLabel = edge.trigger.label ?? edge.trigger.kind;
+      // bounds 있으면 `라벨 @(x,y) W×H` 형태 추가
+      const boundsInfo = edge.trigger.bounds
+        ? ` @${formatPosition(edge.trigger.bounds)} ${formatSize(edge.trigger.bounds)}`
+        : "";
+      // style 있으면 요약 추가
+      const styleInfo = edge.trigger.style ? ` [${formatStyle(edge.trigger.style)}]` : "";
+      const triggerCell = escapeMarkdownCell(`${baseLabel}${boundsInfo}${styleInfo}`);
       const action = escapeMarkdownCell(edge.action);
       let dest: string;
       if (edge.to === null) {
@@ -146,7 +203,7 @@ function renderScreenSection(
         dest = `[${escapeMarkdownCell(edge.to)}](${docFileNameFn(edge.to)}#${destAnchor})`;
       }
       const conf = (edge.confidence * 100).toFixed(0) + "%";
-      lines.push(`| ${triggerLabel} | ${action} | ${dest} | ${conf} |`);
+      lines.push(`| ${triggerCell} | ${action} | ${dest} | ${conf} |`);
     }
   }
 

@@ -11,7 +11,7 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import type { SwiftSymbolTable } from "../parse/scanner.js";
-import type { NavigationGraph, NavigationEdge } from "@karax/core";
+import type { NavigationGraph, NavigationEdge, TriggerInfo } from "@karax/core";
 
 /**
  * @main App 소스에서 WindowGroup { XxxView() } 또는 ContentView() 같은 최상위 화면명 추출
@@ -31,6 +31,8 @@ function parseRootViewFromAppSource(
 interface NavLinkInfo {
   destination: string;
   label: string | undefined;
+  /** NavigationLink 키워드 시작 위치의 1-based 라인 */
+  line: number;
 }
 
 /**
@@ -47,6 +49,9 @@ function extractNavigationLinks(source: string): NavLinkInfo[] {
   let m: RegExpExecArray | null;
 
   while ((m = linkRe.exec(source)) !== null) {
+    // NavigationLink 매치 시작 위치의 1-based 라인
+    const linkLine = source.slice(0, m.index).split("\n").length;
+
     // destination: XxxScreen(...) 추출
     const afterKeyword = source.slice(m.index + m[0].length);
 
@@ -81,7 +86,7 @@ function extractNavigationLinks(source: string): NavLinkInfo[] {
     const afterParen = source.slice(parenPos);
     const bodyStartRel = afterParen.indexOf("{");
     if (bodyStartRel === -1 || bodyStartRel > 10) {
-      results.push({ destination: destName, label: undefined });
+      results.push({ destination: destName, label: undefined, line: linkLine });
       continue;
     }
 
@@ -100,7 +105,7 @@ function extractNavigationLinks(source: string): NavLinkInfo[] {
     const textMatch = /Text\s*\(\s*"([^"]+)"/.exec(bodyText);
     const label = textMatch ? textMatch[1]! : undefined;
 
-    results.push({ destination: destName, label });
+    results.push({ destination: destName, label, line: linkLine });
   }
 
   return results;
@@ -147,6 +152,12 @@ export async function discoverIOSNavGraph(
       const destName = symbolTable.aliasMap.get(link.destination) ?? link.destination;
       const destExists = symbolTable.structs.has(destName);
 
+      // elementRef: NavigationLink 위젯 위치 (parsedFile.filePath + line)
+      const elementRef: TriggerInfo["elementRef"] = {
+        file: parsedFile.filePath,
+        line: link.line,
+      };
+
       edges.push({
         from: structName,
         to: destExists ? destName : null,
@@ -154,6 +165,7 @@ export async function discoverIOSNavGraph(
         trigger: {
           kind: "navlink",
           ...(link.label ? { label: link.label } : {}),
+          elementRef,
         },
         confidence: destExists ? 1.0 : 0.3,
         diagnostics: destExists

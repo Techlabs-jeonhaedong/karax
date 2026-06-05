@@ -393,17 +393,20 @@ export function createMcpServer(): McpServer {
 
   server.tool(
     "generate_app_map",
-    "프로젝트의 화면 구조와 네비게이션 그래프를 분석해 AppMap을 반환한다",
+    "프로젝트의 화면 구조와 네비게이션 그래프를 분석해 AppMap을 반환한다. " +
+    "includeLayout=false로 Chromium 기반 좌표 측정을 비활성화할 수 있다 (기본 true).",
     {
       projectPath: z.string().min(1),
       framework: z.enum(["flutter", "react-native", "ios", "android"]).optional(),
+      includeLayout: z.boolean().optional(),
     },
-    async ({ projectPath, framework }) => {
+    async ({ projectPath, framework, includeLayout }) => {
       try {
         validateProjectPath(projectPath);
         const appMap = await generateAppMap({
           projectPath,
           ...(framework ? { framework: framework as FrameworkId } : {}),
+          ...(includeLayout !== undefined ? { includeLayout } : {}),
         });
 
         const docs = renderAppMapMarkdown(appMap);
