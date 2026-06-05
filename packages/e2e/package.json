@@ -17,8 +17,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sfc/adapter-api": "workspace:*",
-    "@sfc/doctor": "workspace:*",
+    "@karax/adapter-api": "workspace:*",
+    "@karax/doctor": "workspace:*",
     "execa": "^9.0.0",
     "zod": "^3.22.0"
   },

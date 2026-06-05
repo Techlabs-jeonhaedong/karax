@@ -4,7 +4,7 @@ import { resolve } from "path";
 export default defineConfig({
   resolve: {
     alias: {
-      "@sfc/renderer": resolve(__dirname, "../renderer/dist/index.js"),
+      "@karax/renderer": resolve(__dirname, "../renderer/dist/index.js"),
     },
   },
   test: {

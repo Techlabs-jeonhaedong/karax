@@ -6,7 +6,7 @@
  */
 
 import { Command } from "commander";
-import type { CaptureMode } from "@sfc/sdk";
+import type { CaptureMode } from "@karax/sdk";
 
 // ── 종료 코드 ──────────────────────────────────────────────────────
 

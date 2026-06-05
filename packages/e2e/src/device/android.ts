@@ -5,7 +5,7 @@
 import path from "path";
 import fs from "fs";
 import { execa } from "execa";
-import { detectAndroidSdkPath } from "@sfc/doctor";
+import { detectAndroidSdkPath } from "@karax/doctor";
 import { E2eError } from "../types.js";
 import { parseAdbDevices, parseEmulatorListAvds } from "./parse.js";
 import type { DeviceManager, DeviceInfo } from "./types.js";

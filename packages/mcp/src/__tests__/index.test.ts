@@ -17,7 +17,7 @@ const RN_FIXTURE = path.resolve(__dirname, "../../../../fixtures/react-native-ba
 
 /** 서버+클라이언트 InMemory 쌍을 생성하고 연결 */
 async function makeClientServer() {
-  process.env.SFC_SKIP_ENSURE = "1";
+  process.env.KARAX_SKIP_ENSURE = "1";
 
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
@@ -206,7 +206,7 @@ describe("MCP 서버 — capture_screen tool (mode: static)", () => {
         projectPath: FLUTTER_FIXTURE,
         screenId: firstScreenId,
         captureMode: "static",
-        outDir: "/tmp/sfc-mcp-test",
+        outDir: "/tmp/karax-mcp-test",
         mockSeed: 42,
       },
     }, undefined, { timeout: 120_000 });
@@ -420,7 +420,7 @@ describe("MCP 서버 — capture_all tool", () => {
   it("projectPath 누락 → isError", async () => {
     const result = await client.callTool({
       name: "capture_all",
-      arguments: { outDir: "/tmp/sfc-mcp-test-all" },
+      arguments: { outDir: "/tmp/karax-mcp-test-all" },
     });
     expect(result.isError).toBe(true);
   });
@@ -450,7 +450,7 @@ describe("MCP 서버 — capture_all report.failures 계약 (낮음-9 회귀)", 
         name: "capture_all",
         arguments: {
           projectPath: FLUTTER_FIXTURE,
-          outDir: "/tmp/sfc-mcp-capture-all-test",
+          outDir: "/tmp/karax-mcp-capture-all-test",
           captureMode: "static",
           mockSeed: 0,
         },
@@ -564,28 +564,28 @@ describe("MCP 서버 — list_screens 계약 (react-native-basic fixture)", () =
 // StdioServerTransport를 mock으로 교체해 실제 stdio 연결 없이 기동 경로만 검사한다.
 //
 // 설계 근거:
-//   server.ts는 ensureDependencies를 @sfc/sdk에서 정적 import한다.
-//   @sfc/sdk dist 내부의 동적 import("@sfc/doctor")는 vitest의 vi.mock("@sfc/doctor")로
+//   server.ts는 ensureDependencies를 @karax/sdk에서 정적 import한다.
+//   @karax/sdk dist 내부의 동적 import("@karax/doctor")는 vitest의 vi.mock("@karax/doctor")로
 //   가로채이지 않는다 — SDK가 이미 resolve된 dist 바이너리를 실행하기 때문이다.
-//   따라서 @sfc/sdk 자체를 vi.doMock으로 교체해 ensureDependencies를 직접 실패시킨다.
+//   따라서 @karax/sdk 자체를 vi.doMock으로 교체해 ensureDependencies를 직접 실패시킨다.
 //   이렇게 해야 try-catch fix를 revert하면 테스트가 실제로 실패한다.
 
 describe("MCP 서버 — startStdioServer ensure 실패 시 기동 가능 (중간-3 회귀)", () => {
   it(
     "ensureDependencies가 던져도 startStdioServer가 reject되지 않음",
     async () => {
-      // SFC_SKIP_ENSURE를 해제해서 ensureDependencies 코드 경로를 활성화한다
-      const original = process.env.SFC_SKIP_ENSURE;
-      delete process.env.SFC_SKIP_ENSURE;
+      // KARAX_SKIP_ENSURE를 해제해서 ensureDependencies 코드 경로를 활성화한다
+      const original = process.env.KARAX_SKIP_ENSURE;
+      delete process.env.KARAX_SKIP_ENSURE;
 
       // 모듈 캐시를 초기화해 doMock이 fresh import에 적용되게 한다
       vi.resetModules();
 
-      // @sfc/sdk를 vi.doMock으로 교체: ensureDependencies만 실패시키고 나머지는 유지
+      // @karax/sdk를 vi.doMock으로 교체: ensureDependencies만 실패시키고 나머지는 유지
       // vi.mock(hoisted)이 아닌 vi.doMock(non-hoisted)을 사용해야 describe 블록 내에서 동작한다
-      vi.doMock("@sfc/sdk", async () => {
+      vi.doMock("@karax/sdk", async () => {
         // importActual로 실제 SDK 모듈을 가져와 나머지 export는 그대로 쓴다
-        const actual = await vi.importActual<typeof import("@sfc/sdk")>("@sfc/sdk");
+        const actual = await vi.importActual<typeof import("@karax/sdk")>("@karax/sdk");
         return {
           ...actual,
           ensureDependencies: vi.fn().mockRejectedValue(new Error("MOCK: network timeout")),
@@ -614,9 +614,9 @@ describe("MCP 서버 — startStdioServer ensure 실패 시 기동 가능 (중�
         await expect(startStdioServer()).resolves.toBeUndefined();
       } finally {
         if (original !== undefined) {
-          process.env.SFC_SKIP_ENSURE = original;
+          process.env.KARAX_SKIP_ENSURE = original;
         } else {
-          process.env.SFC_SKIP_ENSURE = "1";
+          process.env.KARAX_SKIP_ENSURE = "1";
         }
         vi.resetModules();
         vi.restoreAllMocks();
@@ -631,7 +631,7 @@ describe("MCP 서버 — ensure 실패 무관 도구 목록 (중간-3 회귀)", 
   let server: Awaited<ReturnType<typeof makeClientServer>>["server"];
 
   beforeEach(async () => {
-    // SFC_SKIP_ENSURE=1 상태에서도 createMcpServer는 정상 동작해야 한다
+    // KARAX_SKIP_ENSURE=1 상태에서도 createMcpServer는 정상 동작해야 한다
     ({ client, server } = await makeClientServer());
   });
 
@@ -697,7 +697,7 @@ describe("MCP 서버 — run_e2e_test tool (핸들러 계약, @karax/e2e mock)",
     // 이 describe 블록에서는 fresh server를 doMock 이후 생성해야 한다.
     // makeClientServer()가 정적 import된 server.ts를 사용하므로
     // 여기서는 도구 등록 계약만 검증한다 (누락 인수 → zod 검증 실패 → isError).
-    process.env.SFC_SKIP_ENSURE = "1";
+    process.env.KARAX_SKIP_ENSURE = "1";
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const { createMcpServer: freshCreateMcpServer } = await import("../server.js");
     const srv = freshCreateMcpServer();
@@ -718,7 +718,7 @@ describe("MCP 서버 — run_e2e_test tool (핸들러 계약, @karax/e2e mock)",
   });
 
   it("projectPath만 있고 platform 누락 → isError", async () => {
-    process.env.SFC_SKIP_ENSURE = "1";
+    process.env.KARAX_SKIP_ENSURE = "1";
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const { createMcpServer: freshCreateMcpServer } = await import("../server.js");
     const srv = freshCreateMcpServer();
@@ -739,7 +739,7 @@ describe("MCP 서버 — run_e2e_test tool (핸들러 계약, @karax/e2e mock)",
   });
 
   it("존재하지 않는 projectPath → isError", async () => {
-    process.env.SFC_SKIP_ENSURE = "1";
+    process.env.KARAX_SKIP_ENSURE = "1";
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const { createMcpServer: freshCreateMcpServer } = await import("../server.js");
     const srv = freshCreateMcpServer();
@@ -786,7 +786,7 @@ describe("MCP 서버 — run_e2e_test screenshot path traversal 방어", () => {
       }),
     }));
 
-    process.env.SFC_SKIP_ENSURE = "1";
+    process.env.KARAX_SKIP_ENSURE = "1";
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const { createMcpServer: freshServer } = await import("../server.js");
     const srv = freshServer();

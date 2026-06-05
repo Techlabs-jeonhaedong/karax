@@ -10,8 +10,8 @@ vi.mock("execa", () => ({
   execa: vi.fn(),
 }));
 
-// @sfc/doctor mock
-vi.mock("@sfc/doctor", () => ({
+// @karax/doctor mock
+vi.mock("@karax/doctor", () => ({
   detectAndroidSdkPath: vi.fn().mockResolvedValue("/sdk"),
 }));
 

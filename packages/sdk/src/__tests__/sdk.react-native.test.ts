@@ -40,8 +40,8 @@ describe("react-native-basic fixture — detectFramework + listScreens + capture
   });
 
   it("captureAll: mode:static — PNG 5장+report 생성", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-sdk-rn-captureAll-"));
-    process.env.SFC_SKIP_ENSURE = "1";
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-sdk-rn-captureAll-"));
+    process.env.KARAX_SKIP_ENSURE = "1";
     try {
       const result = await captureAll({
         projectPath: RN_FIXTURE,
@@ -63,7 +63,7 @@ describe("react-native-basic fixture — detectFramework + listScreens + capture
         expect(fs.existsSync(reportPath)).toBe(true);
       }
     } finally {
-      delete process.env.SFC_SKIP_ENSURE;
+      delete process.env.KARAX_SKIP_ENSURE;
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   }, 120_000);

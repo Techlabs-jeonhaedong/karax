@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import path from "path";
 import { fileURLToPath } from "url";
 import { androidAdapter } from "../index.js";
-import type { AdapterContext } from "@sfc/adapter-api";
+import type { AdapterContext } from "@karax/adapter-api";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = path.resolve(__dirname, "../../../..", "fixtures");
@@ -75,7 +75,7 @@ describe("androidAdapter.discoverScreens — heuristic", () => {
 describe("androidAdapter.discoverScreens — 합성 케이스", () => {
   it("빈 프로젝트에서 빈 배열을 반환한다", async () => {
     const screens = await androidAdapter.discoverScreens({
-      projectPath: "/tmp/nonexistent-sfc-android-test",
+      projectPath: "/tmp/nonexistent-karax-android-test",
     });
     expect(screens).toEqual([]);
   });

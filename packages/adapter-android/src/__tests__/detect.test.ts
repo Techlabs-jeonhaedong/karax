@@ -26,7 +26,7 @@ describe("androidAdapter.detect", () => {
   });
 
   it("빈 디렉토리를 감지하지 않는다", async () => {
-    const result = await androidAdapter.detect("/tmp/nonexistent-sfc-test");
+    const result = await androidAdapter.detect("/tmp/nonexistent-karax-test");
     expect(result.matches).toBe(false);
   });
 });

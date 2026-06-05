@@ -18,7 +18,7 @@ karax는 현재 "빌드 없이" 정적 분석으로 스크린샷을 추출하는
 
 ```
 packages/e2e/
-  package.json          # deps: execa ^9, zod, @sfc/adapter-api, @sfc/doctor (workspace:*)
+  package.json          # deps: execa ^9, zod, @karax/adapter-api, @karax/doctor (workspace:*)
   tsconfig.json / vitest.config.ts   # 기존 패키지 패턴 그대로
   src/
     index.ts            # public API: runE2eTest(opts)
@@ -62,7 +62,7 @@ interface DeviceManager {
 }
 ```
 
-- Android: SDK 경로는 `@sfc/doctor`의 `detectAndroidSdkPath()` 재사용. 부팅 `emulator -avd <name> -no-snapshot -no-audio`(detached) → `adb shell getprop sys.boot_completed` 폴링(기본 180s, 초과 시 `EMULATOR_BOOT_TIMEOUT`). 설치 `adb install -r -t`, 실행 `monkey -p <appId> -c android.intent.category.LAUNCHER 1`, 스샷 `adb exec-out screencap -p`.
+- Android: SDK 경로는 `@karax/doctor`의 `detectAndroidSdkPath()` 재사용. 부팅 `emulator -avd <name> -no-snapshot -no-audio`(detached) → `adb shell getprop sys.boot_completed` 폴링(기본 180s, 초과 시 `EMULATOR_BOOT_TIMEOUT`). 설치 `adb install -r -t`, 실행 `monkey -p <appId> -c android.intent.category.LAUNCHER 1`, 스샷 `adb exec-out screencap -p`.
 - iOS: `simctl list devices available` 파싱(compile-ios에서 개작) → `simctl boot` + `bootstatus -b` → `simctl install` / `launch` / `io screenshot`.
 - env 주입(`ANDROID_HOME`/`ANDROID_SDK_ROOT`)은 `compile-android/src/runner.ts` 방식 그대로.
 

@@ -14,13 +14,13 @@
 
 import { readFile, readdir, stat } from "fs/promises";
 import path from "path";
-import type { ScreenSummary } from "@sfc/adapter-api";
-import type { IRDocument, IRNode } from "@sfc/core";
+import type { ScreenSummary } from "@karax/adapter-api";
+import type { IRDocument, IRNode } from "@karax/core";
 import {
   aggregateScreenConfidence,
   parseIRDocument,
   NODE_CONFIDENCE,
-} from "@sfc/core";
+} from "@karax/core";
 import {
   tokenize,
   buildTree,

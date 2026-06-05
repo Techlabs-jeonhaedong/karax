@@ -13,7 +13,7 @@ import type {
   ScreenSummary,
   CaptureOptions,
   CaptureResult,
-} from "@sfc/adapter-api";
+} from "@karax/adapter-api";
 import { generateHarness } from "./harness/generator.js";
 import { runRnWebCapture, CompileCaptureError } from "./runner.js";
 
@@ -61,7 +61,7 @@ export const rnWebCompileBackend: CompileBackend = {
         .slice(0, 12);
       const { join } = await import("path");
       const { tmpdir } = await import("os");
-      const leakedDir = join(tmpdir(), `sfc-rn-${hash}`);
+      const leakedDir = join(tmpdir(), `karax-rn-${hash}`);
       try {
         fs.rmSync(leakedDir, { recursive: true, force: true });
       } catch {

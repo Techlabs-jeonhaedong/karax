@@ -8,7 +8,7 @@ import type {
   FrameworkAdapter,
   ScreenSummary,
 } from "../types.js";
-import type { IRDocument } from "@sfc/core";
+import type { IRDocument } from "@karax/core";
 
 /**
  * 인터페이스 적합성 테스트 — 스텁 구현체가 타입 체크 통과하는지 확인.

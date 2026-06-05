@@ -29,7 +29,7 @@ vi.mock("../agent/prompt.js", () => ({
   buildAgentPrompt: vi.fn().mockReturnValue("test prompt"),
 }));
 
-vi.mock("@sfc/doctor", () => ({
+vi.mock("@karax/doctor", () => ({
   detectAndroidSdkPath: vi.fn().mockResolvedValue("/sdk"),
 }));
 

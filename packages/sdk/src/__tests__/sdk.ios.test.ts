@@ -40,8 +40,8 @@ describe("ios-swiftui-basic fixture — detectFramework + listScreens + captureA
   });
 
   it("captureAll: mode:static — PNG 5장+report 생성", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-sdk-ios-captureAll-"));
-    process.env.SFC_SKIP_ENSURE = "1";
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-sdk-ios-captureAll-"));
+    process.env.KARAX_SKIP_ENSURE = "1";
     try {
       const result = await captureAll({
         projectPath: IOS_FIXTURE,
@@ -63,7 +63,7 @@ describe("ios-swiftui-basic fixture — detectFramework + listScreens + captureA
         expect(fs.existsSync(reportPath)).toBe(true);
       }
     } finally {
-      delete process.env.SFC_SKIP_ENSURE;
+      delete process.env.KARAX_SKIP_ENSURE;
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   }, 120_000);

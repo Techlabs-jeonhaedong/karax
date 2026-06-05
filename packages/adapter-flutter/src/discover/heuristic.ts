@@ -1,4 +1,4 @@
-import type { SyntaxNode } from "@sfc/adapter-api";
+import type { SyntaxNode } from "@karax/adapter-api";
 import type { SymbolTable, ClassInfo, ParsedFile } from "../parse/scanner.js";
 import { findNodes, findChild } from "../parse/scanner.js";
 

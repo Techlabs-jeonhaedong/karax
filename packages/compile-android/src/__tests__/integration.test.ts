@@ -1,5 +1,5 @@
 /**
- * 통합 테스트 — SFC_ANDROID_INTEGRATION=1 환경변수 가드
+ * 통합 테스트 — KARAX_ANDROID_INTEGRATION=1 환경변수 가드
  *
  * 실제 Paparazzi + Gradle 실행이 필요하므로 통합 CI 환경에서만 실행.
  * SDK가 없으면 자동 skip.
@@ -12,13 +12,13 @@ import crypto from "crypto";
 import { androidPaparazziBackend } from "../index.js";
 import { CompileCaptureError } from "../errors.js";
 
-// __tests__(1) → src(2) → compile-android(3) → packages(4) → screenshot-from-code
+// __tests__(1) → src(2) → compile-android(3) → packages(4) → karax
 const FIXTURE_PATH = path.resolve(
   new URL(".", import.meta.url).pathname,
   "../../../../fixtures/android-compose-basic"
 );
 
-const RUN = process.env.SFC_ANDROID_INTEGRATION === "1";
+const RUN = process.env.KARAX_ANDROID_INTEGRATION === "1";
 
 function hashDir(dirPath: string): string {
   try {
@@ -43,7 +43,7 @@ function hashDir(dirPath: string): string {
   }
 }
 
-describe.skipIf(!RUN)("compile-android 통합 테스트 (SFC_ANDROID_INTEGRATION=1 필요)", () => {
+describe.skipIf(!RUN)("compile-android 통합 테스트 (KARAX_ANDROID_INTEGRATION=1 필요)", () => {
   it("fixture 경로가 존재해야 함", () => {
     expect(fs.existsSync(FIXTURE_PATH)).toBe(true);
   });
@@ -54,7 +54,7 @@ describe.skipIf(!RUN)("compile-android 통합 테스트 (SFC_ANDROID_INTEGRATION
   });
 
   it("HomeScreen Paparazzi 캡처 — 원본 무수정", async () => {
-    const outDir = path.join("/tmp", `sfc-android-integration-${Date.now()}`);
+    const outDir = path.join("/tmp", `karax-android-integration-${Date.now()}`);
     fs.mkdirSync(outDir, { recursive: true });
 
     // 실행 전 fixture 해시

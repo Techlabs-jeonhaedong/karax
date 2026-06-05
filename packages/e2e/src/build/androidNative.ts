@@ -5,7 +5,7 @@
 import fs from "fs";
 import path from "path";
 import { execa } from "execa";
-import { detectAndroidSdkPath } from "@sfc/doctor";
+import { detectAndroidSdkPath } from "@karax/doctor";
 import { E2eError } from "../types.js";
 import { extractAndroidAppId, findApk } from "./artifact.js";
 import { detectGradleAppModule } from "./detect.js";

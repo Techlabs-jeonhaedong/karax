@@ -10,12 +10,12 @@ import * as path from "path";
 import * as fs from "fs";
 import { fileURLToPath } from "url";
 import { createRequire } from "module";
-import type { DeviceProfileId } from "@sfc/adapter-api";
+import type { DeviceProfileId } from "@karax/adapter-api";
 import { createNativeMockPlugin, type MockedModule } from "./harness/nativeMockPlugin.js";
 
 // ── playwright 로더 ───────────────────────────────────────────────────────────
 //
-// playwright는 @sfc/renderer 패키지 의존성으로 설치됨.
+// playwright는 @karax/renderer 패키지 의존성으로 설치됨.
 // 이 패키지 node_modules에는 없으므로 workspace 내 renderer 패키지에서 찾는다.
 // createRequire로 CJS 로드 (ESM dynamic import는 Node.js 패키지 해석 경계를 넘지 못함).
 
@@ -35,7 +35,7 @@ function findPlaywrightNodeModules(): string {
     if (fs.existsSync(c)) return c;
   }
   throw new Error(
-    "playwright를 찾을 수 없음. @sfc/renderer 패키지가 설치되어 있어야 합니다."
+    "playwright를 찾을 수 없음. @karax/renderer 패키지가 설치되어 있어야 합니다."
   );
 }
 

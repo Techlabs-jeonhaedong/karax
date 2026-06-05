@@ -1,4 +1,4 @@
-import type { DeviceProfileId } from "@sfc/adapter-api";
+import type { DeviceProfileId } from "@karax/adapter-api";
 
 export interface DeviceProfile {
   id: DeviceProfileId;

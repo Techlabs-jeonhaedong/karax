@@ -1,16 +1,16 @@
 /**
  * compile-ios — 통합 테스트
- * SFC_IOS_INTEGRATION=1 환경변수가 없으면 전부 skip
+ * KARAX_IOS_INTEGRATION=1 환경변수가 없으면 전부 skip
  *
  * 실행 방법:
- *   SFC_IOS_INTEGRATION=1 pnpm --filter @sfc/compile-ios test
+ *   KARAX_IOS_INTEGRATION=1 pnpm --filter @karax/compile-ios test
  */
 import * as path from "path";
 import * as fs from "fs";
 import * as zlib from "zlib";
 import * as crypto from "crypto";
 import { describe, expect, it, beforeAll } from "vitest";
-import type { ScreenSummary, AdapterContext, CaptureOptions } from "@sfc/adapter-api";
+import type { ScreenSummary, AdapterContext, CaptureOptions } from "@karax/adapter-api";
 import { iosSimulatorBackend } from "../index.js";
 
 // ── PNG 픽셀 실질 분석 헬퍼 ──────────────────────────────────────────────────
@@ -211,13 +211,13 @@ function countNonTransparentPixels(pngPath: string): number {
   return countIdatBytes(pngPath);
 }
 
-const INTEGRATION = process.env["SFC_IOS_INTEGRATION"] === "1";
+const INTEGRATION = process.env["KARAX_IOS_INTEGRATION"] === "1";
 const FIXTURES_DIR = path.resolve(process.cwd(), "../../fixtures/ios-swiftui-basic");
 const GOLDENS_DIR = path.resolve(process.cwd(), "__goldens__");
 
 function skipIfNotIntegration(): void {
   if (!INTEGRATION) {
-    console.warn("[compile-ios] SFC_IOS_INTEGRATION=1 아니므로 통합 테스트 skip");
+    console.warn("[compile-ios] KARAX_IOS_INTEGRATION=1 아니므로 통합 테스트 skip");
   }
 }
 

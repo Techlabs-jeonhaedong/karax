@@ -7,7 +7,7 @@ import type {
   ScreenSummary,
   CaptureOptions,
   CaptureResult,
-} from "@sfc/adapter-api";
+} from "@karax/adapter-api";
 import { generateHarness } from "./harness/generator.js";
 import { runFlutterTest } from "./runner.js";
 import { HarnessError } from "./harness/paramCodegen.js";

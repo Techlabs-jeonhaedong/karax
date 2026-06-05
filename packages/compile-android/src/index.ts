@@ -8,7 +8,7 @@ import type {
   ScreenSummary,
   CaptureOptions,
   CaptureResult,
-} from "@sfc/adapter-api";
+} from "@karax/adapter-api";
 import { CompileCaptureError } from "./errors.js";
 import { generateHarness } from "./harness/generator.js";
 import { runPaparazziTest } from "./runner.js";

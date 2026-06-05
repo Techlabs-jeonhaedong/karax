@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **karax** — 소스코드를 정적 분석해서 앱을 빌드하지 않고도 화면 스크린샷을 추출하는 도구. Flutter / React Native / Android(Compose·XML) / iOS(SwiftUI·UIKit)를 지원하며 SDK + MCP 서버 + CLI 형태로 제공된다. pnpm workspace 기반 TypeScript 모노레포(ESM, NodeNext).
 
-> **네이밍 주의**: 프로젝트 이름은 `karax`로 변경됐다. 구 명칭 `screenshot-from-code` / `sfc`는 문서·대화에서 사용하지 않는다. 단, 코드상 패키지 스코프(`@sfc/*`)와 루트 package.json name은 아직 리네임 전이므로, pnpm filter 등 실제 명령어에서는 현재 코드에 존재하는 이름을 그대로 써야 동작한다. 새로 작성하는 문서/코드에서는 karax를 사용할 것.
+> **리네임 완료**: 프로젝트 이름은 `karax`다. 구 명칭 `screenshot-from-code` / `sfc`는 사용하지 않는다. 패키지 스코프는 `@karax/*`이며, 루트 package.json name은 `karax`다. pnpm filter 명령어에서는 `@karax/*`를 사용할 것.
 
 `PLAN.md`가 자기완결적 설계 문서다 — 아키텍처 의사결정의 배경이 궁금하면 먼저 참고할 것.
 
@@ -19,10 +19,10 @@ pnpm -r test              # 전체 테스트 (vitest)
 pnpm -r typecheck         # 전체 타입체크
 
 # 단일 패키지 테스트
-pnpm --filter @sfc/adapter-flutter test
+pnpm --filter @karax/adapter-flutter test
 
 # 단일 테스트 파일 실행
-pnpm --filter @sfc/adapter-flutter exec vitest run src/__tests__/discover.test.ts
+pnpm --filter @karax/adapter-flutter exec vitest run src/__tests__/discover.test.ts
 
 # CLI 직접 실행 (빌드 후)
 node packages/cli/dist/bin.js detect <path>
@@ -68,7 +68,7 @@ doctor (환경 진단·자동 설치, 티어 가용성 판정)
  ↑
 sdk (모든 패키지를 묶은 public API: detectFramework, listScreens, captureScreen, captureAll, buildScreenIR)
  ↑
-cli (@sfc/cli — bin.ts, commands.ts) / mcp (@sfc/mcp — MCP 서버, tool 7종)
+cli (@karax/cli — bin.ts, commands.ts) / mcp (@karax/mcp — MCP 서버, tool 7종)
 
 enrich-llm (선택 플러그인 — confidence 낮은 노드만 LLM으로 보강)
 ```

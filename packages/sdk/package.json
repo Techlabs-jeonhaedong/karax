@@ -1,5 +1,5 @@
 {
-  "name": "@sfc/sdk",
+  "name": "@karax/sdk",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -17,19 +17,19 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sfc/adapter-android": "workspace:*",
-    "@sfc/adapter-api": "workspace:*",
-    "@sfc/adapter-flutter": "workspace:*",
-    "@sfc/adapter-ios": "workspace:*",
-    "@sfc/adapter-react-native": "workspace:*",
-    "@sfc/compile-android": "workspace:*",
-    "@sfc/compile-flutter": "workspace:*",
-    "@sfc/compile-ios": "workspace:*",
-    "@sfc/compile-react-native": "workspace:*",
-    "@sfc/core": "workspace:*",
-    "@sfc/doctor": "workspace:*",
+    "@karax/adapter-android": "workspace:*",
+    "@karax/adapter-api": "workspace:*",
+    "@karax/adapter-flutter": "workspace:*",
+    "@karax/adapter-ios": "workspace:*",
+    "@karax/adapter-react-native": "workspace:*",
+    "@karax/compile-android": "workspace:*",
+    "@karax/compile-flutter": "workspace:*",
+    "@karax/compile-ios": "workspace:*",
+    "@karax/compile-react-native": "workspace:*",
+    "@karax/core": "workspace:*",
+    "@karax/doctor": "workspace:*",
     "@karax/e2e": "workspace:*",
-    "@sfc/renderer": "workspace:*"
+    "@karax/renderer": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

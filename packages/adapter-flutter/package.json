@@ -1,5 +1,5 @@
 {
-  "name": "@sfc/adapter-flutter",
+  "name": "@karax/adapter-flutter",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -17,8 +17,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sfc/adapter-api": "workspace:*",
-    "@sfc/core": "workspace:*"
+    "@karax/adapter-api": "workspace:*",
+    "@karax/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

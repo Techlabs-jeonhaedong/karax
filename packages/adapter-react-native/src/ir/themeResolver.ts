@@ -5,7 +5,7 @@
 
 import path from "path";
 import { readFile } from "fs/promises";
-import { parseSource, type SyntaxNode } from "@sfc/adapter-api";
+import { parseSource, type SyntaxNode } from "@karax/adapter-api";
 import { findNodes, findChild } from "../parse/scanner.js";
 
 // ── 결과 타입 ─────────────────────────────────────────────────────────────────
