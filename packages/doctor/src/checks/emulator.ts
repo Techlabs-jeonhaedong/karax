@@ -1,5 +1,5 @@
 /**
- * checks/emulator.ts — emulator + avdmanager + AVD 존재 확인
+ * checks/emulator.ts — emulator 바이너리 + AVD 존재 확인 (`emulator -list-avds` 사용)
  */
 
 import { execa } from "execa";

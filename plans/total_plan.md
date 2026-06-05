@@ -188,5 +188,5 @@ core → adapter-api → adapter-{flutter,rn,android,ios} · compile-* · render
 - **Android 네비 추적은 2단계 간접 추적까지** — 3단계 이상 콜백 전달은 conf 0.3 + diagnostic으로 포기.
 - **에이전트 CLI 플래그는 버전 의존** — `--permission-mode bypassPermissions` / `--full-auto` / `--yolo`는 런타임 검증 필요.
 - **MCP `run_e2e_test`는 수 분 소요** — 응답 크기 제한, 장시간 소요 명시.
-- **fresh clone 첫 실행 지연** — install+build 수 분, MCP 클라이언트 타임아웃 가능 → `pnpm setup` 워밍업 권장.
+- **fresh clone 첫 실행 지연** — install+build 수 분, MCP 클라이언트 타임아웃 가능 → `pnpm bootstrap` 워밍업 권장. (`setup`은 pnpm 내장 명령과 충돌해 `bootstrap`으로 명명)
 - **BFS vs DFS 순회 순서 불일치** — idx 직접 매칭 금지, sourceRef(file+line) 매칭이 유일하게 안전.
