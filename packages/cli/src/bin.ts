@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * sfc CLI — 진입점
+ * karax CLI — 진입점
  *
  * 종료 코드:
  *   0 — 성공
@@ -9,6 +9,8 @@
  */
 
 import { Command } from "commander";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
 import {
   EXIT_CODES,
   parseDetectArgs,
@@ -18,13 +20,17 @@ import {
   parseMapArgs,
   parseMcpConfigArgs,
 } from "./commands.js";
-import type { DeviceProfileId } from "@sfc/sdk";
+import type { DeviceProfileId } from "@karax/sdk";
+
+// repo 루트: packages/cli/dist/bin.js → ../../../ (= repo root)
+const __filename = fileURLToPath(import.meta.url);
+const REPO_ROOT = resolve(dirname(__filename), "../../..");
 
 // SDK 는 커맨드 핸들러에서 동적으로 import (초기 로드 최소화)
 
 const VERSION = "0.0.1";
 
-const program = new Command("sfc");
+const program = new Command("karax");
 program.version(VERSION, "-V, --version", "버전 출력");
 program.description("소스코드 기반 앱 스크린샷 추출 도구");
 
@@ -36,7 +42,7 @@ program
   .action(async (pathArg: string) => {
     try {
       parseDetectArgs([pathArg]); // 파싱 검증용
-      const { detectFramework } = await import("@sfc/sdk");
+      const { detectFramework } = await import("@karax/sdk");
       const result = await detectFramework(pathArg);
 
       if (result.frameworks.length === 0) {
@@ -76,7 +82,7 @@ program
   .option("--fix", "설치 가능한 의존성을 자동 설치", false)
   .action(async (pathArg: string | undefined, opts: { fix: boolean }) => {
     try {
-      const { doctor, doctorFix } = await import("@sfc/sdk");
+      const { doctor, doctorFix } = await import("@karax/sdk");
       const report = opts.fix
         ? await doctorFix(await doctor(pathArg))
         : await doctor(pathArg);
@@ -135,7 +141,7 @@ program
           ...(opts.json ? ["--json"] : []),
         ]);
 
-        const { listScreens } = await import("@sfc/sdk");
+        const { listScreens } = await import("@karax/sdk");
         const screens = await listScreens({
           projectPath: listOpts.path,
           includeCandidates: listOpts.includeCandidates,
@@ -181,7 +187,7 @@ program
   .option("--screen <id>", "캡처할 화면 ID (없으면 전체)")
   .option("--device <id>", "디바이스 프로파일 ID")
   .option("--mode <mode>", "캡처 모드: auto|compile|static", "auto")
-  .option("--out <dir>", "출력 디렉토리", "/tmp/sfc-out")
+  .option("--out <dir>", "출력 디렉토리", "/tmp/karax-out")
   .option("--seed <n>", "mock 결정론 시드 (숫자)")
   .option("--json", "JSON 형식으로 출력", false)
   .option("--variants", "Branch 분기별 variant PNG 추가 생성 (Tier 2 전용)", false)
@@ -216,8 +222,8 @@ program
           ...(opts.overlay ? ["--overlay"] : []),
         ]);
 
-        const { captureScreen, captureAll } = await import("@sfc/sdk");
-        const outDir = args.out ?? "/tmp/sfc-out";
+        const { captureScreen, captureAll } = await import("@karax/sdk");
+        const outDir = args.out ?? "/tmp/karax-out";
 
         if (args.screen) {
           // 단일 화면 캡처
@@ -331,7 +337,7 @@ program
           ...(opts.json ? ["--json"] : []),
         ]);
 
-        const { generateAppMap } = await import("@sfc/sdk");
+        const { generateAppMap } = await import("@karax/sdk");
         const appMap = await generateAppMap({ projectPath: args.path });
 
         if (args.json) {
@@ -341,7 +347,7 @@ program
         }
 
         // 마크다운 렌더링 후 파일 저장
-        const { renderAppMapMarkdown } = await import("@sfc/core");
+        const { renderAppMapMarkdown } = await import("@karax/core");
         const { mkdir, writeFile } = await import("fs/promises");
         const path = await import("path");
         const outDir = args.out ?? ".";
@@ -378,15 +384,17 @@ program
   );
 
 // ─── mcp-config / mcp install-config ─────────────────────────────
-// PLAN 7절은 'sfc mcp install-config'로 명시하고 있어 별칭으로도 동작하게 한다.
+// PLAN 7절은 'karax mcp install-config'로 명시하고 있어 별칭으로도 동작하게 한다.
 
 function runMcpConfig(): void {
   parseMcpConfigArgs([]);
+  // git clone 기반 런처 — npm 배포 없이 사용 가능
+  const launcherPath = join(REPO_ROOT, "scripts/mcp-launcher.mjs");
   const snippet = {
     mcpServers: {
-      sfc: {
-        command: "npx",
-        args: ["-y", "@sfc/mcp"],
+      karax: {
+        command: "node",
+        args: [launcherPath],
       },
     },
   };
@@ -406,11 +414,11 @@ program
     }
   });
 
-// PLAN 7절 명칭 호환 별칭: sfc mcp install-config
+// PLAN 7절 명칭 호환 별칭: karax mcp install-config
 const mcpCmd = program.command("mcp").description("MCP 관련 유틸리티 커맨드");
 mcpCmd
   .command("install-config")
-  .description("MCP 클라이언트 설정 스니펫(JSON)을 출력한다 (sfc mcp-config의 별칭)")
+  .description("MCP 클라이언트 설정 스니펫(JSON)을 출력한다 (karax mcp-config의 별칭)")
   .action(() => {
     try {
       runMcpConfig();
@@ -424,7 +432,7 @@ mcpCmd
 
 program.on("command:*", () => {
   console.error(`오류: 알 수 없는 커맨드 '${program.args.join(" ")}'.`);
-  console.error("사용법: sfc --help");
+  console.error("사용법: karax --help");
   process.exit(EXIT_CODES.FAILURE);
 });
 

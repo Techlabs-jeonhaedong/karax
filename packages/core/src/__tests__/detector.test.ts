@@ -12,7 +12,7 @@ import type { DetectResult } from "../detect/detector.js";
  * paths는 { 'path/to/file': 'content' } 형태.
  */
 function makeTmp(files: Record<string, string>): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sfc-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-test-"));
   for (const [rel, content] of Object.entries(files)) {
     const abs = path.join(dir, rel);
     fs.mkdirSync(path.dirname(abs), { recursive: true });

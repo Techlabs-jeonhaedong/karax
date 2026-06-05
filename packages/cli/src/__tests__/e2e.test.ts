@@ -1,8 +1,8 @@
 /**
  * CLI E2E 테스트 — child_process로 빌드된 CLI를 실제 실행
  *
- * 실행 전제: pnpm --filter @sfc/cli build 완료
- * SFC_SKIP_ENSURE=1 환경변수로 doctor ensure 비활성화
+ * 실행 전제: pnpm --filter @karax/cli build 완료
+ * KARAX_SKIP_ENSURE=1 환경변수로 doctor ensure 비활성화
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
@@ -27,7 +27,7 @@ const IOS_FIXTURE = path.join(ROOT, "fixtures/ios-swiftui-basic");
 
 const BASE_ENV = {
   ...process.env,
-  SFC_SKIP_ENSURE: "1",
+  KARAX_SKIP_ENSURE: "1",
   NODE_OPTIONS: undefined as unknown as string,
 };
 
@@ -72,7 +72,7 @@ beforeAll(async () => {
 
 // ─── --help / --version ────────────────────────────────────────────
 
-describe("sfc --help", () => {
+describe("karax --help", () => {
   it("빌드된 CLI가 존재하면 --help를 출력한다", async () => {
     if (!cliBuildExists) {
       console.warn("CLI not built, skipping");
@@ -91,9 +91,9 @@ describe("sfc --help", () => {
   });
 });
 
-// ─── sfc detect ────────────────────────────────────────────────────
+// ─── karax detect ────────────────────────────────────────────────────
 
-describe("sfc detect", () => {
+describe("karax detect", () => {
   it("flutter-basic fixture에서 flutter를 감지한다", async () => {
     if (!cliBuildExists) return;
     const { stdout, code } = await runCli(["detect", FLUTTER_FIXTURE]);
@@ -129,9 +129,9 @@ describe("sfc detect", () => {
   });
 });
 
-// ─── sfc list ──────────────────────────────────────────────────────
+// ─── karax list ──────────────────────────────────────────────────────
 
-describe("sfc list", () => {
+describe("karax list", () => {
   it("flutter-basic에서 화면 목록을 출력한다", async () => {
     if (!cliBuildExists) return;
     const { stdout, code } = await runCli(["list", FLUTTER_FIXTURE]);
@@ -177,9 +177,9 @@ describe("sfc list", () => {
   });
 });
 
-// ─── sfc capture --mode static ─────────────────────────────────────
+// ─── karax capture --mode static ─────────────────────────────────────
 
-describe("sfc capture --mode static", () => {
+describe("karax capture --mode static", () => {
   it("flutter-basic에서 단일 화면 캡처(static)가 성공한다", async () => {
     if (!cliBuildExists) return;
     const outDir = path.join(os.tmpdir(), "cli-e2e-capture-single");
@@ -359,29 +359,29 @@ describe("sfc capture --mode static", () => {
   );
 });
 
-// ─── sfc mcp-config / sfc mcp install-config ───────────────────────
+// ─── karax mcp-config / karax mcp install-config ───────────────────────
 
-describe("sfc mcp-config", () => {
+describe("karax mcp-config", () => {
   it("유효한 JSON 스니펫을 출력한다", async () => {
     if (!cliBuildExists) return;
     const { stdout, code } = await runCli(["mcp-config"]);
     expect(code).toBe(0);
     // JSON이어야 한다
     const parsed = JSON.parse(stdout);
-    // npx 형태의 command가 있어야 한다
-    expect(JSON.stringify(parsed)).toContain("npx");
-    expect(JSON.stringify(parsed)).toContain("@sfc/mcp");
+    // git clone 기반 런처 — node + mcp-launcher.mjs 형태여야 한다
+    expect(parsed?.mcpServers?.karax?.command).toBe("node");
+    expect(JSON.stringify(parsed)).toContain("mcp-launcher.mjs");
   });
 });
 
-describe("sfc mcp install-config", () => {
-  it("PLAN 7절 명칭(sfc mcp install-config)으로도 동일한 스니펫을 출력한다", async () => {
+describe("karax mcp install-config", () => {
+  it("PLAN 7절 명칭(karax mcp install-config)으로도 동일한 스니펫을 출력한다", async () => {
     if (!cliBuildExists) return;
     const { stdout, code } = await runCli(["mcp", "install-config"]);
     expect(code).toBe(0);
     const parsed = JSON.parse(stdout);
-    expect(JSON.stringify(parsed)).toContain("npx");
-    expect(JSON.stringify(parsed)).toContain("@sfc/mcp");
+    expect(parsed?.mcpServers?.karax?.command).toBe("node");
+    expect(JSON.stringify(parsed)).toContain("mcp-launcher.mjs");
   });
 });
 
@@ -395,9 +395,9 @@ describe("알 수 없는 서브커맨드", () => {
   });
 });
 
-// ─── React Native fixture sfc detect / sfc list e2e ───────────────
+// ─── React Native fixture karax detect / karax list e2e ───────────────
 
-describe("sfc detect — react-native-basic", () => {
+describe("karax detect — react-native-basic", () => {
   it("react-native를 감지한다", async () => {
     if (!cliBuildExists) return;
     const { stdout, code } = await runCli(["detect", RN_FIXTURE]);
@@ -406,7 +406,7 @@ describe("sfc detect — react-native-basic", () => {
   });
 });
 
-describe("sfc list — react-native-basic", () => {
+describe("karax list — react-native-basic", () => {
   it("화면 목록을 출력한다", async () => {
     if (!cliBuildExists) return;
     const { stdout, code } = await runCli(["list", RN_FIXTURE]);
@@ -425,9 +425,9 @@ describe("sfc list — react-native-basic", () => {
   });
 });
 
-// ─── Android fixture sfc detect / sfc list e2e ───────────────────
+// ─── Android fixture karax detect / karax list e2e ───────────────────
 
-describe("sfc detect — android-compose-basic", () => {
+describe("karax detect — android-compose-basic", () => {
   it("android를 감지한다", async () => {
     if (!cliBuildExists) return;
     const { stdout, code } = await runCli(["detect", ANDROID_FIXTURE]);
@@ -436,7 +436,7 @@ describe("sfc detect — android-compose-basic", () => {
   });
 });
 
-describe("sfc list — android-compose-basic", () => {
+describe("karax list — android-compose-basic", () => {
   it("화면 목록을 출력한다", async () => {
     if (!cliBuildExists) return;
     const { stdout, code } = await runCli(["list", ANDROID_FIXTURE]);
@@ -455,9 +455,9 @@ describe("sfc list — android-compose-basic", () => {
   });
 });
 
-// ─── iOS fixture sfc detect / sfc list e2e ───────────────────────
+// ─── iOS fixture karax detect / karax list e2e ───────────────────────
 
-describe("sfc detect — ios-swiftui-basic", () => {
+describe("karax detect — ios-swiftui-basic", () => {
   it("ios를 감지한다", async () => {
     if (!cliBuildExists) return;
     const { stdout, code } = await runCli(["detect", IOS_FIXTURE]);
@@ -466,7 +466,7 @@ describe("sfc detect — ios-swiftui-basic", () => {
   });
 });
 
-describe("sfc list — ios-swiftui-basic", () => {
+describe("karax list — ios-swiftui-basic", () => {
   it("화면 목록을 출력한다", async () => {
     if (!cliBuildExists) return;
     const { stdout, code } = await runCli(["list", IOS_FIXTURE]);

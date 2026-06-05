@@ -2,7 +2,7 @@
  * Kotlin AST 유틸리티
  */
 
-import type { SyntaxNode } from "@sfc/adapter-api";
+import type { SyntaxNode } from "@karax/adapter-api";
 
 export function findAllNodes(
   node: SyntaxNode,

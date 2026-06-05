@@ -6,8 +6,8 @@ import type {
   AdapterContext,
   ScreenSummary,
   NavigationGraph,
-} from "@sfc/adapter-api";
-import type { IRDocument } from "@sfc/core";
+} from "@karax/adapter-api";
+import type { IRDocument } from "@karax/core";
 import { buildSwiftSymbolTable } from "./parse/scanner.js";
 import { discoverSwiftRouteGraph } from "./discover/routeGraph.js";
 import { findSwiftHeuristicCandidates } from "./discover/heuristic.js";

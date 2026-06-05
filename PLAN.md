@@ -165,28 +165,28 @@ PNG + *.report.json (confidence, tierUsed, diagnostics)
 ## 6. 모노레포 패키지 구조
 
 ```
-screenshot-from-code/
+karax/
 ├─ pnpm-workspace.yaml
 ├─ package.json                # workspace root
 ├─ tsconfig.base.json
 ├─ PLAN.md                     # 이 문서
 ├─ packages/
-│  ├─ core/                 @sfc/core         # IR zod 스키마, Detector, 파이프라인 오케스트레이션, mock, confidence
-│  ├─ adapter-api/          @sfc/adapter-api  # FrameworkAdapter·CompileBackend 인터페이스 + tree-sitter 공통 유틸(파서 로더, 심볼테이블)
-│  ├─ adapter-flutter/      @sfc/adapter-flutter        # 화면 발견 + Tier 2 정적 IR
-│  ├─ adapter-react-native/ @sfc/adapter-react-native
-│  ├─ adapter-ios/          @sfc/adapter-ios            # SwiftUI 우선, UIKit 후순위
-│  ├─ adapter-android/      @sfc/adapter-android        # Compose 우선, XML 후순위
-│  ├─ compile-flutter/      @sfc/compile-flutter        # Tier 1: flutter test golden 하니스
-│  ├─ compile-react-native/ @sfc/compile-react-native   # Tier 1: esbuild + react-native-web
-│  ├─ compile-android/      @sfc/compile-android        # Tier 1: Paparazzi 하니스
-│  ├─ compile-ios/          @sfc/compile-ios            # Tier 1: 시뮬레이터 스냅샷 (macOS)
-│  ├─ renderer/             @sfc/renderer     # Tier 2: IR→HTML 변환, 디바이스 프로파일(iphone-15, pixel-8…), Playwright 캡처
-│  ├─ doctor/               @sfc/doctor       # 환경 감지 + 의존성 자동 설치 + ensure 런타임
-│  ├─ sdk/                  @sfc/sdk          # 공개 API 조립
-│  ├─ mcp/                  @sfc/mcp          # MCP 서버 (sdk 래핑)
-│  ├─ cli/                  @sfc/cli          # `sfc` 커맨드 (sdk 래핑)
-│  └─ enrich-llm/           @sfc/enrich-llm   # 선택 LLM 보강 플러그인
+│  ├─ core/                 @karax/core         # IR zod 스키마, Detector, 파이프라인 오케스트레이션, mock, confidence
+│  ├─ adapter-api/          @karax/adapter-api  # FrameworkAdapter·CompileBackend 인터페이스 + tree-sitter 공통 유틸(파서 로더, 심볼테이블)
+│  ├─ adapter-flutter/      @karax/adapter-flutter        # 화면 발견 + Tier 2 정적 IR
+│  ├─ adapter-react-native/ @karax/adapter-react-native
+│  ├─ adapter-ios/          @karax/adapter-ios            # SwiftUI 우선, UIKit 후순위
+│  ├─ adapter-android/      @karax/adapter-android        # Compose 우선, XML 후순위
+│  ├─ compile-flutter/      @karax/compile-flutter        # Tier 1: flutter test golden 하니스
+│  ├─ compile-react-native/ @karax/compile-react-native   # Tier 1: esbuild + react-native-web
+│  ├─ compile-android/      @karax/compile-android        # Tier 1: Paparazzi 하니스
+│  ├─ compile-ios/          @karax/compile-ios            # Tier 1: 시뮬레이터 스냅샷 (macOS)
+│  ├─ renderer/             @karax/renderer     # Tier 2: IR→HTML 변환, 디바이스 프로파일(iphone-15, pixel-8…), Playwright 캡처
+│  ├─ doctor/               @karax/doctor       # 환경 감지 + 의존성 자동 설치 + ensure 런타임
+│  ├─ sdk/                  @karax/sdk          # 공개 API 조립
+│  ├─ mcp/                  @karax/mcp          # MCP 서버 (sdk 래핑)
+│  ├─ cli/                  @karax/cli          # `karax` 커맨드 (sdk 래핑)
+│  └─ enrich-llm/           @karax/enrich-llm   # 선택 LLM 보강 플러그인
 ├─ fixtures/                 # 프레임워크별 샘플 앱 소스 (빌드 안 함, 테스트 입력)
 │  ├─ flutter-basic/
 │  ├─ react-native-basic/
@@ -195,7 +195,7 @@ screenshot-from-code/
 └─ docs/
 ```
 
-- 의존 방향: `cli`/`mcp` → `sdk` → `core`+`renderer`+`adapter-*`+`compile-*`+`doctor` → `adapter-api` → `core`. **순환 없음** — `core`(IR 스키마)가 공통 최하위 기반이고, `core`는 `@sfc` 내부 의존이 0개(zod만 사용)다.
+- 의존 방향: `cli`/`mcp` → `sdk` → `core`+`renderer`+`adapter-*`+`compile-*`+`doctor` → `adapter-api` → `core`. **순환 없음** — `core`(IR 스키마)가 공통 최하위 기반이고, `core`는 `@karax` 내부 의존이 0개(zod만 사용)다.
 - `enrich-llm`은 `sdk`에 선택 주입 (코어 의존성 아님).
 - 기존 빈 `packages/screenshot_sdk_flutter/`는 zero-config 요구와 안 맞으므로 M0에서 제거.
 
@@ -209,9 +209,9 @@ screenshot-from-code/
 2. **런타임 ensure**: 모든 SDK/MCP/CLI 진입점이 첫 호출 시 `ensureDependencies()` 실행:
    - **자동 설치 가능** → 그 자리에서 설치: Chromium, node 패키지, Gradle wrapper(프로젝트 동봉), CocoaPods 등
    - **자동 설치 불가** (Xcode, Android SDK, Flutter SDK 등 대형 툴체인) → 명확한 설치 안내 출력 + **Tier 2로 자동 degrade** (에러로 죽지 않음)
-3. **`sfc doctor [--fix]` CLI / `doctor` MCP tool**: 환경 진단 리포트(프레임워크별 사용 가능 티어 표시) + `--fix`로 설치 가능 항목 일괄 설치. 옵션으로 Flutter SDK 자동 설치(puro/fvm 경유, 용량 고지 후) 지원.
+3. **`karax doctor [--fix]` CLI / `doctor` MCP tool**: 환경 진단 리포트(프레임워크별 사용 가능 티어 표시) + `--fix`로 설치 가능 항목 일괄 설치. 옵션으로 Flutter SDK 자동 설치(puro/fvm 경유, 용량 고지 후) 지원.
 
-MCP 배포는 `npx -y @sfc/mcp` 한 줄로 끝나도록 패키징. 클라이언트 설정 스니펫은 README + `sfc mcp install-config` 명령으로 제공.
+MCP 배포는 `npx -y @karax/mcp` 한 줄로 끝나도록 패키징. 클라이언트 설정 스니펫은 README + `karax mcp install-config` 명령으로 제공.
 
 ---
 
@@ -288,8 +288,8 @@ export function captureAll(opts: AnalyzeOptions & { outDir: string }):
   - 검증: IR 스냅샷 테스트, `Unknown` 노드 처리, confidence 집계 단조성 테스트, 골든 이미지
 - [x] **M4 — Flutter Tier 1 (부분 컴파일)**: 하니스 생성→`flutter test` golden→PNG 회수, 실패 시 Tier 2 fallback
   - 검증: fixture에서 Tier 1/2 캡처 비교, fallback 경로 테스트, 원본 무수정 테스트(전후 디렉토리 해시 비교)
-- [x] **M5 — SDK/CLI/MCP 조립 + 의존성 자동 설치**: `captureAll` 통합, `sfc` CLI, MCP 서버 7 tools, postinstall/ensure/doctor --fix
-  - 검증: 깨끗한 환경(CI 컨테이너)에서 `npx @sfc/mcp` 설치→캡처까지 무개입 동작. **세로 슬라이스 완성 = 데모 가능 시점**
+- [x] **M5 — SDK/CLI/MCP 조립 + 의존성 자동 설치**: `captureAll` 통합, `karax` CLI, MCP 서버 7 tools, postinstall/ensure/doctor --fix
+  - 검증: 깨끗한 환경(CI 컨테이너)에서 `npx @karax/mcp` 설치→캡처까지 무개입 동작. **세로 슬라이스 완성 = 데모 가능 시점**
 - [x] **M6 — React Native**: 화면 발견 + Tier 2 + react-native-web 컴파일 백엔드 (M2~M4 패턴 복제)
 - [x] **M7 — Android Compose**: 화면 발견 + Tier 2 + Paparazzi 백엔드
 - [x] **M8 — iOS SwiftUI**: 화면 발견 + Tier 2 + 시뮬레이터 스냅샷 백엔드 (macOS 한정)
@@ -345,3 +345,27 @@ export function captureAll(opts: AnalyzeOptions & { outDir: string }):
 - `packages/renderer/src/html/irToHtml.ts` — IR→HTML/CSS 매핑 (렌더 품질의 핵심)
 - `packages/adapter-flutter/src/index.ts` — 첫 세로 슬라이스 어댑터
 - `packages/sdk/src/index.ts` — 공개 API 조립
+
+---
+
+## 배포 전략 결정: no-npm (2026-06-05)
+
+**결정**: npm 배포 없이 git clone만으로 MCP 서버를 사용할 수 있게 만든다.
+
+**배경**: `@sfc/mcp`를 npm에 발행하지 않기로 결정. playwright Chromium·tree-sitter-wasms·esbuild 네이티브 바이너리 때문에 node_modules가 어차피 필요해 "패키지만 설치"로는 해결 불가.
+
+**채택 방식**: 자가 부트스트랩 런처 + `.mcp.json` + 사전 setup 스크립트 하이브리드
+- `scripts/mcp-launcher.mjs`: 외부 의존성 0. node_modules/dist 상태 검사 → 없으면 pnpm install + pnpm -r build → `packages/mcp/dist/bin.js`로 stdio 핸드오프
+- `.mcp.json`: Claude Code 자동 인식용. `{ command: "node", args: ["scripts/mcp-launcher.mjs"] }`
+- `scripts/setup.mjs`: 첫 실행 지연 제거용 사전 워밍업 (`pnpm bootstrap`)
+- `packages/cli/src/bin.ts`: `runMcpConfig()`가 절대경로 기반 런처 스니펫 출력으로 변경
+
+**기각된 대안**:
+- 번들 커밋(C): playwright Chromium 바이너리가 플랫폼별로 달라 범용 불가
+- tsx 직접 실행(D): exports가 dist 기준이라 install이 여전히 필요
+- npm 발행: 배포 유지보수 오버헤드 + 플랫폼별 바이너리 문제
+
+**주요 수정 파일**:
+- `scripts/lib/bootstrap.mjs`: isInstalled/isBuilt/isStale/planSteps/resolvePnpmCommand 순수 결정 로직
+- `scripts/__tests__/bootstrap.test.ts`: 24개 단위 테스트 (TDD)
+- `packages/doctor/src/ensure.ts`: ensureChromium()의 stdio "inherit" → `{ stdin:"ignore", stdout:process.stderr, stderr:"inherit" }` (MCP stdout 오염 차단)

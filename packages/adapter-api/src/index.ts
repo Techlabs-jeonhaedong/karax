@@ -15,7 +15,7 @@ export type {
   TierUsed,
 } from "./types.js";
 
-export type { NavigationGraph } from "@sfc/core";
+export type { NavigationGraph } from "@karax/core";
 
 export { loadParser, parseSource } from "./parser/loader.js";
 export type { SupportedLanguage, SyntaxNode } from "./parser/loader.js";

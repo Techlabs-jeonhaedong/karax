@@ -1,4 +1,4 @@
-# screenshot-from-code (sfc)
+# karax
 
 소스코드를 분석해서 앱을 빌드하지 않고도 화면 스크린샷을 추출하는 도구.
 
@@ -34,30 +34,58 @@
 
 ## 설치
 
-### MCP 서버 (Claude Code / Cursor 등)
+### MCP 서버 — git clone 방식 (npm 배포 없음)
+
+karax는 npm에 발행되지 않습니다. git clone 후 바로 MCP 서버로 사용할 수 있습니다.
+
+#### Claude Code (권장)
+
+```bash
+git clone <repo-url> karax
+```
+
+프로젝트를 열면 `.mcp.json`을 자동으로 인식합니다. **첫 실행 시 `pnpm install` + 빌드가 자동으로 수행되므로 수 분이 소요될 수 있습니다.** 지연을 없애려면 사전 워밍업을 먼저 실행하세요.
+
+```bash
+# 사전 워밍업 (선택) — install + build + Chromium 설치까지 미리 완료
+pnpm bootstrap
+```
+
+#### 다른 MCP 클라이언트 (Cursor, 직접 등록)
+
+```bash
+# 방법 1: claude mcp add 명령
+claude mcp add karax -- node "$(pwd)/scripts/mcp-launcher.mjs"
+
+# 방법 2: karax mcp-config로 스니펫 생성
+node packages/cli/dist/bin.js mcp-config
+```
+
+방법 2 출력 예시:
 
 ```json
 {
   "mcpServers": {
-    "sfc": {
-      "command": "npx",
-      "args": ["-y", "@sfc/mcp"]
+    "karax": {
+      "command": "node",
+      "args": ["/절대/경로/karax/scripts/mcp-launcher.mjs"]
     }
   }
 }
 ```
 
-> 주의: `@sfc/mcp`는 아직 npm에 발행되지 않았습니다. 로컬 개발 환경에서는 아래 CLI 설치를 사용하세요.
+이 JSON을 클라이언트의 설정 파일에 붙여넣으세요.
 
-```bash
-# 로컬 저장소 클론 후
-pnpm install
-pnpm -r build
-```
+> **첫 실행 지연**: node_modules나 dist가 없으면 자동으로 install + build를 수행합니다. MCP 클라이언트의 연결 타임아웃이 짧은 경우 `pnpm bootstrap`을 먼저 실행해 사전 워밍업하세요.
+
+> **보안**: 런처는 첫 실행 시 `pnpm install`을 자동 수행하며 이 과정에서 의존성 postinstall 스크립트가 실행된다. 신뢰할 수 있는 출처(공식 저장소)에서 클론한 경우에만 사용할 것.
 
 ### CLI 직접 실행
 
 ```bash
+# 의존성 설치 및 빌드 (처음 한 번)
+pnpm install && pnpm -r build
+
 node packages/cli/dist/bin.js <command>
 ```
 
@@ -66,10 +94,10 @@ node packages/cli/dist/bin.js <command>
 ## CLI 사용법
 
 ```
-sfc detect <path>                      프레임워크 감지
-sfc doctor [path] [--fix]              환경 진단 + 자동 설치
-sfc list <path> [--json] [--no-candidates]   화면 목록 출력
-sfc capture <path>                     전체 화면 캡처
+karax detect <path>                      프레임워크 감지
+karax doctor [path] [--fix]              환경 진단 + 자동 설치
+karax list <path> [--json] [--no-candidates]   화면 목록 출력
+karax capture <path>                     전체 화면 캡처
   --screen <id>                        단일 화면 지정
   --mode auto|compile|static           캡처 모드 (기본: auto)
   --device <id>                        디바이스 프로파일 (기본: iphone-15)
@@ -78,24 +106,24 @@ sfc capture <path>                     전체 화면 캡처
   --variants                           Branch 분기별 추가 PNG 생성 (Tier 2 전용)
   --overlay                            confidence 오버레이 PNG 추가 생성
   --json                               JSON 형식 출력
-sfc mcp install-config                 MCP 클라이언트 설정 스니펫 출력
+karax mcp install-config                 MCP 클라이언트 설정 스니펫 출력
 ```
 
 ### 사용 예
 
 ```bash
 # flutter 프로젝트 전체 화면 캡처 (auto 모드)
-sfc capture ./my-flutter-app --out ./screenshots
+karax capture ./my-flutter-app --out ./screenshots
 
 # 특정 화면만 static 모드로 캡처
-sfc capture ./my-app --screen HomeScreen --mode static --out ./out
+karax capture ./my-app --screen HomeScreen --mode static --out ./out
 
 # Branch 분기별 variant 스크린샷 생성
-sfc capture ./my-app --screen ListScreen --mode static --variants --out ./out
+karax capture ./my-app --screen ListScreen --mode static --variants --out ./out
 # → ListScreen_iphone-15.png, ListScreen__arm1_iphone-15.png, ...
 
 # confidence 오버레이 디버그 PNG 생성
-sfc capture ./my-app --screen HomeScreen --mode static --overlay --out ./out
+karax capture ./my-app --screen HomeScreen --mode static --overlay --out ./out
 # → HomeScreen_iphone-15.png, HomeScreen_iphone-15__overlay.png
 ```
 
@@ -111,7 +139,7 @@ import {
   buildScreenIR,
   captureScreen,
   captureAll,
-} from "@sfc/sdk";
+} from "@karax/sdk";
 
 // 프레임워크 감지
 const { frameworks } = await detectFramework("./my-app");
@@ -139,7 +167,7 @@ const { screens, report } = await captureAll({
 });
 
 // LLM 보강 플러그인 (선택)
-import { createLlmEnrichmentPlugin } from "@sfc/enrich-llm";
+import { createLlmEnrichmentPlugin } from "@karax/enrich-llm";
 
 const enrich = createLlmEnrichmentPlugin({
   complete: async (prompt) => { /* your LLM call */ return response; },
@@ -246,11 +274,11 @@ pnpm -r build
 pnpm -r test
 
 # 특정 패키지만
-pnpm --filter @sfc/core test
-pnpm --filter @sfc/renderer test  # Playwright 필요
+pnpm --filter @karax/core test
+pnpm --filter @karax/renderer test  # Playwright 필요
 
 # 통합 테스트 환경변수
-SFC_SKIP_ENSURE=1 pnpm --filter @sfc/sdk test   # Chromium 자동 설치 건너뜀
+KARAX_SKIP_ENSURE=1 pnpm --filter @karax/sdk test   # Chromium 자동 설치 건너뜀
 ```
 
 ### 패키지 구조
@@ -271,7 +299,7 @@ packages/
   doctor/         환경 감지 + 의존성 자동 설치
   sdk/            공개 API 조립
   mcp/            MCP 서버
-  cli/            sfc 커맨드
+  cli/            karax 커맨드
   enrich-llm/     선택 LLM 보강 플러그인
 ```
 
@@ -279,5 +307,5 @@ packages/
 
 ```bash
 # 골든은 명시적 리뷰 후에만 갱신 (자동 갱신 금지)
-UPDATE_GOLDEN=1 pnpm --filter @sfc/renderer test
+UPDATE_GOLDEN=1 pnpm --filter @karax/renderer test
 ```

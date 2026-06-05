@@ -13,7 +13,7 @@
 
 import type { SymbolTable } from "../parse/scanner.js";
 import { loadResources } from "../parse/resources.js";
-import type { NavigationGraph, NavigationEdge } from "@sfc/core";
+import type { NavigationGraph, NavigationEdge } from "@karax/core";
 
 interface CallbackAction {
   type: "push" | "pop";

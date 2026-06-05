@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import path from "path";
 import { fileURLToPath } from "url";
-import { parseIRDocument } from "@sfc/core";
+import { parseIRDocument } from "@karax/core";
 import { flutterAdapter } from "../index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

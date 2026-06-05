@@ -1,5 +1,5 @@
 {
-  "name": "@sfc/enrich-llm",
+  "name": "@karax/enrich-llm",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -17,7 +17,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sfc/core": "workspace:*"
+    "@karax/core": "workspace:*",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

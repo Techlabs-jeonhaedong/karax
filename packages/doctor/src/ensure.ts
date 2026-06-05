@@ -18,8 +18,12 @@ export async function ensureChromium(): Promise<EnsureChromiumResult> {
     return { installed: false, alreadyPresent: true };
   }
 
-  // 설치 시도
-  await execa("npx", ["playwright", "install", "chromium"], { stdio: "inherit" });
+  // 설치 시도 — stdout을 process.stderr로 리다이렉트해 MCP stdout 프로토콜 채널 보호
+  await execa("npx", ["playwright", "install", "chromium"], {
+    stdin: "ignore",
+    stdout: process.stderr,
+    stderr: "inherit",
+  });
 
   return { installed: true, alreadyPresent: false };
 }

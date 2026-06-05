@@ -1,5 +1,5 @@
 {
-  "name": "@sfc/adapter-api",
+  "name": "@karax/adapter-api",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sfc/core": "workspace:*",
+    "@karax/core": "workspace:*",
     "tree-sitter-wasms": "^0.1.13",
     "web-tree-sitter": "^0.25.0"
   },

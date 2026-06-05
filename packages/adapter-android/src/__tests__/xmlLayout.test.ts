@@ -14,8 +14,8 @@ import {
   discoverXmlLayouts,
   buildXmlScreenIR,
 } from "../xml/xmlLayoutAdapter.js";
-import type { IRNode } from "@sfc/core";
-import { safeParseIRDocument } from "@sfc/core";
+import type { IRNode } from "@karax/core";
+import { safeParseIRDocument } from "@karax/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.resolve(

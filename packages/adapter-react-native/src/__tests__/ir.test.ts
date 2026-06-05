@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import path from "path";
 import { fileURLToPath } from "url";
 import { reactNativeAdapter } from "../index.js";
-import { safeParseIRDocument } from "@sfc/core";
+import { safeParseIRDocument } from "@karax/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.resolve(__dirname, "../../../..", "fixtures/react-native-basic");

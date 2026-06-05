@@ -68,7 +68,7 @@ export const createBottomTabNavigator = () => ({
  */
 export function createNativeMockPlugin(mockedModules: MockedModule[]): Plugin {
   return {
-    name: "sfc-native-mock",
+    name: "karax-native-mock",
     setup(build) {
       // 네이티브 전용 패키지 가로채기
       build.onResolve({ filter: /.*/ }, (args) => {
@@ -77,14 +77,14 @@ export function createNativeMockPlugin(mockedModules: MockedModule[]): Plugin {
         for (const { pattern, reason } of NATIVE_ONLY_PATTERNS) {
           if (pattern.test(pkg)) {
             mockedModules.push({ pkg, reason });
-            return { path: pkg, namespace: "sfc-native-mock" };
+            return { path: pkg, namespace: "karax-native-mock" };
           }
         }
 
         for (const { pattern, reason } of NAVIGATION_PATTERNS) {
           if (pattern.test(pkg)) {
             mockedModules.push({ pkg, reason });
-            return { path: pkg, namespace: "sfc-native-mock" };
+            return { path: pkg, namespace: "karax-native-mock" };
           }
         }
 
@@ -92,7 +92,7 @@ export function createNativeMockPlugin(mockedModules: MockedModule[]): Plugin {
       });
 
       // mock 모듈 콘텐츠 반환
-      build.onLoad({ filter: /.*/, namespace: "sfc-native-mock" }, (args) => {
+      build.onLoad({ filter: /.*/, namespace: "karax-native-mock" }, (args) => {
         return {
           contents: makeMockModule(args.path),
           loader: "jsx",

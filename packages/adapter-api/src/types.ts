@@ -1,4 +1,4 @@
-import type { IRDocument, NavigationGraph } from "@sfc/core";
+import type { IRDocument, NavigationGraph } from "@karax/core";
 
 // ── 공유 기본 타입 ──────────────────────────────────────────────
 

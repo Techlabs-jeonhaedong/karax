@@ -1,7 +1,7 @@
 // !!! THIS IS A SKELETON project.pbxproj FOR STATIC ANALYSIS FIXTURES ONLY !!!
 // !!! IT IS NOT BUILDABLE. DO NOT ATTEMPT TO OPEN OR BUILD WITH XCODE. !!!
 // Generated for: screenshot-from-code iOS SwiftUI fixture (M1 Detector test input)
-// Purpose: Allow @sfc/core Project Detector to recognize this directory as an iOS project
+// Purpose: Allow @karax/core Project Detector to recognize this directory as an iOS project
 //          via *.xcodeproj signature, without requiring a real Xcode build environment.
 
 // !&PBXBegin archiveVersion = 1; classes = {}; objectVersion = 56;

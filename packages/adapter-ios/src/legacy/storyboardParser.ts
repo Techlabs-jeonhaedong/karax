@@ -11,8 +11,8 @@
 
 import { readFile, readdir, access } from "fs/promises";
 import path from "path";
-import type { IRDocument, IRNode } from "@sfc/core";
-import { aggregateScreenConfidence, NODE_CONFIDENCE, parseIRDocument } from "@sfc/core";
+import type { IRDocument, IRNode } from "@karax/core";
+import { aggregateScreenConfidence, NODE_CONFIDENCE, parseIRDocument } from "@karax/core";
 
 // ── 경량 XML 파서 ─────────────────────────────────────────────────────────────
 

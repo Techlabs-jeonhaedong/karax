@@ -1,13 +1,13 @@
 /**
- * @sfc/sdk — 공개 API 조립 (PLAN.md 8절)
+ * @karax/sdk — 공개 API 조립 (PLAN.md 8절)
  *
  * 의존 패키지:
- *   @sfc/core          — IR 스키마, Detector, captureEngine, confidence
- *   @sfc/adapter-api   — FrameworkAdapter/CompileBackend 타입
- *   @sfc/adapter-flutter
- *   @sfc/compile-flutter
- *   @sfc/renderer
- *   @sfc/doctor
+ *   @karax/core          — IR 스키마, Detector, captureEngine, confidence
+ *   @karax/adapter-api   — FrameworkAdapter/CompileBackend 타입
+ *   @karax/adapter-flutter
+ *   @karax/compile-flutter
+ *   @karax/renderer
+ *   @karax/doctor
  */
 
 import type {
@@ -19,15 +19,15 @@ import type {
   DeviceProfileId,
   FrameworkId,
   CaptureMode,
-} from "@sfc/adapter-api";
-import { detectFramework as coreDetectFramework } from "@sfc/core";
-import type { DetectResult } from "@sfc/core";
-import { computeProjectConfidence, expandVariants } from "@sfc/core";
-import { captureScreenWithTiers } from "@sfc/core";
-import { runDoctor, doctorFix as coreDoctorFix } from "@sfc/doctor";
-import type { DoctorReport } from "@sfc/doctor";
-import { renderScreenshot } from "@sfc/renderer";
-import type { IRDocument } from "@sfc/core";
+} from "@karax/adapter-api";
+import { detectFramework as coreDetectFramework } from "@karax/core";
+import type { DetectResult } from "@karax/core";
+import { computeProjectConfidence, expandVariants } from "@karax/core";
+import { captureScreenWithTiers } from "@karax/core";
+import { runDoctor, doctorFix as coreDoctorFix } from "@karax/doctor";
+import type { DoctorReport } from "@karax/doctor";
+import { renderScreenshot } from "@karax/renderer";
+import type { IRDocument } from "@karax/core";
 export { generateAppMap, renderAppMapMarkdown } from "./appMap.js";
 export type { GenerateAppMapOptions, AppMap, AppMapDocument, AppMapRenderOptions } from "./appMap.js";
 
@@ -39,7 +39,7 @@ export type { DetectResult, DoctorReport, ScreenSummary, CaptureResult, IRDocume
 export type { FrameworkId, DeviceProfileId, CaptureMode };
 
 // ── EnrichmentPlugin 인터페이스 (enrich-llm 타입 의존 없이 직접 정의) ────
-// @sfc/enrich-llm의 EnrichmentPlugin과 구조적으로 호환된다.
+// @karax/enrich-llm의 EnrichmentPlugin과 구조적으로 호환된다.
 
 export interface EnrichPatch {
   nodePath: string;
@@ -91,22 +91,22 @@ async function loadAdapter(id: FrameworkId): Promise<FrameworkAdapter> {
   let adapter: FrameworkAdapter;
   switch (id) {
     case "flutter": {
-      const m = await import("@sfc/adapter-flutter");
+      const m = await import("@karax/adapter-flutter");
       adapter = m.flutterAdapter;
       break;
     }
     case "react-native": {
-      const m = await import("@sfc/adapter-react-native");
+      const m = await import("@karax/adapter-react-native");
       adapter = m.reactNativeAdapter;
       break;
     }
     case "android": {
-      const m = await import("@sfc/adapter-android");
+      const m = await import("@karax/adapter-android");
       adapter = m.androidAdapter;
       break;
     }
     case "ios": {
-      const m = await import("@sfc/adapter-ios");
+      const m = await import("@karax/adapter-ios");
       adapter = m.iosAdapter;
       break;
     }
@@ -127,22 +127,22 @@ async function loadCompileBackend(id: FrameworkId): Promise<CompileBackend | und
   let backend: CompileBackend | undefined;
   switch (id) {
     case "flutter": {
-      const m = await import("@sfc/compile-flutter");
+      const m = await import("@karax/compile-flutter");
       backend = m.flutterCompileBackend;
       break;
     }
     case "react-native": {
-      const m = await import("@sfc/compile-react-native");
+      const m = await import("@karax/compile-react-native");
       backend = m.rnWebCompileBackend;
       break;
     }
     case "android": {
-      const m = await import("@sfc/compile-android");
+      const m = await import("@karax/compile-android");
       backend = m.androidPaparazziBackend;
       break;
     }
     case "ios": {
-      const m = await import("@sfc/compile-ios");
+      const m = await import("@karax/compile-ios");
       backend = m.iosSimulatorBackend;
       break;
     }
@@ -163,14 +163,14 @@ let _ensurePromise: Promise<void> | null = null;
 
 /**
  * Chromium 등 자동 설치 가능한 의존성을 1회만 설치한다.
- * SFC_SKIP_ENSURE=1 환경변수로 비활성화 (테스트용).
+ * KARAX_SKIP_ENSURE=1 환경변수로 비활성화 (테스트용).
  */
 export async function ensureDependencies(): Promise<void> {
-  if (process.env.SFC_SKIP_ENSURE === "1") return;
+  if (process.env.KARAX_SKIP_ENSURE === "1") return;
   if (_ensurePromise) return _ensurePromise;
 
   _ensurePromise = (async () => {
-    const { doctorFix: fix } = await import("@sfc/doctor");
+    const { doctorFix: fix } = await import("@karax/doctor");
     await fix();
   })().catch((err) => {
     // 실패 시 리셋해 다음 호출에서 재시도 가능하게 한다
@@ -295,7 +295,7 @@ function makeEnrichAdapter(
 
 /**
  * EnrichPatch를 IRDocument에 적용한다.
- * enrich-llm의 applyPatches와 동일 로직 — @sfc/enrich-llm 의존 없이 사용.
+ * enrich-llm의 applyPatches와 동일 로직 — @karax/enrich-llm 의존 없이 사용.
  */
 function applyEnrichPatches(doc: IRDocument, patches: EnrichPatch[]): IRDocument {
   if (patches.length === 0) return doc;
@@ -522,7 +522,7 @@ export async function captureScreen(
     throw new Error(`화면 '${opts.screenId}'를 찾을 수 없습니다`);
   }
 
-  const outDir = opts.outDir ?? process.env.SFC_DEFAULT_OUT_DIR ?? "/tmp/sfc-out";
+  const outDir = opts.outDir ?? process.env.KARAX_DEFAULT_OUT_DIR ?? "/tmp/karax-out";
 
   const engineResult = await captureScreenWithTiers(
     {

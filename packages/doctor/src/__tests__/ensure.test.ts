@@ -64,10 +64,15 @@ describe("ensureChromium", () => {
 
     mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
     await ensureChromium();
+    // stdout은 process.stderr로 리다이렉트해 MCP 프로토콜 채널 보호
     expect(mockExeca).toHaveBeenCalledWith(
       "npx",
       ["playwright", "install", "chromium"],
-      expect.objectContaining({ stdio: "inherit" })
+      expect.objectContaining({
+        stdin: "ignore",
+        stdout: process.stderr,
+        stderr: "inherit",
+      })
     );
   });
 

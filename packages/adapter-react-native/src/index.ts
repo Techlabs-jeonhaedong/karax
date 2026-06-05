@@ -1,5 +1,5 @@
 /**
- * @sfc/adapter-react-native — React Native 화면 발견 + Tier 2 정적 IR
+ * @karax/adapter-react-native — React Native 화면 발견 + Tier 2 정적 IR
  *
  * FrameworkAdapter 인터페이스 구현:
  * - detect(): package.json에 react-native 의존성 확인
@@ -9,8 +9,8 @@
 
 import path from "path";
 import { readFile } from "fs/promises";
-import type { FrameworkAdapter, AdapterContext, ScreenSummary, FrameworkEvidence, NavigationGraph } from "@sfc/adapter-api";
-import type { IRDocument } from "@sfc/core";
+import type { FrameworkAdapter, AdapterContext, ScreenSummary, FrameworkEvidence, NavigationGraph } from "@karax/adapter-api";
+import type { IRDocument } from "@karax/core";
 import { buildSymbolTable } from "./parse/scanner.js";
 import { discoverRouteGraph } from "./discover/routeGraph.js";
 import { findHeuristicCandidates } from "./discover/heuristic.js";

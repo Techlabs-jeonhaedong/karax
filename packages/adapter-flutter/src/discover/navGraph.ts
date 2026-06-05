@@ -10,8 +10,8 @@
 
 import path from "path";
 import { readFile } from "fs/promises";
-import { parseSource, type SyntaxNode } from "@sfc/adapter-api";
-import type { NavigationGraph, NavigationEdge, TriggerInfo } from "@sfc/core";
+import { parseSource, type SyntaxNode } from "@karax/adapter-api";
+import type { NavigationGraph, NavigationEdge, TriggerInfo } from "@karax/core";
 import type { SymbolTable } from "../parse/scanner.js";
 import { findNodes, findChild, filterChildren } from "../parse/scanner.js";
 import { readPackageName } from "../parse/pubspec.js";

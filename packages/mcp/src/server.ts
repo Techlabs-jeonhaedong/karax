@@ -1,5 +1,5 @@
 /**
- * @sfc/mcp — MCP 서버 구현 (PLAN.md 9절)
+ * @karax/mcp — MCP 서버 구현 (PLAN.md 9절)
  *
  * McpServer (high-level API) + StdioServerTransport
  * 7개 tool: detect_framework / doctor / list_screens / get_screen_ir /
@@ -20,9 +20,9 @@ import {
   captureAll,
   ensureDependencies,
   generateAppMap,
-} from "@sfc/sdk";
-import { renderAppMapMarkdown } from "@sfc/core";
-import type { FrameworkId, DeviceProfileId, CaptureMode } from "@sfc/sdk";
+} from "@karax/sdk";
+import { renderAppMapMarkdown } from "@karax/core";
+import type { FrameworkId, DeviceProfileId, CaptureMode } from "@karax/sdk";
 
 // ── 입력 스키마 (zod) ────────────────────────────────────────────────
 
@@ -80,7 +80,7 @@ function sidecarPath(pngPath: string, screenId: string, device: string): string 
 
 export function createMcpServer(): McpServer {
   const server = new McpServer(
-    { name: "@sfc/mcp", version: "0.0.1" },
+    { name: "@karax/mcp", version: "0.0.1" },
     {
       capabilities: { tools: {} },
       instructions:
@@ -222,7 +222,7 @@ export function createMcpServer(): McpServer {
     async ({ projectPath, screenId, device, captureMode, outDir, mockSeed, variants, overlay }) => {
       try {
         validateProjectPath(projectPath);
-        const resolvedOutDir = outDir ?? "/tmp/sfc-out";
+        const resolvedOutDir = outDir ?? "/tmp/karax-out";
 
         const result = await captureScreen({
           projectPath,
@@ -430,7 +430,7 @@ export function createMcpServer(): McpServer {
 // ── 진입점 (stdio 모드) ───────────────────────────────────────────────
 
 export async function startStdioServer(): Promise<void> {
-  if (process.env.SFC_SKIP_ENSURE !== "1") {
+  if (process.env.KARAX_SKIP_ENSURE !== "1") {
     try {
       await ensureDependencies();
     } catch (e) {
@@ -438,7 +438,7 @@ export async function startStdioServer(): Promise<void> {
       // 네트워크 불필요 도구(detect_framework/doctor/list_screens/get_screen_ir)는 정상 동작하며,
       // 캡처 도구 호출 시점에 ensureDependencies가 재시도된다.
       process.stderr.write(
-        `[sfc-mcp] 경고: 의존성 자동 설치 실패 — 캡처 시 재시도됨. 원인: ${e instanceof Error ? e.message : String(e)}\n`
+        `[karax-mcp] 경고: 의존성 자동 설치 실패 — 캡처 시 재시도됨. 원인: ${e instanceof Error ? e.message : String(e)}\n`
       );
     }
   }

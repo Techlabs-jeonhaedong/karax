@@ -10,10 +10,10 @@ import type {
   FrameworkId,
   AdapterContext,
   FrameworkAdapter,
-} from "@sfc/adapter-api";
-import { detectFramework as coreDetectFramework } from "@sfc/core";
-import { assembleAppMap, sanitizeAppName, renderAppMapMarkdown } from "@sfc/core";
-import type { AppMap, AppMapDocument, AppMapRenderOptions, IRDocument } from "@sfc/core";
+} from "@karax/adapter-api";
+import { detectFramework as coreDetectFramework } from "@karax/core";
+import { assembleAppMap, sanitizeAppName, renderAppMapMarkdown } from "@karax/core";
+import type { AppMap, AppMapDocument, AppMapRenderOptions, IRDocument } from "@karax/core";
 
 export { renderAppMapMarkdown };
 export type { AppMap, AppMapDocument, AppMapRenderOptions };
@@ -29,19 +29,19 @@ export interface GenerateAppMapOptions {
 async function loadAdapter(id: FrameworkId): Promise<FrameworkAdapter> {
   switch (id) {
     case "flutter": {
-      const m = await import("@sfc/adapter-flutter");
+      const m = await import("@karax/adapter-flutter");
       return m.flutterAdapter;
     }
     case "react-native": {
-      const m = await import("@sfc/adapter-react-native");
+      const m = await import("@karax/adapter-react-native");
       return m.reactNativeAdapter;
     }
     case "android": {
-      const m = await import("@sfc/adapter-android");
+      const m = await import("@karax/adapter-android");
       return m.androidAdapter;
     }
     case "ios": {
-      const m = await import("@sfc/adapter-ios");
+      const m = await import("@karax/adapter-ios");
       return m.iosAdapter;
     }
     default:

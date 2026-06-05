@@ -1,6 +1,6 @@
 import path from "path";
 import { readFile } from "fs/promises";
-import { parseSource, type SyntaxNode } from "@sfc/adapter-api";
+import { parseSource, type SyntaxNode } from "@karax/adapter-api";
 import { findNodes, findChild, filterChildren } from "../parse/scanner.js";
 import type { SymbolTable } from "../parse/scanner.js";
 

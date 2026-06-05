@@ -11,7 +11,7 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import type { SwiftSymbolTable } from "../parse/scanner.js";
-import type { NavigationGraph, NavigationEdge } from "@sfc/core";
+import type { NavigationGraph, NavigationEdge } from "@karax/core";
 
 /**
  * @main App 소스에서 WindowGroup { XxxView() } 또는 ContentView() 같은 최상위 화면명 추출

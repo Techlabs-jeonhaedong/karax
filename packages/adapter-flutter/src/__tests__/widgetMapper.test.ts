@@ -4,10 +4,10 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { SyntaxNode } from "@sfc/adapter-api";
-import { parseSource } from "@sfc/adapter-api";
-import { createMockProvider } from "@sfc/core";
-import type { IRNode } from "@sfc/core";
+import type { SyntaxNode } from "@karax/adapter-api";
+import { parseSource } from "@karax/adapter-api";
+import { createMockProvider } from "@karax/core";
+import type { IRNode } from "@karax/core";
 
 // widgetMapper는 아직 없으므로 dynamic import로 테스트한다
 // (구현 후에는 static import로 변경 가능)

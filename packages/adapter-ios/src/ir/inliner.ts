@@ -7,9 +7,9 @@
  * - 해석 실패 시 Unknown 노드 + UNRESOLVED_COMPONENT diagnostic
  */
 
-import type { SyntaxNode } from "@sfc/adapter-api";
-import type { IRNode } from "@sfc/core";
-import { NODE_CONFIDENCE } from "@sfc/core";
+import type { SyntaxNode } from "@karax/adapter-api";
+import type { IRNode } from "@karax/core";
+import { NODE_CONFIDENCE } from "@karax/core";
 import type { SwiftSymbolTable, ParsedFile } from "../parse/scanner.js";
 import { findAllNodes, findChild } from "../parse/scanner.js";
 import { mapView } from "./viewMapper.js";
