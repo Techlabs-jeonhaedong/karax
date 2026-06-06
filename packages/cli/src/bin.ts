@@ -578,7 +578,10 @@ program
             console.log(`  전체:       ${suiteResult.outcome}`);
             console.log(`  요약:       ${stripControls(suiteResult.summary)}`);
             for (const r of suiteResult.results) {
-              const icon = r.result.outcome === "pass" ? "✓" : r.result.outcome === "fail" ? "✗" : "!";
+              const icon =
+                r.result.outcome === "pass" ? "✓" :
+                r.result.outcome === "fail" ? "✗" :
+                r.result.outcome === "partial" ? "~" : "!";
               console.log(`  ${icon} ${stripControls(r.scenarioPath)} — ${r.result.outcome}`);
             }
             console.log("");
@@ -586,7 +589,8 @@ program
 
           if (suiteResult.outcome === "pass") {
             process.exit(EXIT_CODES.SUCCESS);
-          } else if (suiteResult.outcome === "fail") {
+          } else if (suiteResult.outcome === "fail" || suiteResult.outcome === "partial") {
+            // partial → exit 2 (PARTIAL_FAILURE), fail과 동일 코드
             process.exit(EXIT_CODES.PARTIAL_FAILURE);
           } else {
             process.exit(EXIT_CODES.FAILURE);

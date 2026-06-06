@@ -194,7 +194,16 @@ export function buildCoverageSection(coverage: Coverage | undefined): string {
 }
 
 /**
+ * 코드 펜스(```) 안에 삽입될 텍스트에서 ``` 연속을 무해한 문자로 치환한다.
+ * 백틱 3개 이상 연속을 "ʼʼʼ" (U+02BC MODIFIER LETTER APOSTROPHE)로 교체해 펜스 탈출을 방지한다.
+ */
+function escapeCodeFence(text: string): string {
+  return text.replace(/`{3,}/g, "ʼʼʼ");
+}
+
+/**
  * 크래시 섹션 (type·발췌 — 코드 블록)
+ * excerpt 내 ``` 3개 이상 연속을 치환해 코드 펜스 탈출을 방지한다.
  */
 export function buildCrashesSection(crashes: CrashEvent[] | undefined): string {
   if (!crashes || crashes.length === 0) return "";
@@ -208,7 +217,7 @@ export function buildCrashesSection(crashes: CrashEvent[] | undefined): string {
     if (c.timestamp) lines.push(`- **시각**: ${c.timestamp}`);
     lines.push(``);
     lines.push("```");
-    lines.push(c.excerpt);
+    lines.push(escapeCodeFence(c.excerpt));
     lines.push("```");
     lines.push(``);
   }
@@ -218,13 +227,15 @@ export function buildCrashesSection(crashes: CrashEvent[] | undefined): string {
 
 /**
  * 녹화 섹션 (videos 링크)
+ * 링크 URL을 `videos/<basename>` 형태로 강제 — 절대경로·`..` 차단 (basename만 사용).
  */
 export function buildVideosSection(videos: string[] | undefined): string {
   if (!videos || videos.length === 0) return "";
 
   const lines: string[] = [`## 녹화 영상`, ``];
   for (const v of videos) {
-    lines.push(`- [${path.basename(v)}](${v})`);
+    const basename = path.basename(v);
+    lines.push(`- [${basename}](videos/${basename})`);
   }
   lines.push(``);
   return lines.join("\n");

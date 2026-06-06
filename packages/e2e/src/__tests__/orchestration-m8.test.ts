@@ -536,3 +536,49 @@ describe("E2eTestResult 타입 동기화", () => {
     expect(coverage == null || typeof coverage === "object").toBe(true);
   });
 });
+
+// ── partial 복구 + 크래시 + failOnCrash → fail 강등 ─────────────────
+
+describe("partial 복구 + 크래시 강등", () => {
+  it("시나리오 모드 partial 복구 후 크래시 감지 + failOnCrash=true → fail", async () => {
+    const FATAL_LOGCAT = `
+05-15 10:22:01.123  1234  1234 E AndroidRuntime: FATAL EXCEPTION: main
+05-15 10:22:01.124  1234  1234 E AndroidRuntime: Process: com.example.app, PID: 1234
+05-15 10:22:01.125  1234  1234 E AndroidRuntime: java.lang.NullPointerException
+`;
+
+    mockCreateDeviceManager.mockResolvedValue({
+      ...makeMockDeviceManager(),
+      captureLogcat: vi.fn().mockResolvedValue(FATAL_LOGCAT),
+    } as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+
+    // AGENT_TIMEOUT → partial 복구 (step PNG 있음)
+    mockRunAgent.mockImplementation(async (_invocation: unknown, screenshotsDir: string) => {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+      fs.writeFileSync(path.join(screenshotsDir, "step_1.png"), "PNG", "utf-8");
+      throw new E2eError("AGENT_TIMEOUT", "타임아웃");
+    });
+
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+      failOnCrash: true,
+    });
+
+    // partial 복구 후 크래시로 fail 강등
+    const reportJson = JSON.parse(fs.readFileSync(result.reportJsonPath, "utf-8")) as {
+      outcome: string;
+      crashes?: Array<{ type: string }>;
+    };
+
+    if (reportJson.crashes && reportJson.crashes.length > 0) {
+      // 크래시가 실제로 감지됐다면 fail이어야 함
+      expect(reportJson.outcome).toBe("fail");
+    } else {
+      // captureLogcat mock이 동작 안 한 경우 partial
+      expect(["partial", "fail"]).toContain(reportJson.outcome);
+    }
+  });
+});

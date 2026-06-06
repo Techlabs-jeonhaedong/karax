@@ -46,8 +46,8 @@ export interface RunE2eSuiteOptions extends Omit<RunE2eTestOptions, "scenarioPat
 }
 
 export interface E2eSuiteResult {
-  /** 전체 집계: 하나라도 error→error, fail→fail, 전부 pass→pass */
-  outcome: "pass" | "fail" | "error";
+  /** 전체 집계: 우선순위 error > fail > partial > pass */
+  outcome: "pass" | "fail" | "error" | "partial";
   results: Array<{ scenarioPath: string; result: E2eTestResult }>;
   /** "3/5 pass" 형태 */
   summary: string;
@@ -244,7 +244,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       return finding;
     });
 
-    // M8: 크래시 synthetic finding 주입 (상한 500 유지)
+    // M8: 크래시 synthetic finding 주입 — crashFindings를 앞에 배치해 상한 500에서 잘리지 않게 함
     let allFindings = sanitizedFindings ? [...sanitizedFindings] : [];
     if (crashes && crashes.length > 0) {
       const crashFindings = crashes.map((c, idx) => ({
@@ -253,7 +253,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
         category: "crash" as const,
         description: `[${c.type}] ${c.excerpt.split("\n")[0] ?? c.type}`,
       }));
-      allFindings = [...allFindings, ...crashFindings].slice(0, 500);
+      allFindings = [...crashFindings, ...allFindings].slice(0, 500);
     }
 
     // M7: visitedScreens 정제 — 기본 형식 검증(빈 문자열·초장문·제어문자·중복) + AppMap 교집합 (환각 방어)
@@ -307,8 +307,13 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     }
 
     // M8: 크래시 발생 시 outcome 강등 (failOnCrash=true 기본)
+    // 강등 조건: pass 또는 partial 상태에서만 강등 (fail/error는 이미 비성공이므로 그대로)
     let finalOutcome: E2eReport["outcome"] = isPartialRecovery ? "partial" : agentResult.outcome;
-    if (crashes && crashes.length > 0 && failOnCrash && finalOutcome === "pass") {
+    if (
+      crashes && crashes.length > 0 &&
+      failOnCrash &&
+      (finalOutcome === "pass" || finalOutcome === "partial")
+    ) {
       finalOutcome = "fail";
     }
 
@@ -495,10 +500,12 @@ export async function runE2eSuite(opts: RunE2eSuiteOptions): Promise<E2eSuiteRes
     results.push({ scenarioPath: filePath, result });
   }
 
-  // 집계: error > fail > pass
+  // 집계: error > fail > partial > pass
   const hasError = results.some((r) => r.result.outcome === "error");
   const hasFail = results.some((r) => r.result.outcome === "fail");
-  const outcome: E2eSuiteResult["outcome"] = hasError ? "error" : hasFail ? "fail" : "pass";
+  const hasPartial = results.some((r) => r.result.outcome === "partial");
+  const outcome: E2eSuiteResult["outcome"] =
+    hasError ? "error" : hasFail ? "fail" : hasPartial ? "partial" : "pass";
 
   const passCount = results.filter((r) => r.result.outcome === "pass").length;
   const summary = `${passCount}/${total} pass`;

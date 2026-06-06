@@ -8,6 +8,10 @@
  *   - GitHub: ghp_  gho_  github_pat_
  *   - AWS: AKIA... 액세스 키 (20자 고정)
  *   - 환경변수 형태: *_API_KEY=값  *_TOKEN=값  *_SECRET=값
+ *   - Bearer 토큰: Authorization: Bearer <token>
+ *   - JWT: eyJ...eyJ...signature 패턴
+ *   - 세션 쿠키: sessionid=  session_id=  _session=
+ *   - URL 파라미터: api_key/apikey/token/password/secret/auth=값
  */
 
 const REDACT_PATTERNS: RegExp[] = [
@@ -25,6 +29,14 @@ const REDACT_PATTERNS: RegExp[] = [
   /gh[op]_[A-Za-z0-9]{20,}/g,
   // AWS Access Key ID (AKIA 접두사, 20자 고정)
   /AKIA[A-Z0-9]{16}/g,
+  // Bearer 토큰 (대소문자 무관)
+  /Bearer\s+\S+/gi,
+  // JWT: eyJ... 헤더.페이로드.서명 형태 (정확한 3-part 매칭)
+  /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
+  // 세션 쿠키: sessionid/session_id/_session=값 (세미콜론·공백 전까지)
+  /(?:sessionid|session_id|_session)=[^\s;]+/gi,
+  // URL 쿼리 파라미터: api_key/apikey/token/password/secret/auth=값
+  /[?&](?:api_?key|token|password|secret|auth)=[^\s&"']+/gi,
 ];
 
 /**

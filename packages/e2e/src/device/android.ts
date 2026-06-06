@@ -238,7 +238,11 @@ export function createAndroidDeviceManager(
     async captureLogcat(deviceId: string): Promise<string | undefined> {
       validateDeviceId(deviceId);
       try {
-        const result = await execa(...adbArgs(deviceId, "logcat", "-d"));
+        const [bin, args, opts] = adbArgs(deviceId, "logcat", "-d");
+        const result = await execa(bin, args, {
+          ...opts,
+          maxBuffer: 64 * 1024 * 1024, // 64MB — logcat 대용량 출력 대비
+        });
         return String(result.stdout ?? "");
       } catch {
         // best-effort: 실패 시 undefined 반환

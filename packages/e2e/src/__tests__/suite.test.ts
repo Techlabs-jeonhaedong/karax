@@ -35,7 +35,7 @@ function writeScenario(name: string, content = "# test\n본문") {
   fs.writeFileSync(path.join(tmpDir, name), content, "utf-8");
 }
 
-function makeResult(outcome: "pass" | "fail" | "error"): E2eTestResult {
+function makeResult(outcome: "pass" | "fail" | "error" | "partial"): E2eTestResult {
   return {
     outcome,
     sessionDir: tmpDir,
@@ -47,13 +47,15 @@ function makeResult(outcome: "pass" | "fail" | "error"): E2eTestResult {
   };
 }
 
-// 집계 로직 순수 함수 (index.ts의 runE2eSuite 로직과 동일)
+// 집계 로직 순수 함수 (index.ts의 runE2eSuite 로직과 동일 — error > fail > partial > pass)
 function aggregateResults(
   results: Array<{ scenarioPath: string; result: E2eTestResult }>
 ): Pick<E2eSuiteResult, "outcome" | "summary"> {
   const hasError = results.some((r) => r.result.outcome === "error");
   const hasFail = results.some((r) => r.result.outcome === "fail");
-  const outcome: "pass" | "fail" | "error" = hasError ? "error" : hasFail ? "fail" : "pass";
+  const hasPartial = results.some((r) => r.result.outcome === "partial");
+  const outcome: E2eSuiteResult["outcome"] =
+    hasError ? "error" : hasFail ? "fail" : hasPartial ? "partial" : "pass";
   const passCount = results.filter((r) => r.result.outcome === "pass").length;
   const total = results.length;
   return { outcome, summary: `${passCount}/${total} pass` };
@@ -113,6 +115,25 @@ describe("집계 로직 — aggregateResults", () => {
     const { outcome, summary } = aggregateResults([]);
     expect(outcome).toBe("pass");
     expect(summary).toBe("0/0 pass");
+  });
+
+  it("partial 1개+pass 나머지이면 outcome='partial'", () => {
+    const results = [
+      { scenarioPath: "a.md", result: makeResult("pass") },
+      { scenarioPath: "b.md", result: makeResult("partial") },
+      { scenarioPath: "c.md", result: makeResult("pass") },
+    ];
+    const { outcome } = aggregateResults(results);
+    expect(outcome).toBe("partial");
+  });
+
+  it("fail이 partial보다 우선 (error > fail > partial > pass)", () => {
+    const results = [
+      { scenarioPath: "a.md", result: makeResult("partial") },
+      { scenarioPath: "b.md", result: makeResult("fail") },
+    ];
+    const { outcome } = aggregateResults(results);
+    expect(outcome).toBe("fail");
   });
 });
 

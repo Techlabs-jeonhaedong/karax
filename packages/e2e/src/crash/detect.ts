@@ -19,7 +19,9 @@ export type CrashEvent = z.infer<typeof CrashEventSchema>;
 
 // ── 상수 ────────────────────────────────────────────────────────
 
-const MAX_INPUT_BYTES = 5 * 1024 * 1024; // 5MB
+// 20MB 상한 — 트레이드오프: 메모리를 최대 20MB까지 사용하지만 대용량 logcat에서도 최근 크래시를 놓치지 않는다.
+// 5MB였던 이전 상한은 긴 실행 후 logcat이 잘려 FATAL 누락으로 이어지는 문제가 있었다.
+const MAX_INPUT_BYTES = 20 * 1024 * 1024; // 20MB
 const MAX_EXCERPT_LEN = 2000;
 const CONTEXT_LINES = 30; // FATAL EXCEPTION 이후 발췌 줄 수
 
@@ -98,11 +100,17 @@ export function parseLogcatForCrashes(logcatText: string, appId: string): CrashE
 
     // ── 1. FATAL EXCEPTION ──────────────────────────────────────
     if (line.includes("FATAL EXCEPTION")) {
-      // 다음 CONTEXT_LINES줄 내에서 Process: <appId> 확인
+      // 다음 CONTEXT_LINES줄 내에서 Process: <appId> 정확 일치 확인
+      // 캡처 패턴: "Process:\s*(\S+)" — 캡처값이 appId와 정확히 일치해야 함
+      const PROCESS_RE = /Process:\s*(\S+)/;
       const contextLines = collectBlock(lines, i, CONTEXT_LINES);
-      const hasAppId = contextLines.some((l) =>
-        l.includes(`Process: ${appId}`) || l.includes(`Process:${appId}`)
-      );
+      const hasAppId = contextLines.some((l) => {
+        const m = l.match(PROCESS_RE);
+        if (!m) return false;
+        // 쉼표, 슬래시 등 구분자 제거 후 정확 일치
+        const captured = m[1]!.replace(/[,;].*$/, "").trim();
+        return captured === appId;
+      });
       if (!hasAppId) continue;
 
       const timestamp = extractTimestamp(line);
@@ -115,9 +123,10 @@ export function parseLogcatForCrashes(logcatText: string, appId: string): CrashE
 
     // ── 2. ANR ──────────────────────────────────────────────────
     {
-      const anrMatch = line.match(/ANR in (\S+)/);
+      // "ANR in\s+([^\s(]+)" — 공백/괄호 전까지 캡처, appId와 정확 일치
+      const anrMatch = line.match(/ANR in\s+([^\s(]+)/);
       if (anrMatch) {
-        const pkg = anrMatch[1]!.replace(/\s.*$/, "").split("(")[0]!.trim();
+        const pkg = anrMatch[1]!.trim();
         if (pkg !== appId) continue;
 
         const timestamp = extractTimestamp(line);
@@ -155,8 +164,12 @@ export function parseLogcatForCrashes(logcatText: string, appId: string): CrashE
       const contextLines = collectBlock(lines, i, CONTEXT_LINES);
       const blockText = contextLines.join("\n");
 
-      // appId 필터: 블록에 appId가 등장하는지 확인 (느슨하게)
-      const hasAppId = blockText.includes(appId);
+      // appId 필터: appId를 정규식 이스케이프 후 \b 단어 경계로 정확 일치 확인
+      // ">>> pkg <<<" 패턴도 고려 — \b가 "."을 경계로 처리하지 않으므로 추가로 끝 확인
+      const escapedAppId = appId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // appId 뒤에 영숫자·'_'·'.'이 없으면 일치 (접두 유사 패키지 차단)
+      const appIdBoundaryRe = new RegExp(`${escapedAppId}(?![A-Za-z0-9_.])`);
+      const hasAppId = appIdBoundaryRe.test(blockText);
       if (!hasAppId) continue;
 
       const timestamp = extractTimestamp(line);

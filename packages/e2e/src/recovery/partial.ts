@@ -24,15 +24,22 @@ export function recoverPartialResult(screenshotsDir: string): AgentResult | null
     return null;
   }
 
-  // ① result.json safeParse 시도
+  // ① result.json safeParse 시도 (10MB 초과 시 무시 → png 스캔 폴백)
+  const MAX_RESULT_JSON_SIZE = 10 * 1024 * 1024; // 10MB
   const resultJsonPath = path.join(screenshotsDir, "result.json");
   if (fs.existsSync(resultJsonPath)) {
     try {
-      const raw = fs.readFileSync(resultJsonPath, "utf-8");
-      const parsed = JSON.parse(raw) as unknown;
-      const result = AgentResultSchema.safeParse(parsed);
-      if (result.success) {
-        return result.data;
+      const stat = fs.statSync(resultJsonPath);
+      if (stat.size > MAX_RESULT_JSON_SIZE) {
+        // 10MB 초과: 파일이 너무 크므로 안전하게 무시하고 png 스캔으로 폴백
+        // (메모리 OOM 방지)
+      } else {
+        const raw = fs.readFileSync(resultJsonPath, "utf-8");
+        const parsed = JSON.parse(raw) as unknown;
+        const result = AgentResultSchema.safeParse(parsed);
+        if (result.success) {
+          return result.data;
+        }
       }
     } catch {
       // 파싱 실패 → 다음 단계로
