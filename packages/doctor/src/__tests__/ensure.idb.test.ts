@@ -82,6 +82,8 @@ describe("ensureIdb", () => {
     mockExeca.mockResolvedValueOnce({ stdout: "Homebrew 4.5.0", stderr: "", exitCode: 0 });
     // brew install 성공
     mockExeca.mockResolvedValueOnce({ stdout: "✓ installed", stderr: "", exitCode: 0 });
+    // 설치 후 idb --version 검증 성공
+    mockExeca.mockResolvedValueOnce({ stdout: "1.1.7", stderr: "", exitCode: 0 });
 
     const result = await ensureIdb();
     expect(result.installed).toBe(true);
@@ -96,6 +98,8 @@ describe("ensureIdb", () => {
     mockExeca.mockResolvedValueOnce({ stdout: "Homebrew 4.5.0", stderr: "", exitCode: 0 });
     // brew install 성공
     mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+    // 설치 후 idb --version 검증 성공
+    mockExeca.mockResolvedValueOnce({ stdout: "1.1.7", stderr: "", exitCode: 0 });
 
     await ensureIdb();
 
@@ -116,6 +120,8 @@ describe("ensureIdb", () => {
     mockExeca.mockResolvedValueOnce({ stdout: "Homebrew 4.5.0", stderr: "", exitCode: 0 });
     // brew install 성공
     mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+    // 설치 후 idb --version 검증 성공
+    mockExeca.mockResolvedValueOnce({ stdout: "1.1.7", stderr: "", exitCode: 0 });
 
     await ensureIdb();
 
@@ -140,5 +146,43 @@ describe("ensureIdb", () => {
     mockExeca.mockRejectedValueOnce(new Error("brew install failed"));
 
     await expect(ensureIdb()).rejects.toThrow("brew install failed");
+  });
+
+  it("brew install 성공 후 idb --version 검증 — 검증 성공 시 installed=true 반환", async () => {
+    // idb --version 실패 (미설치)
+    mockExeca.mockRejectedValueOnce(new Error("idb: not found"));
+    // brew --version 성공
+    mockExeca.mockResolvedValueOnce({ stdout: "Homebrew 4.5.0", stderr: "", exitCode: 0 });
+    // brew install 성공
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+    // 설치 후 idb --version 검증 성공
+    mockExeca.mockResolvedValueOnce({ stdout: "1.1.7", stderr: "", exitCode: 0 });
+
+    const result = await ensureIdb();
+    expect(result.installed).toBe(true);
+    expect(result.alreadyPresent).toBe(false);
+    expect(result.skipped).toBeUndefined();
+
+    // 설치 후 idb --version이 호출됐는지 확인 (brew install 이후 두 번째 idb 호출)
+    const idbCalls = mockExeca.mock.calls.filter(
+      (call: unknown[]) => call[0] === "idb" && Array.isArray(call[1]) && (call[1] as string[]).includes("--version")
+    );
+    expect(idbCalls.length).toBeGreaterThanOrEqual(2); // 최초 확인 + 설치 후 검증
+  });
+
+  it("brew install 성공 후 idb --version 검증 실패 → skipped='incomplete-install' 반환", async () => {
+    // idb --version 실패 (미설치)
+    mockExeca.mockRejectedValueOnce(new Error("idb: not found"));
+    // brew --version 성공
+    mockExeca.mockResolvedValueOnce({ stdout: "Homebrew 4.5.0", stderr: "", exitCode: 0 });
+    // brew install 성공
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+    // 설치 후 idb --version 검증 실패
+    mockExeca.mockRejectedValueOnce(new Error("idb: command not found after install"));
+
+    const result = await ensureIdb();
+    expect(result.installed).toBe(false);
+    expect(result.alreadyPresent).toBe(false);
+    expect(result.skipped).toBe("incomplete-install");
   });
 });

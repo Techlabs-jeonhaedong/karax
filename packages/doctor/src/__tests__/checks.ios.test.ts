@@ -121,6 +121,72 @@ describe("checkIosSimulator", () => {
       expect.anything()
     );
   });
+
+  it("tvOS만 있는 출력 → missing (iOS 섹션 아님)", async () => {
+    const tvOsOnly = [
+      "== Devices ==",
+      "-- tvOS 17.4 --",
+      "    Apple TV 4K (3rd generation) (AAAA-BBBB) (Shutdown)",
+      "    Apple TV 4K (3rd generation) (WiFi) (CCCC-DDDD) (Shutdown)",
+    ].join("\n");
+    mockExeca.mockResolvedValueOnce({ stdout: tvOsOnly, stderr: "", exitCode: 0 });
+    const result = await checkIosSimulator();
+    expect(result.status).toBe("missing");
+  });
+
+  it("watchOS만 있는 출력 → missing (iOS 섹션 아님)", async () => {
+    const watchOsOnly = [
+      "== Devices ==",
+      "-- watchOS 10.4 --",
+      "    Apple Watch Series 9 (45mm) (A1B2C3) (Shutdown)",
+    ].join("\n");
+    mockExeca.mockResolvedValueOnce({ stdout: watchOsOnly, stderr: "", exitCode: 0 });
+    const result = await checkIosSimulator();
+    expect(result.status).toBe("missing");
+  });
+
+  it("iOS + tvOS 혼재 출력 → ok, iOS 디바이스만 카운트", async () => {
+    const mixed = [
+      "== Devices ==",
+      "-- iOS 17.5 --",
+      "    iPhone 15 (A1B2C3D4) (Shutdown)",
+      "    iPhone 15 Pro (E5F6A7B8) (Booted)",
+      "-- tvOS 17.4 --",
+      "    Apple TV 4K (3rd generation) (FFFF-EEEE) (Shutdown)",
+    ].join("\n");
+    mockExeca.mockResolvedValueOnce({ stdout: mixed, stderr: "", exitCode: 0 });
+    const result = await checkIosSimulator();
+    expect(result.status).toBe("ok");
+    // tvOS 디바이스 제외하고 iOS 2개만 카운트
+    expect(result.version).toBe("2 devices");
+  });
+
+  it("visionOS만 있는 출력 → missing (iOS 섹션 아님)", async () => {
+    const visionOsOnly = [
+      "== Devices ==",
+      "-- visionOS 1.2 --",
+      "    Apple Vision Pro (AAAA-1111) (Shutdown)",
+    ].join("\n");
+    mockExeca.mockResolvedValueOnce({ stdout: visionOsOnly, stderr: "", exitCode: 0 });
+    const result = await checkIosSimulator();
+    expect(result.status).toBe("missing");
+  });
+
+  it("iOS + watchOS + tvOS 혼재 → iOS 섹션 디바이스만 카운트", async () => {
+    const multiPlatform = [
+      "== Devices ==",
+      "-- iOS 17.5 --",
+      "    iPhone 15 (A1B2C3) (Shutdown)",
+      "-- watchOS 10.4 --",
+      "    Apple Watch Series 9 (45mm) (D4E5F6) (Shutdown)",
+      "-- tvOS 17.4 --",
+      "    Apple TV 4K (G7H8I9) (Shutdown)",
+    ].join("\n");
+    mockExeca.mockResolvedValueOnce({ stdout: multiPlatform, stderr: "", exitCode: 0 });
+    const result = await checkIosSimulator();
+    expect(result.status).toBe("ok");
+    expect(result.version).toBe("1 device");
+  });
 });
 
 // ─── checkIosIdb ──────────────────────────────────────────────────────────────
@@ -188,5 +254,38 @@ describe("checkIosIdb", () => {
     mockExeca.mockRejectedValueOnce(new Error("not found"));
     const result = await checkIosIdb();
     expect(result.label).toBeTruthy();
+  });
+
+  it("idb --version 출력 전체가 아닌 버전 번호만 추출 (예: '1.1.7')", async () => {
+    mockExeca.mockResolvedValueOnce({
+      stdout: "1.1.7",
+      stderr: "",
+      exitCode: 0,
+    });
+    const result = await checkIosIdb();
+    expect(result.status).toBe("ok");
+    expect(result.version).toBe("1.1.7");
+  });
+
+  it("idb --version 출력에 추가 텍스트 포함 시 버전 번호만 추출", async () => {
+    mockExeca.mockResolvedValueOnce({
+      stdout: "idb version 1.1.7 (build 2024-01-01)",
+      stderr: "",
+      exitCode: 0,
+    });
+    const result = await checkIosIdb();
+    expect(result.status).toBe("ok");
+    expect(result.version).toBe("1.1.7");
+  });
+
+  it("idb --version 출력에서 버전 번호 없으면 'unknown' 반환", async () => {
+    mockExeca.mockResolvedValueOnce({
+      stdout: "idb: some-build-hash",
+      stderr: "",
+      exitCode: 0,
+    });
+    const result = await checkIosIdb();
+    expect(result.status).toBe("ok");
+    expect(result.version).toBe("unknown");
   });
 });

@@ -8,7 +8,7 @@ export interface EnsureChromiumResult {
 export interface EnsureIdbResult {
   installed: boolean;
   alreadyPresent: boolean;
-  skipped?: "non-darwin" | "no-brew";
+  skipped?: "non-darwin" | "no-brew" | "incomplete-install";
 }
 
 /**
@@ -164,6 +164,13 @@ export async function ensureIdb(): Promise<EnsureIdbResult> {
     stdout: process.stderr,
     stderr: "inherit",
   });
+
+  // 설치 후 검증 — brew install 성공이 idb 동작을 보장하지 않음
+  try {
+    await execa("idb", ["--version"], { timeout: 10_000 });
+  } catch {
+    return { installed: false, alreadyPresent: false, skipped: "incomplete-install" };
+  }
 
   return { installed: true, alreadyPresent: false };
 }

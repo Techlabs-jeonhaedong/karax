@@ -45,20 +45,36 @@ export async function checkIosSimulator(): Promise<CheckResult> {
 }
 
 /**
- * simctl list devices available 출력에서 디바이스 이름 목록을 추출한다.
+ * simctl list devices available 출력에서 iOS 섹션의 디바이스 이름 목록을 추출한다.
+ * 섹션 헤더 패턴: "-- iOS X.Y --" (iOS 섹션만 포함)
+ * tvOS / watchOS / visionOS 섹션은 제외한다.
  * 디바이스 행 패턴: "    <name> (<udid>) (<state>)"
- * -- 섹션 헤더("== ... ==", "-- ... --")와 빈 줄은 제외한다.
  */
 function parseAvailableDevices(output: string): string[] {
-  return output
-    .split("\n")
-    .filter((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return false;
-      if (/^==/.test(trimmed)) return false;
-      if (/^--/.test(trimmed)) return false;
-      // 디바이스 행: 괄호 쌍이 2개 이상 포함 (UDID, State)
-      return (trimmed.match(/\(/g) ?? []).length >= 2;
-    })
-    .map((line) => line.trim());
+  const devices: string[] = [];
+  let inIosSection = false;
+
+  for (const line of output.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // 섹션 헤더 — "-- <platform> X.Y --"
+    if (/^--\s/.test(trimmed)) {
+      inIosSection = /^--\s+iOS\s+\d/.test(trimmed);
+      continue;
+    }
+
+    // "== ... ==" 헤더 — 섹션 상태 초기화
+    if (/^==/.test(trimmed)) {
+      inIosSection = false;
+      continue;
+    }
+
+    // iOS 섹션 안의 디바이스 행: 괄호 쌍 2개 이상 (UDID, State)
+    if (inIosSection && (trimmed.match(/\(/g) ?? []).length >= 2) {
+      devices.push(trimmed);
+    }
+  }
+
+  return devices;
 }

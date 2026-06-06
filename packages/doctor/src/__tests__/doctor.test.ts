@@ -53,9 +53,13 @@ function setupAllOk() {
     if (cmd === "xcodebuild" && args.includes("-version")) {
       return Promise.resolve({ stdout: "Xcode 16.2\nBuild version 16C5032a", stderr: "", exitCode: 0 });
     }
-    // xcrun simctl
+    // xcrun simctl list devices available (ios-simulator) — iOS 섹션 포함
     if (cmd === "xcrun" && args.includes("simctl")) {
-      return Promise.resolve({ stdout: "== Devices ==\n", stderr: "", exitCode: 0 });
+      return Promise.resolve({
+        stdout: "== Devices ==\n-- iOS 17.5 --\n    iPhone 15 (A1B2C3D4) (Shutdown)\n",
+        stderr: "",
+        exitCode: 0,
+      });
     }
     // pod --version
     if (cmd === "pod" && args.includes("--version")) {
@@ -76,14 +80,6 @@ function setupAllOk() {
     // claude/codex/gemini --version
     if (args.includes("--version") && (cmd === "claude" || cmd === "codex" || cmd === "gemini")) {
       return Promise.resolve({ stdout: "1.0.0", stderr: "", exitCode: 0 });
-    }
-    // xcrun simctl list devices available (ios-simulator)
-    if (cmd === "xcrun" && args.includes("simctl")) {
-      return Promise.resolve({
-        stdout: "== Devices ==\n-- iOS 17.5 --\n    iPhone 15 (A1B2C3D4) (Shutdown)\n",
-        stderr: "",
-        exitCode: 0,
-      });
     }
     // idb --version (ios-idb)
     if (cmd === "idb" && args.includes("--version")) {
@@ -189,6 +185,14 @@ describe("runDoctor — checkAgentClis가 결과에 포함됨 (병렬성 회귀)
 // ── M9: ios-simulator · ios-idb 신규 체크 통합 검증 ─────────────────────────
 
 describe("runDoctor — ios-simulator·ios-idb 체크가 결과에 포함됨 (M9)", () => {
+  it("setupAllOk 환경에서 ios-simulator가 ok 상태여야 함 (dead mock 회귀)", async () => {
+    setupAllOk();
+    const report = await runDoctor();
+    const simCheck = report.checks.find((c) => c.id === "ios-simulator");
+    expect(simCheck).toBeDefined();
+    expect(simCheck?.status).toBe("ok");
+  });
+
   it("checks 배열에 ios-simulator id가 포함된다", async () => {
     setupAllOk();
     const report = await runDoctor();

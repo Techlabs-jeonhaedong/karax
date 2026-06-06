@@ -36,7 +36,8 @@ export async function checkIosIdb(): Promise<CheckResult> {
   // 1. idb 클라이언트 확인
   try {
     const { stdout } = await execa("idb", ["--version"], { timeout: 10_000 });
-    const version = stdout.trim() || "unknown";
+    const match = stdout.match(/(\d+\.\d+(?:\.\d+)?)/);
+    const version = match ? match[1] : "unknown";
     return { ...base, status: "ok", version };
   } catch {
     // idb 클라이언트 없음 — companion 확인
