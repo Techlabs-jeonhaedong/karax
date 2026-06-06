@@ -181,8 +181,19 @@ export function isArtifactFresh(artifactPath: string, fp: SourceFingerprint): bo
 
 // ── 캐시 파일 경로 ─────────────────────────────────────────────────
 
+/**
+ * projectPath를 realpathSync로 정규화한 뒤 sha256 해시를 사용한다.
+ * 심볼릭 링크 경로와 실경로가 같은 캐시 키를 공유하도록 한다.
+ * realpathSync 실패 시(경로 미존재) path.resolve로 폴백.
+ */
 function getCacheFilePath(projectPath: string, platform: string): string {
-  const projectHash = crypto.createHash("sha256").update(projectPath).digest("hex");
+  let normalizedPath: string;
+  try {
+    normalizedPath = fs.realpathSync(projectPath);
+  } catch {
+    normalizedPath = path.resolve(projectPath);
+  }
+  const projectHash = crypto.createHash("sha256").update(normalizedPath).digest("hex");
   const cacheDir = path.join(os.tmpdir(), "karax-e2e-cache");
   return path.join(cacheDir, `${projectHash}-${platform}.json`);
 }
@@ -191,7 +202,10 @@ function getCacheFilePath(projectPath: string, platform: string): string {
 
 /**
  * 캐시 파일에서 CacheEntry를 읽는다.
- * 파일 없음 / 손상 JSON / 필수 필드 누락 → null 반환 (graceful).
+ * 파일 없음 / 손상 JSON / 필수 필드 누락 / 경로 탈출 감지 → null 반환 (graceful).
+ *
+ * 보안: artifactPath가 절대경로이고 realpath 기준으로 projectPath 외부를
+ * 가리키지 않는지 확인한다 (캐시 포이즈닝 방어).
  */
 export function readBuildCache(projectPath: string, platform: string): CacheEntry | null {
   const filePath = getCacheFilePath(projectPath, platform);
@@ -210,6 +224,48 @@ export function readBuildCache(projectPath: string, platform: string): CacheEntr
       return null;
     }
 
+    // 보안 검증: artifactPath는 반드시 절대경로
+    if (!path.isAbsolute(parsed.artifactPath)) {
+      process.stderr.write(
+        `[karax/e2e] 캐시 포이즈닝 감지 (절대경로 아님): ${parsed.artifactPath}\n`
+      );
+      return null;
+    }
+
+    // 보안 검증: realpath 기준으로 projectPath 내부이거나 시스템 임시 디렉토리 아래여야 한다
+    // (빌드 산출물은 보통 tmpdir 혹은 project 내 build/ 아래 위치)
+    // tmpdir은 심볼릭 링크일 수 있으므로 realpathSync로 정규화한 값도 허용 루트에 포함한다.
+    const tmpdir = os.tmpdir();
+    let realpathTmpdir = tmpdir;
+    try { realpathTmpdir = fs.realpathSync(tmpdir); } catch { /* ignore */ }
+    const allowedRoots = [tmpdir, realpathTmpdir, path.resolve(projectPath)];
+
+    try {
+      const realArtifact = fs.realpathSync(path.dirname(parsed.artifactPath));
+      const isAllowed = allowedRoots.some(
+        (root) => realArtifact === root || realArtifact.startsWith(root + path.sep)
+      );
+      if (!isAllowed) {
+        process.stderr.write(
+          `[karax/e2e] 캐시 포이즈닝 감지 (허용 경로 밖): ${parsed.artifactPath}\n`
+        );
+        return null;
+      }
+    } catch {
+      // artifact가 아직 존재하지 않는 경우(경로만 기록됨) — realpath 실패는 허용
+      // 단, 경로 정규화 후 prefix 체크로 보완
+      const resolved = path.resolve(parsed.artifactPath);
+      const isAllowed = allowedRoots.some(
+        (root) => resolved === root || resolved.startsWith(root + path.sep)
+      );
+      if (!isAllowed) {
+        process.stderr.write(
+          `[karax/e2e] 캐시 포이즈닝 감지 (허용 경로 밖 — resolve): ${parsed.artifactPath}\n`
+        );
+        return null;
+      }
+    }
+
     return {
       artifactPath: parsed.artifactPath,
       appId: parsed.appId,
@@ -225,6 +281,7 @@ export function readBuildCache(projectPath: string, platform: string): CacheEntr
 
 /**
  * CacheEntry를 캐시 파일에 저장한다.
+ * 캐시 디렉토리는 0o700, 파일은 0o600으로 권한을 제한한다.
  */
 export function writeBuildCache(
   projectPath: string,
@@ -234,6 +291,6 @@ export function writeBuildCache(
   const filePath = getCacheFilePath(projectPath, platform);
   const cacheDir = path.dirname(filePath);
 
-  fs.mkdirSync(cacheDir, { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(entry, null, 2), "utf-8");
+  fs.mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(filePath, JSON.stringify(entry, null, 2), { encoding: "utf-8", mode: 0o600 });
 }

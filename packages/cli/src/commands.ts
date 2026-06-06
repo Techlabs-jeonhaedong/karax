@@ -291,7 +291,7 @@ export function parseTestArgs(argv: string[]): TestArgs {
   prog.option("--no-fail-on-crash", "크래시 감지 시 fail 강등을 비활성화한다");
   // M11 옵션
   prog.option("--reuse-build", "소스 핑거프린트 일치 시 이전 빌드를 재사용한다", false);
-  prog.option("--no-build", "빌드를 수행하지 않고 캐시 artifact만 사용한다 (없으면 에러)", false);
+  prog.option("--no-build", "빌드를 수행하지 않고 캐시 artifact만 사용한다 (없으면 에러)");
   prog.option("--grant-permissions", "시나리오의 permissions[]를 자동으로 디바이스에 grant한다", false);
   prog.option("--record-video", "앱 실행 중 화면을 비디오로 녹화한다", false);
   prog.parse(["node", "test", ...argv]);

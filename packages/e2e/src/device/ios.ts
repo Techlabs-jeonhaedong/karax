@@ -33,6 +33,18 @@ function validateDeviceId(deviceId: string): void {
   }
 }
 
+/** iOS 앱 Bundle ID 유효성: 영문자 시작, 영숫자·'_'·'.' 허용 (Android와 대칭). */
+const APP_ID_RE = /^[A-Za-z][A-Za-z0-9_.]*$/;
+
+function validateAppId(appId: string): void {
+  if (!APP_ID_RE.test(appId)) {
+    throw new E2eError(
+      "INVALID_ARGUMENT",
+      `유효하지 않은 appId: "${appId}". 영문자 시작, 영숫자·'_'·'.'만 허용.`
+    );
+  }
+}
+
 // ── 옵션 타입 ────────────────────────────────────────────────────────────
 
 export interface IosDeviceManagerOptions {
@@ -205,6 +217,7 @@ export function createIosDeviceManager(options: IosDeviceManagerOptions = {}): D
 
     async grantPermissions(deviceId: string, appId: string, permissions: string[]): Promise<void> {
       validateDeviceId(deviceId);
+      validateAppId(appId);
 
       for (const rawPerm of permissions) {
         const service = IOS_PERMISSION_MAP[rawPerm.toLowerCase()];

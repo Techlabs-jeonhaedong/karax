@@ -300,5 +300,20 @@ describe("createIosDeviceManager", () => {
 
       expect(mockExeca).toHaveBeenCalledTimes(2);
     });
+
+    it("유효하지 않은 appId는 INVALID_ARGUMENT 코드로 reject한다 (Android와 대칭)", async () => {
+      const manager = createIosDeviceManager();
+      const err = await manager.grantPermissions!("UDID-1234", "../etc/passwd", ["camera"]).catch((e) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect((err as { code?: string }).code).toBe("INVALID_ARGUMENT");
+    });
+
+    it("유효한 appId는 정상 처리된다 (번들 ID 형식)", async () => {
+      mockExeca.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as ReturnType<typeof execa>);
+      const manager = createIosDeviceManager();
+      await expect(
+        manager.grantPermissions!("UDID-1234", "com.example.MyApp", ["camera"])
+      ).resolves.toBeUndefined();
+    });
   });
 });

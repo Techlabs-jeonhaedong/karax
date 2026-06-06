@@ -23,8 +23,13 @@ export interface Recorder {
 
 // ── Android ────────────────────────────────────────────────────────
 
-const ANDROID_SEGMENT_TIME_LIMIT = 180; // 초
-const ANDROID_MAX_SEGMENTS = 14;        // 최대 세그먼트 수 (42분)
+const ANDROID_SEGMENT_TIME_LIMIT = 180; // 초 (3분/세그먼트)
+/**
+ * 최대 세그먼트 수: 14 × 3분 = 42분.
+ * 에이전트 최악 시나리오(2×40분 타임아웃)에서 1회 타임아웃 상한(900s=15분)을 커버한다.
+ * 실제 budget 연동은 후속 마일스톤에서 처리 예정.
+ */
+const ANDROID_MAX_SEGMENTS = 14;
 const ADB_TIMEOUT = 30_000;
 
 /**

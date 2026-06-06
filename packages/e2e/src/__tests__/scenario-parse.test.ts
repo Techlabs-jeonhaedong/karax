@@ -321,3 +321,54 @@ permissions:
     expect(result.body).toContain("테스트 본문");
   });
 });
+
+// ── permissions 형식 검증 (항목 8) ─────────────────────────────────
+
+describe("permissions 형식 검증 (^[A-Za-z0-9_.]+$)", () => {
+  it("유효한 permission은 통과한다", () => {
+    const content = `---
+mode: scenario
+permissions:
+  - android.permission.CAMERA
+  - RECORD_AUDIO
+  - com.example.permission.MY_PERM
+---
+본문`;
+    const result = parseScenario(content);
+    expect(result.permissions).toEqual([
+      "android.permission.CAMERA",
+      "RECORD_AUDIO",
+      "com.example.permission.MY_PERM",
+    ]);
+  });
+
+  it("형식 불합격 항목(셸 메타문자, 공백 등)은 제거된다", () => {
+    const content = `---
+mode: scenario
+permissions:
+  - android.permission.CAMERA
+  - "bad perm with space"
+  - "perm;injection"
+  - valid.perm
+---
+본문`;
+    const result = parseScenario(content);
+    // 유효한 것만 남음
+    expect(result.permissions).toEqual([
+      "android.permission.CAMERA",
+      "valid.perm",
+    ]);
+  });
+
+  it("모든 permissions가 불합격이면 빈 배열을 반환한다", () => {
+    const content = `---
+mode: scenario
+permissions:
+  - "bad perm"
+  - "$(inject)"
+---
+본문`;
+    const result = parseScenario(content);
+    expect(result.permissions).toEqual([]);
+  });
+});

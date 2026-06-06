@@ -520,4 +520,110 @@ describe("recordVideo 흐름", () => {
     expect(mockStartIosRecording).toHaveBeenCalledTimes(1);
     expect(mockStartAndroidRecording).not.toHaveBeenCalled();
   });
+
+  it("에이전트 throw(복구 불가) 시 recorder.stop을 호출한다 (항목 3: 누수 방지)", async () => {
+    const mockManager = makeMockDeviceManager();
+    mockCreateDeviceManager.mockResolvedValue(mockManager as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    // 복구 불가 에러 throw
+    mockRunAgent.mockRejectedValue(new Error("fatal-agent-error"));
+
+    const mockRecorder = { stop: vi.fn().mockResolvedValue([]) };
+    mockStartAndroidRecording.mockResolvedValue(mockRecorder);
+
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+      recordVideo: true,
+    });
+
+    // 에러 경로에서도 recorder.stop이 호출되어야 한다
+    expect(mockRecorder.stop).toHaveBeenCalled();
+  });
+});
+
+// ── 권한 정책 분리 (항목 6) ────────────────────────────────────────
+
+describe("grantPermissions 정책 분리", () => {
+  it("자동 활성(명시 없음 + permissions 선언) 시 install에 -g 없음", async () => {
+    const mockManager = makeMockDeviceManager();
+    mockCreateDeviceManager.mockResolvedValue(mockManager as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue(makeAgentSuccess());
+
+    const scenarioPath = path.join(tmpDir, "scenario.md");
+    fs.writeFileSync(scenarioPath, [
+      "---",
+      "permissions:",
+      "  - android.permission.CAMERA",
+      "---",
+      "",
+      "테스트",
+    ].join("\n"));
+
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+      scenarioPath,
+      // grantPermissions 미지정 (자동 활성)
+    });
+
+    // install 호출 시 grantAllPermissions=false여야 한다
+    const installCall = mockManager.install.mock.calls[0] as [string, string, { grantAllPermissions?: boolean }];
+    expect(installCall[2]?.grantAllPermissions).toBeFalsy();
+    // grantPermissions(pm grant)는 호출됨
+    expect(mockManager.grantPermissions).toHaveBeenCalled();
+  });
+
+  it("명시 true이면 install에 -g 포함", async () => {
+    const mockManager = makeMockDeviceManager();
+    mockCreateDeviceManager.mockResolvedValue(mockManager as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue(makeAgentSuccess());
+
+    const scenarioPath = path.join(tmpDir, "scenario.md");
+    fs.writeFileSync(scenarioPath, [
+      "---",
+      "permissions:",
+      "  - android.permission.CAMERA",
+      "---",
+      "",
+      "테스트",
+    ].join("\n"));
+
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+      scenarioPath,
+      grantPermissions: true, // 명시 true
+    });
+
+    const installCall = mockManager.install.mock.calls[0] as [string, string, { grantAllPermissions?: boolean }];
+    expect(installCall[2]?.grantAllPermissions).toBe(true);
+  });
+});
+
+// ── writeBuildCache 실패 무시 (항목 7) ────────────────────────────
+
+describe("writeBuildCache 실패 시 테스트 정상 진행", () => {
+  it("writeBuildCache가 throw해도 E2E 테스트는 정상 완료된다", async () => {
+    mockWriteBuildCache.mockImplementation(() => { throw new Error("disk full"); });
+
+    const mockManager = makeMockDeviceManager();
+    mockCreateDeviceManager.mockResolvedValue(mockManager as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue(makeAgentSuccess());
+
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    // 캐시 실패해도 outcome은 pass
+    expect(result.outcome).toBe("pass");
+  });
 });

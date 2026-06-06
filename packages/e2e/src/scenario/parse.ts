@@ -96,8 +96,26 @@ export function parseScenario(content: string): ParsedScenario {
     ...(frontmatter?.preconditions !== undefined ? { preconditions: frontmatter.preconditions } : {}),
     ...(frontmatter?.testData !== undefined ? { testData: frontmatter.testData } : {}),
     ...(frontmatter?.steps !== undefined ? { steps: frontmatter.steps } : {}),
-    ...(frontmatter?.permissions !== undefined ? { permissions: frontmatter.permissions } : {}),
+    ...(frontmatter?.permissions !== undefined
+      ? { permissions: filterValidPermissions(frontmatter.permissions) }
+      : {}),
   };
+}
+
+const PERM_FORMAT_RE = /^[A-Za-z0-9_.]+$/;
+
+/**
+ * permissions 배열에서 형식 불합격 항목을 제거하고 경고를 출력한다.
+ * 허용 형식: ^[A-Za-z0-9_.]+$
+ */
+function filterValidPermissions(permissions: string[]): string[] {
+  return permissions.filter((p) => {
+    if (!PERM_FORMAT_RE.test(p)) {
+      process.stderr.write(`[karax/e2e] permissions 형식 불합격, 제외: "${p}"\n`);
+      return false;
+    }
+    return true;
+  });
 }
 
 /**
@@ -146,7 +164,8 @@ function pickKnownFields(raw: Record<string, unknown>): {
   }
 
   if (Array.isArray(raw.permissions)) {
-    result.permissions = raw.permissions.filter((x): x is string => typeof x === "string");
+    const strings = raw.permissions.filter((x): x is string => typeof x === "string");
+    result.permissions = filterValidPermissions(strings);
   }
 
   return result;

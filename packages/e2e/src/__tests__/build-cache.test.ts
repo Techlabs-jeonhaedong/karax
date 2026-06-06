@@ -63,6 +63,8 @@ function makeStatResult(size: number, mtimeMs: number): fs.Stats {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // realpathSync 기본: throw → getCacheFilePath가 path.resolve 폴백 사용
+  mockFs.realpathSync.mockImplementation((p: unknown) => String(p));
 });
 
 // ── computeSourceFingerprint ────────────────────────────────────────
@@ -266,7 +268,8 @@ describe("isArtifactFresh", () => {
 describe("readBuildCache / writeBuildCache", () => {
   it("writeBuildCache → readBuildCache 라운드트립이 동일 항목을 반환한다", () => {
     const entry: CacheEntry = {
-      artifactPath: "/tmp/app.apk",
+      // artifactPath가 projectPath(/project) 하위에 있으면 allowedRoots 검사 통과
+      artifactPath: "/project/build/app.apk",
       appId: "com.example.app",
       sourceHash: "abc123",
       builtAtMs: 99999,
@@ -279,6 +282,8 @@ describe("readBuildCache / writeBuildCache", () => {
     });
     mockFs.readFileSync.mockImplementation(() => storedJson);
     mockFs.existsSync.mockReturnValue(true);
+    // realpathSync: 경로를 그대로 반환 (심볼릭 링크 없음으로 가정)
+    mockFs.realpathSync.mockImplementation((p: unknown) => String(p));
 
     writeBuildCache("/project", "android", entry);
     const read = readBuildCache("/project", "android");
@@ -327,5 +332,92 @@ describe("readBuildCache / writeBuildCache", () => {
 
     expect(writtenPath).toMatch(/karax-e2e-cache/);
     expect(writtenPath).toMatch(/android\.json$/);
+  });
+
+  // ── 캐시 포이즈닝 방어 ──────────────────────────────────────────────
+
+  it("artifactPath가 상대경로이면 null을 반환한다 (캐시 포이즈닝 방어)", () => {
+    mockFs.existsSync.mockReturnValue(true);
+    mockFs.readFileSync.mockReturnValue(JSON.stringify({
+      artifactPath: "../../etc/passwd", // 상대경로 공격
+      appId: "com.example.app",
+      sourceHash: "abc",
+      builtAtMs: 0,
+    }));
+
+    const result = readBuildCache("/project", "android");
+    expect(result).toBeNull();
+  });
+
+  it("writeBuildCache가 0o600 모드로 파일을 쓴다", () => {
+    const entry: CacheEntry = {
+      artifactPath: "/tmp/app.apk",
+      appId: "com.example.app",
+      sourceHash: "abc",
+      builtAtMs: 0,
+    };
+
+    let writtenOpts: unknown;
+    mockFs.mkdirSync.mockReturnValue(undefined);
+    mockFs.writeFileSync.mockImplementation((_p, _data, opts) => {
+      writtenOpts = opts;
+    });
+
+    writeBuildCache("/my/project", "android", entry);
+
+    expect(writtenOpts).toMatchObject({ mode: 0o600 });
+  });
+
+  it("writeBuildCache가 0o700 모드로 디렉토리를 생성한다", () => {
+    const entry: CacheEntry = {
+      artifactPath: "/tmp/app.apk",
+      appId: "com.example.app",
+      sourceHash: "abc",
+      builtAtMs: 0,
+    };
+
+    let mkdirOpts: unknown;
+    mockFs.mkdirSync.mockImplementation((_p, opts) => {
+      mkdirOpts = opts;
+      return undefined;
+    });
+    mockFs.writeFileSync.mockImplementation(() => { return; });
+
+    writeBuildCache("/my/project", "android", entry);
+
+    expect(mkdirOpts).toMatchObject({ mode: 0o700 });
+  });
+});
+
+// ── 캐시 키 정규화 (심볼릭 링크) ────────────────────────────────────
+
+describe("getCacheFilePath 심볼릭 링크 정규화", () => {
+  it("realpathSync 가능한 경우 실제 경로 기준으로 캐시 키를 생성한다", () => {
+    // realpathSync가 성공하는 경우 — getCacheFilePath 내부를 간접 검증
+    // writeBuildCache 두 번 호출(symlink 경로 / 실경로)이 같은 파일에 쓰는지 확인
+    let writtenPaths: string[] = [];
+    mockFs.mkdirSync.mockReturnValue(undefined);
+    mockFs.writeFileSync.mockImplementation((p) => {
+      writtenPaths.push(String(p));
+    });
+    // realpathSync mock — symlink를 실경로로 변환
+    mockFs.realpathSync.mockImplementation((p: unknown) => {
+      if (String(p) === "/symlink/project") return "/real/project";
+      return String(p);
+    });
+
+    const entry: CacheEntry = {
+      artifactPath: "/tmp/app.apk",
+      appId: "com.example.app",
+      sourceHash: "abc",
+      builtAtMs: 0,
+    };
+
+    writeBuildCache("/symlink/project", "android", entry);
+    writeBuildCache("/real/project", "android", entry);
+
+    expect(writtenPaths.length).toBe(2);
+    // 두 경로가 같아야 한다 (같은 캐시 파일)
+    expect(writtenPaths[0]).toBe(writtenPaths[1]);
   });
 });

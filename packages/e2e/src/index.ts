@@ -108,6 +108,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
 
   let deviceManager: Awaited<ReturnType<typeof createDeviceManager>> | null = null;
   let boostedByUs = false;
+  let recorder: Recorder | null = null;
 
   try {
     // 프레임워크 감지 (실패해도 일단 진행, builder가 에러 처리)
@@ -133,9 +134,11 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       : Promise.resolve(null);
 
     let buildResultPromise: Promise<import("./build/index.js").BuildResult>;
+    // fp는 reuseBuild/noBuild 경로와 writeBuildCache 호출 모두에서 재사용
+    let fp: import("./build/cache.js").SourceFingerprint | null = null;
 
     if (reuseBuild || noBuild) {
-      const fp = computeSourceFingerprint(projectPath, framework);
+      fp = computeSourceFingerprint(projectPath, framework);
       const cached = readBuildCache(projectPath, platform);
 
       const canReuse =
@@ -174,35 +177,53 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
 
     // M11: 빌드 성공 후 캐시 기록 (noBuild=true이면서 캐시 히트인 경우 제외)
     if (!noBuild || !readBuildCache(projectPath, platform)) {
-      // 캐시를 항상 갱신 (빌드한 경우, 또는 재사용했어도 캐시 갱신)
-      const fp = computeSourceFingerprint(projectPath, framework);
-      writeBuildCache(projectPath, platform, {
-        artifactPath: buildResult.artifactPath,
-        appId: buildResult.appId,
-        sourceHash: fp.hash,
-        builtAtMs: Date.now(),
-      });
+      // fp가 이미 계산됐으면 재사용, 아니면 새로 계산
+      const fpForWrite = fp ?? computeSourceFingerprint(projectPath, framework);
+      try {
+        writeBuildCache(projectPath, platform, {
+          artifactPath: buildResult.artifactPath,
+          appId: buildResult.appId,
+          sourceHash: fpForWrite.hash,
+          builtAtMs: Date.now(),
+        });
+      } catch (cacheErr) {
+        process.stderr.write(
+          `[karax/e2e] 빌드 캐시 기록 실패 (무시): ${cacheErr instanceof Error ? cacheErr.message : String(cacheErr)}\n`
+        );
+      }
     }
 
     // M11: grantPermissions 결정
+    // - 명시 true: install -g (전체 권한) + 개별 pm grant
+    // - 자동 활성(명시 없음 + permissions 선언 존재): install -g 없음 + 개별 pm grant만 (최소 권한 원칙)
+    // - 명시 false: 권한 처리 없음
     const scenarioPermissions = scenario.permissions;
-    const shouldGrant =
-      opts.grantPermissions === true ||
-      (opts.grantPermissions !== false && Array.isArray(scenarioPermissions) && scenarioPermissions.length > 0);
+    const userExplicitGrant = opts.grantPermissions === true;
+    const autoGrant =
+      opts.grantPermissions !== false &&
+      Array.isArray(scenarioPermissions) &&
+      scenarioPermissions.length > 0;
+    const shouldGrant = userExplicitGrant || autoGrant;
 
-    // 설치 (M11: grantAllPermissions Android -g)
+    // 설치 (M11: -g는 사용자가 명시적으로 grantPermissions=true일 때만)
     await deviceManager.install(
       deviceInfo.id,
       buildResult.artifactPath,
-      { grantAllPermissions: shouldGrant && platform === "android" }
+      { grantAllPermissions: userExplicitGrant && platform === "android" }
     );
 
-    // M11: 런타임 pm grant (Android) / simctl privacy (iOS)
+    // M11: 런타임 pm grant (Android) / simctl privacy (iOS) — 명시·자동 모두 개별 grant 수행
+    const grantFailedPermissions: string[] = [];
     if (shouldGrant && deviceManager.grantPermissions && Array.isArray(scenarioPermissions) && scenarioPermissions.length > 0) {
       const resolvedAppIdForGrant = scenario.appId ?? buildResult.appId;
-      await deviceManager.grantPermissions(deviceInfo.id, resolvedAppIdForGrant, scenarioPermissions).catch((e) => {
-        process.stderr.write(`[karax/e2e] grantPermissions 실패 (무시): ${e instanceof Error ? e.message : String(e)}\n`);
-      });
+      try {
+        await deviceManager.grantPermissions(deviceInfo.id, resolvedAppIdForGrant, scenarioPermissions);
+      } catch (e) {
+        // 전체 grant 실패 — 모든 permissions를 failed로 기록
+        const msg = e instanceof Error ? e.message : String(e);
+        process.stderr.write(`[karax/e2e] grantPermissions 실패: ${msg}\n`);
+        grantFailedPermissions.push(...scenarioPermissions);
+      }
     }
 
     // 실행
@@ -210,7 +231,6 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     await deviceManager.launch(deviceInfo.id, resolvedAppId);
 
     // M11: 비디오 녹화 시작 (launch 직후)
-    let recorder: Recorder | null = null;
     if (recordVideo) {
       try {
         if (platform === "android") {
@@ -336,10 +356,15 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       return step;
     });
 
-    // M7: qualityWarnings 생성 — non-skip 스텝 중 screenshot 없는 스텝
+    // M7: qualityWarnings 생성 — non-skip 스텝 중 screenshot 없는 스텝 + 권한 grant 실패
     const qualityWarnings: string[] = sanitizedSteps
       .filter((step) => step.status !== "skip" && !step.screenshot)
       .map((step) => `스텝 ${step.index}: 스크린샷 누락`);
+
+    // M11: 권한 grant 실패 경고 추가
+    for (const failedPerm of grantFailedPermissions) {
+      qualityWarnings.push(`권한 grant 실패: ${failedPerm}`);
+    }
 
     // M7: findings evidence sanitize (steps와 동일한 path traversal 방어)
     const sanitizedFindings = agentResult.findings?.map((finding) => {
@@ -483,6 +508,9 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
   } catch (e) {
     // 인프라 에러 → outcome: "error"로 리포트 작성
     const errResult = makeErrorResult(session, startTime, platform, agent, scenarioPath, e);
+
+    // recorder 프로세스 누수 방지 — 에러 경로에서도 반드시 정지
+    await recorder?.stop().catch(() => {});
 
     // 선택적 shutdown (에러 경우에도)
     if (!keepBooted && deviceManager?.shutdown && deviceManager.platform === platform) {
