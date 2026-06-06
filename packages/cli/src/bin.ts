@@ -523,7 +523,8 @@ program
           ...(opts.keepBooted ? ["--keep-booted"] : []),
         ]);
 
-        const { runE2eTest } = await import("@karax/e2e");
+        // SDK 단일 진입점 원칙 — @karax/sdk의 runE2eTest가 기본 AppMapGenerator를 주입한다
+        const { runE2eTest } = await import("@karax/sdk");
 
         console.log(`\nE2E 테스트 시작: ${args.path} (플랫폼: ${args.platform}, 에이전트: ${args.agent})\n`);
 

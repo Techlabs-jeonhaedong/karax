@@ -1,7 +1,7 @@
 /**
  * appmap/sessionAppMap.ts 단위 테스트
  *
- * sdk 동적 import를 vi.mock으로 대체해,
+ * sdk 의존 없이 AppMapGenerator를 직접 주입(DI)해
  * appmap.json 기록·디렉토리 구조·실패 전파를 검증한다.
  */
 
@@ -10,50 +10,43 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import type { AppMap } from "@karax/core";
-
-// sdk 동적 import mock
-vi.mock("@karax/sdk", () => {
-  const mockAppMap: AppMap = {
-    schemaVersion: "appmap/2",
-    appName: "MockApp",
-    framework: "flutter",
-    entryScreenId: "home",
-    screens: [
-      {
-        id: "home",
-        title: "홈",
-        discovery: "route",
-        isEntry: true,
-        confidence: 0.9,
-        elements: [{ type: "Button", label: "시작" }],
-        outgoing: [],
-      },
-    ],
-    edges: [],
-    diagnostics: [],
-    overallConfidence: 0.9,
-  };
-
-  return {
-    generateAppMap: vi.fn().mockResolvedValue({
-      appMap: mockAppMap,
-      documents: [
-        {
-          fileName: "mockapp_map_1.md",
-          content: "# MockApp\n## 홈\n",
-        },
-      ],
-      writtenPaths: ["/mock/appmap/mockapp_map_1.md"],
-    }),
-  };
-});
-
+import type { AppMapGenerator } from "../appmap/sessionAppMap.js";
 import { generateAppMapForSession } from "../appmap/sessionAppMap.js";
+
+const MOCK_APP_MAP: AppMap = {
+  schemaVersion: "appmap/2",
+  appName: "MockApp",
+  framework: "flutter",
+  entryScreenId: "home",
+  screens: [
+    {
+      id: "home",
+      title: "홈",
+      discovery: "route",
+      isEntry: true,
+      confidence: 0.9,
+      elements: [{ type: "Button", label: "시작" }],
+      outgoing: [],
+    },
+  ],
+  edges: [],
+  diagnostics: [],
+  overallConfidence: 0.9,
+};
+
+function makeGenerator(
+  override?: Partial<{ appMap: AppMap; writtenPaths: string[] }>
+): AppMapGenerator {
+  return vi.fn().mockResolvedValue({
+    appMap: MOCK_APP_MAP,
+    writtenPaths: ["/mock/appmap/mockapp_map_1.md"],
+    ...override,
+  });
+}
 
 let tmpDir: string;
 
 beforeEach(() => {
-  vi.clearAllMocks();
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-e2e-session-appmap-test-"));
 });
 
@@ -71,6 +64,7 @@ describe("generateAppMapForSession", () => {
       framework: "flutter",
       platform: "android",
       appMapDir,
+      generator: makeGenerator(),
     });
 
     expect(result.appMapJsonPath).toContain("appmap.json");
@@ -86,6 +80,7 @@ describe("generateAppMapForSession", () => {
       framework: "flutter",
       platform: "android",
       appMapDir,
+      generator: makeGenerator(),
     });
 
     const content = fs.readFileSync(result.appMapJsonPath, "utf-8");
@@ -105,6 +100,7 @@ describe("generateAppMapForSession", () => {
       framework: "flutter",
       platform: "android",
       appMapDir,
+      generator: makeGenerator(),
     });
 
     expect(result.appMap).toBeDefined();
@@ -120,6 +116,7 @@ describe("generateAppMapForSession", () => {
       framework: "flutter",
       platform: "android",
       appMapDir,
+      generator: makeGenerator(),
     });
 
     expect(result.deviceProfileId).toBe("pixel-8");
@@ -134,6 +131,7 @@ describe("generateAppMapForSession", () => {
       framework: "ios",
       platform: "ios",
       appMapDir,
+      generator: makeGenerator(),
     });
 
     expect(result.deviceProfileId).toBe("iphone-15");
@@ -148,30 +146,13 @@ describe("generateAppMapForSession", () => {
       framework: "flutter",
       platform: "android",
       appMapDir,
+      generator: makeGenerator({ writtenPaths: ["/mock/appmap/mockapp_map_1.md"] }),
     });
 
-    // mock에서 writtenPaths[0] = "/mock/appmap/mockapp_map_1.md"
     expect(result.markdownIndexPath).toBe("/mock/appmap/mockapp_map_1.md");
   });
 
-  it("sdk generateAppMap이 마크다운을 쓰지 않으면 markdownIndexPath는 null", async () => {
-    const { generateAppMap } = await import("@karax/sdk");
-    const mockFn = vi.mocked(generateAppMap);
-    mockFn.mockResolvedValueOnce({
-      appMap: {
-        schemaVersion: "appmap/2",
-        appName: "NoMd",
-        framework: "flutter",
-        entryScreenId: null,
-        screens: [],
-        edges: [],
-        diagnostics: [],
-        overallConfidence: 0.0,
-      },
-      documents: [],
-      writtenPaths: [],  // 마크다운 없음
-    });
-
+  it("generator가 마크다운을 쓰지 않으면 markdownIndexPath는 null", async () => {
     const appMapDir = path.join(tmpDir, "appmap");
     fs.mkdirSync(appMapDir, { recursive: true });
 
@@ -180,15 +161,14 @@ describe("generateAppMapForSession", () => {
       framework: "flutter",
       platform: "android",
       appMapDir,
+      generator: makeGenerator({ writtenPaths: [] }),
     });
 
     expect(result.markdownIndexPath).toBeNull();
   });
 
-  it("sdk 실패 시 throw한다 (호출부에서 catch해야 함)", async () => {
-    const { generateAppMap } = await import("@karax/sdk");
-    const mockFn = vi.mocked(generateAppMap);
-    mockFn.mockRejectedValueOnce(new Error("SDK 실패"));
+  it("generator 실패 시 throw한다 (호출부에서 catch해야 함)", async () => {
+    const failingGenerator: AppMapGenerator = vi.fn().mockRejectedValue(new Error("Generator 실패"));
 
     const appMapDir = path.join(tmpDir, "appmap");
     fs.mkdirSync(appMapDir, { recursive: true });
@@ -199,8 +179,9 @@ describe("generateAppMapForSession", () => {
         framework: "flutter",
         platform: "android",
         appMapDir,
+        generator: failingGenerator,
       })
-    ).rejects.toThrow("SDK 실패");
+    ).rejects.toThrow("Generator 실패");
   });
 
   it("appMapDir이 없어도 디렉토리를 생성한다", async () => {
@@ -213,9 +194,31 @@ describe("generateAppMapForSession", () => {
         framework: "flutter",
         platform: "android",
         appMapDir,
+        generator: makeGenerator(),
       })
     ).resolves.toBeDefined();
 
     expect(fs.existsSync(appMapDir)).toBe(true);
+  });
+
+  it("generator에 올바른 인자(projectPath, framework, device, outDir)가 전달된다", async () => {
+    const appMapDir = path.join(tmpDir, "appmap");
+    fs.mkdirSync(appMapDir, { recursive: true });
+    const generator = makeGenerator();
+
+    await generateAppMapForSession({
+      projectPath: tmpDir,
+      framework: "react-native",
+      platform: "ios",
+      appMapDir,
+      generator,
+    });
+
+    expect(generator).toHaveBeenCalledWith({
+      projectPath: tmpDir,
+      framework: "react-native",
+      device: "iphone-15",
+      outDir: appMapDir,
+    });
   });
 });

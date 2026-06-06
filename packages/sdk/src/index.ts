@@ -43,11 +43,34 @@ export type { E2eError } from "@karax/e2e";
 
 /**
  * E2E 테스트를 실행한다. (@karax/e2e를 lazy dynamic import로 로드)
+ *
+ * appMapGenerator가 미지정인 경우 sdk의 generateAppMap을 어댑터로 감싸 기본 주입한다.
+ * 이를 통해 e2e→sdk 정적 순환 의존 없이 AppMap 생성 기능이 동작한다.
  */
 export async function runE2eTest(
   opts: import("@karax/e2e").RunE2eTestOptions
 ): Promise<import("@karax/e2e").E2eTestResult> {
-  return (await import("@karax/e2e")).runE2eTest(opts);
+  const e2e = await import("@karax/e2e");
+
+  // appMapGenerator가 없으면 sdk의 generateAppMap을 DI 어댑터로 주입
+  const optsWithGenerator: import("@karax/e2e").RunE2eTestOptions = opts.appMapGenerator
+    ? opts
+    : {
+        ...opts,
+        appMapGenerator: async (genOpts) => {
+          const { generateAppMap } = await import("./appMap.js");
+          const result = await generateAppMap({
+            projectPath: genOpts.projectPath,
+            framework: genOpts.framework,
+            device: genOpts.device,
+            write: true,
+            outDir: genOpts.outDir,
+          });
+          return { appMap: result.appMap, writtenPaths: result.writtenPaths };
+        },
+      };
+
+  return e2e.runE2eTest(optsWithGenerator);
 }
 
 /**

@@ -573,7 +573,8 @@ export function createMcpServer(): McpServer {
       try {
         validateProjectPath(projectPath);
 
-        const { runE2eTest } = await import("@karax/e2e");
+        // SDK 단일 진입점 원칙 — @karax/sdk의 runE2eTest가 기본 AppMapGenerator를 주입한다
+        const { runE2eTest } = await import("@karax/sdk");
 
         const result = await runE2eTest({
           projectPath,

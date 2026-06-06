@@ -88,14 +88,18 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
 
     // 빌드 + AppMap 생성 병렬 실행 (AppMap 실패는 비차단)
     const builder = selectBuilder(framework, platform);
+    const appMapPromise = opts.appMapGenerator
+      ? generateAppMapForSession({
+          projectPath,
+          framework,
+          platform,
+          appMapDir: session.appMapDir,
+          generator: opts.appMapGenerator,
+        }).catch(() => null)
+      : Promise.resolve(null);
     const [buildResult, sessionAppMap] = await Promise.all([
       builder.build(projectPath),
-      generateAppMapForSession({
-        projectPath,
-        framework,
-        platform,
-        appMapDir: session.appMapDir,
-      }).catch(() => null),
+      appMapPromise,
     ]);
 
     // 설치

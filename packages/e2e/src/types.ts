@@ -37,6 +37,21 @@ export class E2eError extends Error {
 
 export type Platform = "android" | "ios";
 
+// ── AppMapGenerator ────────────────────────────────────────────────────────
+
+import type { AppMap } from "@karax/core";
+
+/**
+ * AppMap 생성기 함수 타입 — sdk에서 주입되며, e2e 패키지는 이 타입에만 의존한다.
+ * e2e→sdk 순환 의존 없이 DI(의존성 주입)으로 AppMap 생성 기능을 사용할 수 있다.
+ */
+export type AppMapGenerator = (opts: {
+  projectPath: string;
+  framework: "flutter" | "react-native" | "android" | "ios";
+  device: string;
+  outDir: string;
+}) => Promise<{ appMap: AppMap; writtenPaths: string[] }>;
+
 // ── runE2eTest 옵션 ───────────────────────────────────────────────────────
 
 export interface RunE2eTestOptions {
@@ -50,6 +65,12 @@ export interface RunE2eTestOptions {
   timeoutMs?: number;
   maxSteps?: number;
   keepBooted?: boolean;
+  /**
+   * AppMap 생성기 함수 — 지정 시 E2E 세션 시작 시 AppMap을 생성하고 프롬프트에 주입한다.
+   * sdk의 runE2eTest 래퍼가 기본값으로 generateAppMap 어댑터를 주입한다.
+   * 직접 @karax/e2e를 사용하는 경우 이 옵션을 직접 제공하거나 생략(AppMap 미생성)할 수 있다.
+   */
+  appMapGenerator?: AppMapGenerator;
 }
 
 // ── AgentKind ─────────────────────────────────────────────────────────────
