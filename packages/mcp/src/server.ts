@@ -569,8 +569,10 @@ export function createMcpServer(): McpServer {
       timeoutMs: z.number().int().positive().optional(),
       maxSteps: z.number().int().positive().optional(),
       keepBooted: z.boolean().optional().default(false),
+      /** M8: 크래시 감지 시 fail 강등 여부 (기본 true) */
+      failOnCrash: z.boolean().optional().default(true),
     },
-    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted }) => {
+    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted, failOnCrash }) => {
       try {
         validateProjectPath(projectPath);
 
@@ -597,6 +599,7 @@ export function createMcpServer(): McpServer {
           timeoutMs,
           maxSteps,
           keepBooted,
+          failOnCrash,
         };
 
         if (scenarioIsDir && scenarioPath) {
@@ -621,13 +624,27 @@ export function createMcpServer(): McpServer {
         const result = await sdk.runE2eTest({ ...commonOpts, scenarioPath });
 
         // 응답: 요약 텍스트 + 리포트 경로 + 최종 스크린샷 소량 base64
-        const summaryText = [
+        const summaryLines = [
           `E2E 테스트 결과: ${result.outcome}`,
           `요약: ${result.summary}`,
           `리포트: ${result.reportJsonPath}`,
           `스크린샷 디렉토리: ${result.screenshotsDir}`,
           `스텝 수: ${result.steps.length}`,
-        ].join("\n");
+        ];
+
+        // M8: findings/coverage/crash 요약 추가
+        if (result.findings && result.findings.length > 0) {
+          summaryLines.push(`발견사항: ${result.findings.length}건 (critical: ${result.findings.filter((f) => f.severity === "critical").length}건)`);
+        }
+        if (result.coverage) {
+          const pct = (result.coverage.coverageRatio * 100).toFixed(0);
+          summaryLines.push(`커버리지: ${result.coverage.visitedScreens}/${result.coverage.totalScreens} (${pct}%)`);
+        }
+        if (result.crashes && result.crashes.length > 0) {
+          summaryLines.push(`크래시: ${result.crashes.length}건 감지`);
+        }
+
+        const summaryText = summaryLines.join("\n");
 
         // 마지막 스크린샷 1개만 base64로 포함 (응답 크기 제한)
         const lastScreenshot = result.steps

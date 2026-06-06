@@ -234,6 +234,26 @@ export function createAndroidDeviceManager(
         // 종료 실패는 무시
       }
     },
+
+    async captureLogcat(deviceId: string): Promise<string | undefined> {
+      validateDeviceId(deviceId);
+      try {
+        const result = await execa(...adbArgs(deviceId, "logcat", "-d"));
+        return String(result.stdout ?? "");
+      } catch {
+        // best-effort: 실패 시 undefined 반환
+        return undefined;
+      }
+    },
+
+    async clearLogcat(deviceId: string): Promise<void> {
+      validateDeviceId(deviceId);
+      try {
+        await execa(...adbArgs(deviceId, "logcat", "-c"));
+      } catch {
+        // best-effort: 실패해도 테스트 비차단
+      }
+    },
   };
 }
 

@@ -260,6 +260,8 @@ export interface TestArgs {
   maxSteps?: number;
   json: boolean;
   keepBooted: boolean;
+  /** M8: 크래시 감지 시 fail 강등 여부. 기본 true, --no-fail-on-crash로 비활성화 */
+  failOnCrash: boolean;
 }
 
 const VALID_PLATFORMS: TestPlatform[] = ["android", "ios"];
@@ -278,6 +280,7 @@ export function parseTestArgs(argv: string[]): TestArgs {
   prog.option("--max-steps <n>", "에이전트 최대 스텝 수", "20");
   prog.option("--json", "JSON 형식으로 출력", false);
   prog.option("--keep-booted", "테스트 후 디바이스를 종료하지 않음", false);
+  prog.option("--no-fail-on-crash", "크래시 감지 시 fail 강등을 비활성화한다");
   prog.parse(["node", "test", ...argv]);
 
   const opts = prog.opts<{
@@ -291,6 +294,7 @@ export function parseTestArgs(argv: string[]): TestArgs {
     maxSteps: string;
     json: boolean;
     keepBooted: boolean;
+    failOnCrash: boolean;
   }>();
 
   if (!VALID_PLATFORMS.includes(opts.platform as TestPlatform)) {
@@ -317,5 +321,6 @@ export function parseTestArgs(argv: string[]): TestArgs {
     maxSteps: parseInt(opts.maxSteps, 10),
     json: opts.json,
     keepBooted: opts.keepBooted,
+    failOnCrash: opts.failOnCrash !== false, // --no-fail-on-crash 시 false
   };
 }

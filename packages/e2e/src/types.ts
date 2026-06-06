@@ -73,6 +73,11 @@ export interface RunE2eTestOptions {
    * 직접 @karax/e2e를 사용하는 경우 이 옵션을 직접 제공하거나 생략(AppMap 미생성)할 수 있다.
    */
   appMapGenerator?: AppMapGenerator;
+  /**
+   * M8: 크래시 감지 시 outcome을 fail로 강등할지 여부. 기본값 true.
+   * false로 설정하면 크래시가 있어도 에이전트 outcome을 그대로 유지한다.
+   */
+  failOnCrash?: boolean;
 }
 
 // ── AgentKind ─────────────────────────────────────────────────────────────
@@ -81,7 +86,8 @@ export type AgentKind = "claude" | "codex" | "gemini";
 
 // ── E2E 결과 ──────────────────────────────────────────────────────────────
 
-export type E2eOutcome = "pass" | "fail" | "error";
+/** M8: "partial" 추가 — 에이전트 비정상 종료 후 부분 복구된 결과 */
+export type E2eOutcome = "pass" | "fail" | "error" | "partial";
 
 export interface E2eTestResult {
   outcome: E2eOutcome;
@@ -107,6 +113,21 @@ export interface E2eTestResult {
   }>;
   /** M7: 에이전트가 방문한 화면 id 목록 (AppMap 있으면 교집합 필터 적용) */
   visitedScreens?: string[];
+  /** M8: 감지된 크래시 이벤트 목록 */
+  crashes?: Array<{
+    type: "fatal-exception" | "anr" | "process-death" | "native-crash";
+    timestamp?: string;
+    excerpt: string;
+    appId?: string;
+  }>;
+  /** M8: 커버리지 계산 결과 (AppMap 있을 때만) */
+  coverage?: {
+    totalScreens: number;
+    visitedScreens: number;
+    visitedScreenIds: string[];
+    unvisitedScreenIds: string[];
+    coverageRatio: number;
+  };
 }
 
 export interface E2eStep {

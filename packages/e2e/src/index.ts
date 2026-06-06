@@ -28,6 +28,10 @@ import { generateAppMapForSession } from "./appmap/sessionAppMap.js";
 import { summarizeAppMap, renderSummaryForPrompt } from "./appmap/promptSummary.js";
 import { computeBudget } from "./agent/budget.js";
 import { discoverScenarioFiles } from "./scenario/discover.js";
+import { parseLogcatForCrashes } from "./crash/detect.js";
+import type { CrashEvent } from "./crash/detect.js";
+import { recoverPartialResult } from "./recovery/partial.js";
+import type { Coverage } from "./report/schema.js";
 
 export type { RunE2eTestOptions, E2eTestResult, Platform };
 export { E2eError, E2E_ERROR_CODES } from "./types.js";
@@ -63,6 +67,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     deviceId,
     outDir = "/tmp/karax-e2e-out",
     keepBooted = false,
+    failOnCrash = true,
   } = opts;
 
   const startTime = Date.now();
@@ -167,8 +172,47 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     // 에이전트 호출 인수 구성
     const invocation = buildAgentInvocation(agent, { prompt, apiKey, screenshotsDir: session.screenshotsDir });
 
-    // 에이전트 실행
-    const agentResult = await runAgent(invocation, session.screenshotsDir, { timeoutMs: budget.timeoutMs });
+    // M8: 에이전트 실행 전 logcat 버퍼 클리어 (best-effort)
+    if (deviceManager.clearLogcat) {
+      await deviceManager.clearLogcat(deviceInfo.id).catch(() => undefined);
+    }
+
+    // 에이전트 실행 (AGENT_TIMEOUT/AGENT_OUTPUT_INVALID 시 partial 복구 경로로)
+    let agentResult: Awaited<ReturnType<typeof runAgent>>;
+    let isPartialRecovery = false;
+
+    try {
+      agentResult = await runAgent(invocation, session.screenshotsDir, { timeoutMs: budget.timeoutMs });
+    } catch (agentErr) {
+      // AGENT_TIMEOUT / AGENT_OUTPUT_INVALID → partial 복구 시도
+      const isRecoverableError =
+        agentErr instanceof E2eError &&
+        (agentErr.code === "AGENT_TIMEOUT" || agentErr.code === "AGENT_OUTPUT_INVALID");
+
+      if (isRecoverableError) {
+        const recovered = recoverPartialResult(session.screenshotsDir);
+        if (recovered !== null) {
+          agentResult = recovered;
+          isPartialRecovery = true;
+        } else {
+          throw agentErr; // 복구 불가 → 기존 에러 경로
+        }
+      } else {
+        throw agentErr;
+      }
+    }
+
+    // M8: 에이전트 종료 후 logcat 캡처 + 크래시 감지 (best-effort)
+    let crashes: CrashEvent[] | undefined;
+    if (deviceManager.captureLogcat) {
+      const logcatText = await deviceManager.captureLogcat(deviceInfo.id).catch(() => undefined);
+      if (logcatText) {
+        const detected = parseLogcatForCrashes(logcatText, resolvedAppId);
+        if (detected.length > 0) {
+          crashes = detected;
+        }
+      }
+    }
 
     const durationMs = Date.now() - startTime;
 
@@ -200,23 +244,72 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       return finding;
     });
 
+    // M8: 크래시 synthetic finding 주입 (상한 500 유지)
+    let allFindings = sanitizedFindings ? [...sanitizedFindings] : [];
+    if (crashes && crashes.length > 0) {
+      const crashFindings = crashes.map((c, idx) => ({
+        id: `crash-synthetic-${idx}`,
+        severity: "critical" as const,
+        category: "crash" as const,
+        description: `[${c.type}] ${c.excerpt.split("\n")[0] ?? c.type}`,
+      }));
+      allFindings = [...allFindings, ...crashFindings].slice(0, 500);
+    }
+
     // M7: visitedScreens 정제 — 기본 형식 검증(빈 문자열·초장문·제어문자·중복) + AppMap 교집합 (환각 방어)
     let visitedScreens: string[] | undefined;
     if (agentResult.visitedScreens) {
-      // 1차: 기본 형식 필터 (AppMap 유무 무관)
+      // 1차: 기본 형식 필터 (AppMap 유무 무관) + trim (T2: 공백 포함 id 처리)
       const CTRL_RE = /[\x00-\x1f\x7f]/;
+      const sanitizedRaw = agentResult.visitedScreens.map((id) => id.trim());
       const sanitized = [...new Set(
-        agentResult.visitedScreens.filter(
+        sanitizedRaw.filter(
           (id) => id.length > 0 && id.length <= 100 && !CTRL_RE.test(id)
         )
       )];
       if (sessionAppMap) {
-        // 2차: AppMap 교집합
-        const validScreenIds = new Set(sessionAppMap.appMap.screens.map((s) => s.id));
-        visitedScreens = sanitized.filter((id) => validScreenIds.has(id));
+        // 2차: AppMap 교집합 — T2: 정규화(trim+lowercase) 키로 매칭, 원본 id 보존
+        const appMapScreens = sessionAppMap.appMap.screens;
+        const normalizedToOriginal = new Map<string, string>(
+          appMapScreens.map((s) => [s.id.trim().toLowerCase(), s.id])
+        );
+        const matchedOriginalIds = sanitized
+          .map((id) => normalizedToOriginal.get(id.toLowerCase()))
+          .filter((id): id is string => id !== undefined);
+        visitedScreens = [...new Set(matchedOriginalIds)];
       } else {
         visitedScreens = sanitized;
       }
+    }
+
+    // M8: coverage 결정론 계산 (sessionAppMap 있는 경우만)
+    let coverage: Coverage | undefined;
+    if (sessionAppMap && sessionAppMap.appMap.screens.length > 0) {
+      const appMapScreens = sessionAppMap.appMap.screens;
+      const totalScreens = appMapScreens.length;
+
+      // 방문된 원본 id 집합 (visitedScreens가 이미 원본 id로 정규화됨)
+      const visitedSet = new Set(visitedScreens ?? []);
+      const visitedScreenIds = appMapScreens
+        .map((s) => s.id)
+        .filter((id) => visitedSet.has(id));
+      const unvisitedScreenIds = appMapScreens
+        .map((s) => s.id)
+        .filter((id) => !visitedSet.has(id));
+
+      coverage = {
+        totalScreens,
+        visitedScreens: visitedScreenIds.length,
+        visitedScreenIds,
+        unvisitedScreenIds,
+        coverageRatio: totalScreens > 0 ? visitedScreenIds.length / totalScreens : 0,
+      };
+    }
+
+    // M8: 크래시 발생 시 outcome 강등 (failOnCrash=true 기본)
+    let finalOutcome: E2eReport["outcome"] = isPartialRecovery ? "partial" : agentResult.outcome;
+    if (crashes && crashes.length > 0 && failOnCrash && finalOutcome === "pass") {
+      finalOutcome = "fail";
     }
 
     // 리포트 작성
@@ -226,12 +319,19 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       platform,
       agent,
       scenarioPath,
-      outcome: agentResult.outcome,
+      outcome: finalOutcome,
       summary: agentResult.summary,
       steps: sanitizedSteps,
       screenshotsDir: session.screenshotsDir,
       durationMs,
       createdAt: new Date().toISOString(),
+      reportVersion: 2,
+      // M8: 신규 필드 영속화 (T1)
+      ...(allFindings.length > 0 ? { findings: allFindings } : {}),
+      ...(coverage ? { coverage } : {}),
+      ...(crashes ? { crashes } : {}),
+      ...(qualityWarnings.length > 0 ? { qualityWarnings } : {}),
+      ...(visitedScreens !== undefined ? { visitedScreens } : {}),
     };
 
     const { reportJsonPath, reportMdPath } = writeReport(session.dir, report);
@@ -244,7 +344,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     }
 
     return {
-      outcome: agentResult.outcome,
+      outcome: finalOutcome,
       sessionDir: session.dir,
       reportJsonPath,
       reportMdPath,
@@ -253,8 +353,10 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       steps: sanitizedSteps,
       ...(sessionAppMap ? { appMapDir: session.appMapDir } : {}),
       ...(qualityWarnings.length > 0 ? { qualityWarnings } : {}),
-      ...(sanitizedFindings !== undefined ? { findings: sanitizedFindings } : {}),
+      ...(allFindings.length > 0 ? { findings: allFindings } : {}),
       ...(visitedScreens !== undefined ? { visitedScreens } : {}),
+      ...(crashes ? { crashes } : {}),
+      ...(coverage ? { coverage } : {}),
     };
   } catch (e) {
     // 인프라 에러 → outcome: "error"로 리포트 작성

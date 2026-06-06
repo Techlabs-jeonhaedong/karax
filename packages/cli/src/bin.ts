@@ -559,6 +559,7 @@ program
           timeoutMs: args.timeout,
           maxSteps: args.maxSteps,
           keepBooted: args.keepBooted,
+          failOnCrash: args.failOnCrash,
         };
 
         if (scenarioIsDir && args.scenario) {
@@ -602,18 +603,37 @@ program
           if (args.json) {
             console.log(JSON.stringify(result, null, 2));
           } else {
-            const outcomeIcon = result.outcome === "pass" ? "✓" : result.outcome === "fail" ? "✗" : "!";
-            console.log(`\nE2E 테스트 ${result.outcome === "pass" ? "통과" : result.outcome === "fail" ? "실패" : "오류"}:\n`);
+            const outcomeIcon =
+              result.outcome === "pass" ? "✓" :
+              result.outcome === "fail" ? "✗" :
+              result.outcome === "partial" ? "~" : "!";
+            const outcomeLabel =
+              result.outcome === "pass" ? "통과" :
+              result.outcome === "fail" ? "실패" :
+              result.outcome === "partial" ? "부분 완료" : "오류";
+            console.log(`\nE2E 테스트 ${outcomeLabel}:\n`);
             console.log(`  결과:       ${outcomeIcon} ${result.outcome}`);
             console.log(`  요약:       ${result.summary}`);
             console.log(`  리포트:     ${result.reportJsonPath}`);
             console.log(`  스크린샷:   ${result.screenshotsDir}`);
-            console.log(`  스텝 수:    ${result.steps.length}\n`);
+            console.log(`  스텝 수:    ${result.steps.length}`);
+            if (result.findings && result.findings.length > 0) {
+              console.log(`  발견사항:   ${result.findings.length}건`);
+            }
+            if (result.coverage) {
+              const pct = (result.coverage.coverageRatio * 100).toFixed(0);
+              console.log(`  커버리지:   ${result.coverage.visitedScreens}/${result.coverage.totalScreens} (${pct}%)`);
+            }
+            if (result.crashes && result.crashes.length > 0) {
+              console.log(`  크래시:     ${result.crashes.length}건 감지`);
+            }
+            console.log("");
           }
 
           if (result.outcome === "pass") {
             process.exit(EXIT_CODES.SUCCESS);
-          } else if (result.outcome === "fail") {
+          } else if (result.outcome === "fail" || result.outcome === "partial") {
+            // M8: partial→2 (fail과 동일한 exit code)
             process.exit(EXIT_CODES.PARTIAL_FAILURE);
           } else {
             process.exit(EXIT_CODES.FAILURE);
