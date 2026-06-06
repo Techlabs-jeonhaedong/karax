@@ -6,6 +6,7 @@
  */
 
 import path from "node:path";
+import { randomBytes } from "node:crypto";
 import { execa } from "execa";
 import { detectAndroidSdkPath } from "@karax/doctor";
 import { E2eError } from "../types.js";
@@ -24,9 +25,9 @@ function validateDeviceId(deviceId: string): void {
 
 const ADB_TIMEOUT = 30_000;
 
-/** 동시 호출 race condition 방지용 고유 덤프 경로 생성 */
+/** 동시 호출 race condition 방지용 고유 덤프 경로 생성 (crypto-random) */
 function makeDumpPath(): string {
-  const suffix = Math.random().toString(36).slice(2, 10);
+  const suffix = randomBytes(8).toString("hex");
   return `/sdcard/karax_dump_${suffix}.xml`;
 }
 
@@ -68,31 +69,32 @@ export async function dumpAndroidUI(deviceId: string): Promise<string> {
     );
   }
 
-  // 2. exec-out cat — XML 수신
-  let xml: string;
+  // 2. exec-out cat — XML 수신 + 3. best-effort rm (cat 실패 시에도 rm 보장)
+  let xml = "";
+  let catError: E2eError | undefined;
   try {
-    const result = await execa(adbBin, ["-s", deviceId, "exec-out", "cat", dumpPath], {
+    const catResult = await execa(adbBin, ["-s", deviceId, "exec-out", "cat", dumpPath], {
       timeout: ADB_TIMEOUT,
       env,
     });
-    xml = String(result.stdout ?? "");
+    xml = String(catResult.stdout ?? "");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new E2eError(
+    catError = new E2eError(
       "DUMP_FAILED",
       `uiautomator dump 파일 수신 실패 (deviceId: ${deviceId}): ${msg}`
     );
-  }
-
-  // 3. best-effort rm
-  try {
+  } finally {
+    // cat 성공/실패 무관하게 항상 정리
     await execa(adbBin, ["-s", deviceId, "shell", "rm", "-f", dumpPath], {
       timeout: ADB_TIMEOUT,
       env,
+    }).catch(() => {
+      // 정리 실패는 무시 (best-effort)
     });
-  } catch {
-    // 정리 실패는 무시 (best-effort)
   }
+
+  if (catError) throw catError;
 
   if (!xml) {
     throw new E2eError(

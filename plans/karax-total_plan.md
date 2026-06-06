@@ -110,6 +110,7 @@ runE2eTest(projectPath, platform, scenarioPath?)
 - 에러 계약: `INVALID_ARGUMENT | DEVICE_NOT_FOUND | DUMP_FAILED | UNSUPPORTED_PLATFORM`(iOS dump는 1차 미지원 명시). `ui` 서브커맨드는 tree-sitter 불필요 → WASM respawn 분기 건너뛰기(매 탭 호출 비용 절감).
 - **`prompt.ts` 치트시트 확장**: `karax ui locate`/`which-screen` 사용법 + "좌표 직접 계산하지 말 것" 지시.
 - **테스트**: dumpAndroid vi.mock → 3 서브커맨드 JSON/exit code 계약 검증(디바이스 불필요). 매칭 자체는 M1에서 커버 → 여기선 배선만.
+- **M4 사후 승인 (검수 반영)**: ① 에러 코드 `APPMAP_PARSE_ERROR` 5번째 코드로 추가됨 (기존 4종: INVALID_ARGUMENT / DEVICE_NOT_FOUND / DUMP_FAILED / UNSUPPORTED_PLATFORM). ② 치트시트 adb 명령의 `<deviceId>` 플레이스홀더 → 실제 deviceId 보간으로 변경됨 (에이전트가 복붙 가능하도록 — 의도된 개선).
 
 ### Wave 2 — 테스트 품질 (G2·G4)
 

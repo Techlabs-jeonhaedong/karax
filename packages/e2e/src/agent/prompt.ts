@@ -23,16 +23,20 @@ export interface BuildPromptOptions {
 
 /**
  * appMapJsonPath를 프롬프트에 삽입하기 전에 sanitize한다.
- * 첫 개행 이후를 잘라내 개행 기반 프롬프트 인젝션을 방지한다.
+ * - 첫 개행 이후를 잘라내 개행 기반 프롬프트 인젝션을 방지한다.
+ * - 셸 위험 문자(백틱·$·;·|·&·<·>·"·')가 포함되면 null을 반환한다.
+ *   (세션 코드가 만든 경로라 정상 케이스에선 발동 안 함 — 방어선)
  */
-function sanitizePathArg(raw: string): string {
+function sanitizePathArg(raw: string): string | null {
   const crlfIdx = raw.search(/[\r\n]/);
-  return crlfIdx === -1 ? raw : raw.slice(0, crlfIdx);
+  const trimmed = crlfIdx === -1 ? raw : raw.slice(0, crlfIdx);
+  if (/[`$;|&<>"']/.test(trimmed)) return null;
+  return trimmed;
 }
 
 function buildAndroidCheatsheet(deviceId: string, appMapJsonPath?: string): string {
-  const safePathArg = appMapJsonPath ? sanitizePathArg(appMapJsonPath) : undefined;
-  const appmapArg = safePathArg ? ` --appmap ${safePathArg}` : "";
+  const sanitized = appMapJsonPath ? sanitizePathArg(appMapJsonPath) : null;
+  const appmapArg = sanitized ? ` --appmap ${sanitized}` : "";
 
   return `## Android 제어 치트시트 (adb)
 - 스크린샷: adb -s ${deviceId} exec-out screencap -p > <path>.png

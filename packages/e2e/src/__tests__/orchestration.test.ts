@@ -334,6 +334,57 @@ describe("runE2eTest", () => {
     expect(result.appMapDir).toBeUndefined();
   });
 
+  it("AppMap 생성 성공 시 buildAgentPrompt에 appMapJsonPath가 전달된다", async () => {
+    const mockAppMap: AppMap = {
+      schemaVersion: "appmap/2",
+      appName: "TestApp",
+      framework: "flutter",
+      entryScreenId: "home",
+      screens: [],
+      edges: [],
+      diagnostics: [],
+      overallConfidence: 0.8,
+    };
+
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+    mockGenerateAppMapForSession.mockResolvedValue({
+      appMap: mockAppMap,
+      appMapJsonPath: "/tmp/appmap/appmap.json",
+      markdownIndexPath: "/tmp/appmap/app_map_1.md",
+      deviceProfileId: "pixel-8",
+    });
+
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+      appMapGenerator: vi.fn().mockResolvedValue({ appMap: mockAppMap, writtenPaths: [] }),
+    });
+
+    expect(mockBuildAgentPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ appMapJsonPath: "/tmp/appmap/appmap.json" })
+    );
+  });
+
+  it("AppMap 생성 실패 시 buildAgentPrompt에 appMapJsonPath가 없다", async () => {
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+    mockGenerateAppMapForSession.mockRejectedValue(new Error("생성 실패"));
+
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+      appMapGenerator: vi.fn().mockRejectedValue(new Error("실패")),
+    });
+
+    const callArg = mockBuildAgentPrompt.mock.calls[0][0];
+    expect(callArg).not.toHaveProperty("appMapJsonPath");
+  });
+
   it("path traversal 탈출 경로가 포함된 step은 screenshot 필드가 제거된다", async () => {
     mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
     mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);

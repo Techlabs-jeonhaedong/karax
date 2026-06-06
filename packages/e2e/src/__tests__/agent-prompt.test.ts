@@ -275,4 +275,45 @@ describe("buildAgentPrompt", () => {
     });
     expect(result).not.toContain("## OVERRIDE");
   });
+
+  it("appMapJsonPath에 백틱이 포함되면 --appmap 안내가 제거된다 (셸 인젝션 방지)", () => {
+    const dangerousPath = "/tmp/appmap`rm -rf /`.json";
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      exploratory: true,
+      appMapJsonPath: dangerousPath,
+    });
+    // 위험 경로를 포함한 --appmap 인자가 없어야 함
+    expect(result).not.toContain(dangerousPath);
+    // --appmap 자체는 없어도 되고, 있어도 위험 경로와 연결되지 않아야 함
+  });
+
+  it("appMapJsonPath에 $가 포함되면 --appmap 안내가 제거된다", () => {
+    const dangerousPath = "/tmp/$(evil).json";
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      exploratory: true,
+      appMapJsonPath: dangerousPath,
+    });
+    expect(result).not.toContain(dangerousPath);
+  });
+
+  it("appMapJsonPath에 세미콜론이 포함되면 --appmap 안내가 제거된다", () => {
+    const dangerousPath = "/tmp/appmap.json;rm -rf /";
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      exploratory: true,
+      appMapJsonPath: dangerousPath,
+    });
+    expect(result).not.toContain(dangerousPath);
+  });
+
+  it("ios 치트시트에는 karax ui 명령어가 포함되지 않는다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      platform: "ios",
+      exploratory: true,
+    });
+    expect(result).not.toContain("karax ui");
+  });
 });

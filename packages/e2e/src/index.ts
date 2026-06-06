@@ -130,6 +130,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       exploratory: scenario.exploratory,
       scenarioBody: scenario.exploratory ? undefined : scenario.body,
       ...(appMapSection !== undefined ? { appMapSection } : {}),
+      ...(sessionAppMap ? { appMapJsonPath: sessionAppMap.appMapJsonPath } : {}),
     });
 
     // 에이전트 호출 인수 구성

@@ -395,6 +395,39 @@ describe("알 수 없는 서브커맨드", () => {
   });
 });
 
+// ─── karax ui 스모크 테스트 ─────────────────────────────────────────────
+// 실제 adb 없이 CLI 라우팅·JSON 출력 계약·exit code를 검증한다.
+// (adb 호출은 dumpAndroid.ts 내부에서 실패 → ok:false JSON 반환 → exit 1)
+
+describe("karax ui — 스모크 통합 테스트", () => {
+  it("ui dump --device <없는id> → stdout이 단일 JSON이고 ok:false, exit 1", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["ui", "dump", "--device", "nonexistent-9999"]);
+    // JSON 파싱 가능해야 한다 (빈 문자열이면 SyntaxError)
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    expect(code).toBe(1);
+  });
+
+  it("ui 인자 없이 (서브커맨드 미지정) → JSON 에러, exit 1", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["ui"]);
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    expect(typeof parsed.error).toBe("string");
+    expect(code).toBe(1);
+  });
+
+  it("ui which-screen --device x (--appmap 미지정) → INVALID_ARGUMENT JSON, exit 1", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["ui", "which-screen", "--device", "x"]);
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error).toBe("INVALID_ARGUMENT");
+    expect(code).toBe(1);
+  });
+});
+
 // ─── React Native fixture karax detect / karax list e2e ───────────────
 
 describe("karax detect — react-native-basic", () => {

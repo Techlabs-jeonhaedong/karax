@@ -201,15 +201,17 @@ type AppMapReadResult =
 
 /** appmap.json 파일을 읽고 AppMapReadSchema로 파싱 */
 function readAppMap(appmapPath: string): AppMapReadResult {
+  const displayName = path.basename(appmapPath);
   let raw: string;
   try {
     raw = fs.readFileSync(appmapPath, "utf-8");
   } catch (e) {
+    const reason = e instanceof Error ? e.message : "파일 읽기 실패";
     return {
       success: false,
       error: makeError(
         "APPMAP_PARSE_ERROR",
-        `AppMap 파일을 읽을 수 없습니다: ${appmapPath} (${e instanceof Error ? e.message : String(e)})`
+        `AppMap 파일을 읽을 수 없습니다: ${displayName} (${reason})`
       ),
     };
   }
@@ -220,17 +222,21 @@ function readAppMap(appmapPath: string): AppMapReadResult {
   } catch {
     return {
       success: false,
-      error: makeError("APPMAP_PARSE_ERROR", `AppMap JSON 파싱 실패: ${appmapPath}`),
+      error: makeError("APPMAP_PARSE_ERROR", `AppMap JSON 파싱 실패: ${displayName}`),
     };
   }
 
   const result = AppMapReadSchema.safeParse(parsed);
   if (!result.success) {
+    const firstIssue = result.error.issues[0];
+    const summary = firstIssue
+      ? `${firstIssue.path.join(".") || "(root)"} ${firstIssue.code}`
+      : "알 수 없는 검증 오류";
     return {
       success: false,
       error: makeError(
         "APPMAP_PARSE_ERROR",
-        `AppMap 스키마 검증 실패: ${result.error.message}`
+        `AppMap 스키마 검증 실패 (첫 이슈: ${summary}): ${displayName}`
       ),
     };
   }

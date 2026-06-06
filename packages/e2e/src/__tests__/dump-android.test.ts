@@ -97,6 +97,35 @@ describe("dumpAndroidUI — 정상 흐름", () => {
     expect(xml).toBe("<hierarchy/>");
   });
 
+  it("덤프 경로가 hex 형식(crypto-random)이다", async () => {
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+    mockExeca.mockResolvedValueOnce({ stdout: "<hierarchy/>", stderr: "", exitCode: 0 });
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+
+    await dumpAndroidUI("emulator-5554");
+
+    const dumpCall = mockExeca.mock.calls[0];
+    const dumpPath = dumpCall[1].find((a: string) => a.startsWith("/sdcard/karax_dump_"));
+    // crypto.randomBytes(8).toString("hex") → 16자리 hex
+    expect(dumpPath).toMatch(/^\/sdcard\/karax_dump_[0-9a-f]{16}\.xml$/);
+  });
+
+  it("cat 실패 시에도 rm이 호출된다 (try/finally 보장)", async () => {
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 }); // dump
+    mockExeca.mockRejectedValueOnce(new Error("cat failed")); // cat 실패
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 }); // rm
+
+    await dumpAndroidUI("emulator-5554").catch(() => {
+      // 에러는 예상됨
+    });
+
+    // 총 3번 호출: dump, cat, rm
+    expect(mockExeca).toHaveBeenCalledTimes(3);
+    const rmCall = mockExeca.mock.calls[2];
+    expect(rmCall[1]).toContain("rm");
+    expect(rmCall[1]).toContain("-f");
+  });
+
   it("adb 경로가 ANDROID_HOME 기반으로 구성된다", async () => {
     mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
     mockExeca.mockResolvedValueOnce({ stdout: "<hierarchy/>", stderr: "", exitCode: 0 });
@@ -189,6 +218,7 @@ describe("dumpAndroidUI — 실패 시 에러 코드", () => {
   it("exec-out cat 실패 시 DUMP_FAILED 에러를 던진다", async () => {
     mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 }); // dump ok
     mockExeca.mockRejectedValueOnce(new Error("exec-out cat failed")); // cat fails
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 }); // rm (finally)
 
     await expect(dumpAndroidUI("emulator-5554")).rejects.toMatchObject({
       code: "DUMP_FAILED",
