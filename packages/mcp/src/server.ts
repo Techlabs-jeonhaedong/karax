@@ -163,13 +163,16 @@ export function createMcpServer(): McpServer {
     {
       capabilities: { tools: {} },
       instructions:
-        "소스코드를 분석해 앱 화면 스크린샷을 추출하는 MCP 서버. " +
+        "모바일 앱 테스트 자동화 MCP 서버. " +
+        "최종 목표: 사용자가 시나리오를 주면 Android 에뮬레이터/iOS 시뮬레이터에서 완전 자동으로 E2E 테스트를 수행하고 보고서를 작성한다. " +
+        "시나리오가 없으면 앱을 자유 탐색하며 anomaly 10종 taxonomy로 findings를 보고한다. " +
         "Flutter/React Native/Android Compose/iOS SwiftUI 4개 프레임워크를 지원한다. " +
-        "2-티어 캡처(Tier 1: 부분 컴파일, Tier 2: 정적 IR→Chromium) 전략으로 동작하며, " +
-        "captureMode(auto/compile/static), variant 전개, overlay(confidence 시각화), " +
-        "enrich(LLM 보강) 옵션을 제공한다. " +
-        "generate_app_map으로 화면 구조·네비게이션 그래프를 AppMap으로 추출하고, " +
-        "run_e2e_test로 에뮬레이터/시뮬레이터에서 LLM 에이전트 기반 E2E 테스트를 실행할 수 있다.",
+        "run_e2e_test: scenarioPath(파일 또는 디렉토리)를 전달하면 에뮬레이터/시뮬레이터에서 LLM 에이전트가 E2E 테스트를 실행한다. " +
+        "세션 시작 시 AppMap을 자동 생성해 에이전트 프롬프트에 주입하므로 에이전트가 버튼 위치를 찾는 시간을 줄인다. " +
+        "generate_app_map: 화면 구조·네비게이션 그래프를 AppMap(appmap/2 스키마)으로 추출한다. 광고 영역은 role:\"ad\"로 태깅된다. " +
+        "capture_screen / capture_all: 2-티어 캡처(Tier 1: 부분 컴파일, Tier 2: 정적 IR→Chromium)로 화면 스크린샷을 추출한다. " +
+        "이 기능은 AppMap 생성의 기반이 되는 하부 기능이다. " +
+        "doctor: 환경 진단 — emulator/simulator/idb/agent CLI 체크 후 필요 항목 자동 설치(fix=true).",
     }
   );
 
