@@ -93,6 +93,20 @@ export interface E2eTestResult {
   steps: E2eStep[];
   /** AppMap이 생성된 경우 디렉토리 경로. 소비자 참고용 (없으면 undefined). */
   appMapDir?: string;
+  /** M7: 스크린샷 없는 non-skip 스텝 경고 목록 (결정론 후처리) */
+  qualityWarnings?: string[];
+  /** M7: exploratory 모드에서 에이전트가 기록한 anomaly findings */
+  findings?: Array<{
+    id: string;
+    severity: "critical" | "major" | "minor";
+    category: string;
+    screenId?: string;
+    description: string;
+    evidence?: string;
+    reproSteps?: string[];
+  }>;
+  /** M7: 에이전트가 방문한 화면 id 목록 (AppMap 있으면 교집합 필터 적용) */
+  visitedScreens?: string[];
 }
 
 export interface E2eStep {

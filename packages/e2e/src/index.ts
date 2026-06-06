@@ -69,7 +69,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
   const session = createSessionDir(outDir);
 
   // 시나리오 파싱
-  let scenario: { body: string; exploratory: boolean; appId?: string; platform?: Platform } = { body: "", exploratory: true };
+  let scenario: { body: string; exploratory: boolean; appId?: string; platform?: Platform; steps?: import("./scenario/schema.js").ScenarioStep[] } = { body: "", exploratory: true };
   if (scenarioPath) {
     try {
       // 파일인지 확인 및 크기 상한(1MB) 검사
@@ -145,6 +145,9 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       });
     }
 
+    // M7: AppMap 화면 id 목록 → targetScreenIds (커버리지 목표)
+    const targetScreenIds = sessionAppMap?.appMap.screens.map((s) => s.id);
+
     // 에이전트 프롬프트 생성
     const prompt = buildAgentPrompt({
       platform,
@@ -156,6 +159,9 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       scenarioBody: scenario.exploratory ? undefined : scenario.body,
       ...(appMapSection !== undefined ? { appMapSection } : {}),
       ...(sessionAppMap ? { appMapJsonPath: sessionAppMap.appMapJsonPath } : {}),
+      ...(targetScreenIds && targetScreenIds.length > 0 ? { targetScreenIds } : {}),
+      // M7: 구조화 스텝 — 시나리오 모드에서만 전달
+      ...(!scenario.exploratory && scenario.steps ? { scenarioSteps: scenario.steps } : {}),
     });
 
     // 에이전트 호출 인수 구성
@@ -167,7 +173,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     const durationMs = Date.now() - startTime;
 
     // screenshot 경로 sanitize — path traversal 방어
-    const sanitizedSteps = agentResult.steps.map((step) => {
+    const sanitizedSteps: import("./agent/resultSchema.js").AgentStep[] = agentResult.steps.map((step) => {
       if (!step.screenshot) return step;
       const safe = sanitizeScreenshotPath(session.screenshotsDir, step.screenshot);
       if (safe === null) {
@@ -177,6 +183,33 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       }
       return step;
     });
+
+    // M7: qualityWarnings 생성 — non-skip 스텝 중 screenshot 없는 스텝
+    const qualityWarnings: string[] = sanitizedSteps
+      .filter((step) => step.status !== "skip" && !step.screenshot)
+      .map((step) => `스텝 ${step.index}: 스크린샷 누락`);
+
+    // M7: findings evidence sanitize (steps와 동일한 path traversal 방어)
+    const sanitizedFindings = agentResult.findings?.map((finding) => {
+      if (!finding.evidence) return finding;
+      const safe = sanitizeScreenshotPath(session.screenshotsDir, finding.evidence);
+      if (safe === null) {
+        const { evidence: _dropped, ...rest } = finding;
+        return rest;
+      }
+      return finding;
+    });
+
+    // M7: visitedScreens 정제 — AppMap 있으면 실제 screen id 교집합만 유지 (환각 방어)
+    let visitedScreens: string[] | undefined;
+    if (agentResult.visitedScreens) {
+      if (sessionAppMap) {
+        const validScreenIds = new Set(sessionAppMap.appMap.screens.map((s) => s.id));
+        visitedScreens = agentResult.visitedScreens.filter((id) => validScreenIds.has(id));
+      } else {
+        visitedScreens = agentResult.visitedScreens;
+      }
+    }
 
     // 리포트 작성
     const report: E2eReport = {
@@ -211,6 +244,9 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       summary: agentResult.summary,
       steps: sanitizedSteps,
       ...(sessionAppMap ? { appMapDir: session.appMapDir } : {}),
+      ...(qualityWarnings.length > 0 ? { qualityWarnings } : {}),
+      ...(sanitizedFindings !== undefined ? { findings: sanitizedFindings } : {}),
+      ...(visitedScreens !== undefined ? { visitedScreens } : {}),
     };
   } catch (e) {
     // 인프라 에러 → outcome: "error"로 리포트 작성
