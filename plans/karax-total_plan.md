@@ -159,6 +159,15 @@ runE2eTest(projectPath, platform, scenarioPath?)
 - 신규 `packages/e2e/src/runtime/dumpIos.ts`: idb 분기 + 미설치 시 `UNSUPPORTED_PLATFORM`.
 - **테스트**: 프롬프트 idb on/off 스냅샷, describe-all JSON 정규화 픽스처, bounds 추정 폴백.
 
+##### M10 검수 반영 정오표 (2025-06-06)
+- **① UNSUPPORTED_PLATFORM → IDB_UNAVAILABLE**: `dumpIos.ts` idb 미설치 에러 코드를 `UNSUPPORTED_PLATFORM`(예약 미사용 코드) 대신 `IDB_UNAVAILABLE`로 확정. `UNSUPPORTED_PLATFORM`에는 "현재 미사용 — 미래 플랫폼 확장 예약" JSDoc 추가.
+- **② `coordsUnit: "points"` 필드**: `locateViaAppMapBounds` AppMap 추정 폴백 결과에 `coordsUnit: "points"` 포함. idb 경로도 동일하게 `coordsUnit: "points"` 포함 (idb frame은 논리 pt 단위).
+- **③ label 검증 위치**: `runUiLocate`의 빈 label 검증(`INVALID_ARGUMENT`)은 platform 분기 앞에 위치 — iOS+빈 label은 `INVALID_ARGUMENT`를 반환 (platform 무관 공통 선행 검증).
+- **④ bin.ts iOS idb 와이어링**: `bin.ts` ui 액션에서 `--platform ios` 시 `isIdbAvailable()` 1회 probe 후 `idbAvailable` 파라미터를 `runUiDump/runUiLocate/runUiWhichScreen`에 전달. android는 probe 없음.
+- **⑤ bounds 검증**: `locateViaAppMapBounds`에 bounds 유효성 검사 추가 — 음수 좌표, x+width/y+height > 5000pt, NaN/Infinity → 해당 요소 스킵(found:false 반환).
+- **⑥ assumedProfile 필드**: `locateViaAppMapBounds` 결과(found:true/false 모두)에 `assumedProfile: "iphone-15"`, `assumedDeviceSize: {width:393, height:852}` 동봉 — 호출자(에이전트)가 시뮬레이터 해상도 불일치 탐지 가능.
+- **⑦ dumpIos.ts 에러 마스킹**: `dumpIosUI` catch에서 원본 `err.message`(시스템 경로 등)를 제거하고, 고정 힌트 문자열(`IDB_UNAVAILABLE_HINT`)만 E2eError message에 포함.
+
 #### M11. 운영 품질 — 빌드 캐싱·권한·비디오
 - **신규 `build/cache.ts`**: `computeSourceFingerprint`(소스 디렉토리 파일 경로+크기+mtime 정렬 해시, 빌드 산출물 제외) + `isArtifactFresh`. 캐시는 `os.tmpdir()/karax-e2e-cache/`(원본 무수정). 옵션 `reuseBuild?`(불일치 시 자동 재빌드)/`noBuild?`(강제 재사용, 없으면 `ARTIFACT_NOT_FOUND`). **기본 동작 무변경(opt-in)**.
 - **권한 grant**: M6 스키마의 `permissions[]` 와이어링 — Android `install -g` + `pm grant`(권한명 정규식 `^[A-Za-z0-9_.]+$` 검증), iOS `simctl privacy grant`. `DeviceManager.install`에 optional opts 파라미터(하위호환).

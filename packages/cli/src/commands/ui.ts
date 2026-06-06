@@ -28,6 +28,10 @@ export type UiErrorCode =
   | "DEVICE_NOT_FOUND"
   | "DUMP_FAILED"
   | "APPMAP_PARSE_ERROR"
+  /**
+   * 현재 미사용 — 미래 플랫폼 확장 예약.
+   * android/ios 외 플랫폼(예: windows, web 등)을 지원할 때 사용할 코드.
+   */
   | "UNSUPPORTED_PLATFORM"
   | "IDB_UNAVAILABLE";
 
@@ -72,6 +76,29 @@ export interface UiLocateResult {
   coordsUnit?: "points";
   /** AppMap bounds 추정 폴백일 때 true */
   estimated?: boolean;
+  /**
+   * AppMap 생성 시 가정한 디바이스 프로파일 ID.
+   * AppMap 생성 device 프로파일과 실제 시뮬레이터 해상도가 다르면 좌표가 부정확할 수 있음.
+   * locateViaAppMapBounds 결과에만 포함.
+   */
+  assumedProfile?: string;
+  /**
+   * AppMap 생성 시 가정한 디바이스 논리 해상도 (단위: points).
+   * 호출자(에이전트)가 시뮬레이터 해상도 불일치를 탐지하기 위해 제공.
+   */
+  assumedDeviceSize?: { width: number; height: number };
+}
+
+export interface UiLocateNotFoundWithProfileResult {
+  ok: true;
+  found: false;
+  candidates: Array<{ text: string; center: { x: number; y: number } }>;
+  /**
+   * AppMap bounds 추정 폴백 경로에서 found:false일 때도 가정 프로파일을 동봉.
+   * 호출자(에이전트)가 시뮬레이터 해상도 불일치를 탐지 가능하게 한다.
+   */
+  assumedProfile?: string;
+  assumedDeviceSize?: { width: number; height: number };
 }
 
 export interface UiLocateNotFoundResult {
@@ -87,7 +114,7 @@ export interface UiWhichScreenResult {
   ranked: Array<{ screenId: string; similarity: number }>;
 }
 
-export type UiLocateAnyResult = UiLocateResult | UiLocateNotFoundResult | UiErrorResult;
+export type UiLocateAnyResult = UiLocateResult | UiLocateNotFoundResult | UiLocateNotFoundWithProfileResult | UiErrorResult;
 
 // ── parseUiArgs ────────────────────────────────────────────────────────
 
@@ -333,12 +360,28 @@ export async function runUiDump(
 /**
  * AppMap elements에서 라벨을 정규화 매칭해 bounds 중심 좌표를 추정한다.
  * idb 없을 때 iOS locate 폴백.
+ *
+ * AppMap 생성 device 프로파일(iphone-15, 393×852pt)과 다른 시뮬레이터를 사용하면 좌표가 부정확할 수 있음.
+ * assumedProfile/assumedDeviceSize를 결과에 동봉하므로, 호출자(에이전트)가 불일치를 탐지할 수 있다.
  */
 type AppMapElement = {
   label?: string | null;
   bounds?: { x: number; y: number; width: number; height: number } | null;
   [key: string]: unknown;
 };
+
+/** AppMap bounds 좌표 유효성 검사: 음수·NaN/Infinity·5000pt 초과 거부 */
+function isValidBounds(bounds: { x: number; y: number; width: number; height: number }): boolean {
+  const { x, y, width, height } = bounds;
+  if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height)) return false;
+  if (x < 0 || y < 0) return false;
+  if (x + width > 5000 || y + height > 5000) return false;
+  return true;
+}
+
+/** locateViaAppMapBounds 결과에 항상 동봉하는 가정 프로파일 정보 */
+const ASSUMED_PROFILE = "iphone-15";
+const ASSUMED_DEVICE_SIZE = { width: 393, height: 852 } as const;
 
 function locateViaAppMapBounds(
   label: string,
@@ -372,13 +415,26 @@ function locateViaAppMapBounds(
   }
 
   if (!bestElement) {
-    return { ok: true, found: false, candidates: [] };
+    return {
+      ok: true,
+      found: false,
+      candidates: [],
+      assumedProfile: ASSUMED_PROFILE,
+      assumedDeviceSize: ASSUMED_DEVICE_SIZE,
+    };
   }
 
   // bounds가 있으면 중심 좌표, 없으면 found:false
   const bounds = bestElement.bounds;
-  if (!bounds) {
-    return { ok: true, found: false, candidates: [] };
+  if (!bounds || !isValidBounds(bounds)) {
+    // bounds 없음 또는 검증 실패(음수 좌표·비정상 거대값·NaN/Infinity) → 해당 요소 스킵
+    return {
+      ok: true,
+      found: false,
+      candidates: [],
+      assumedProfile: ASSUMED_PROFILE,
+      assumedDeviceSize: ASSUMED_DEVICE_SIZE,
+    };
   }
 
   // AppMap bounds는 iphone-15 논리 pt 단위 (393×852 프로파일)
@@ -400,6 +456,8 @@ function locateViaAppMapBounds(
     clickable: true,
     coordsUnit: "points",
     estimated: true,
+    assumedProfile: ASSUMED_PROFILE,
+    assumedDeviceSize: ASSUMED_DEVICE_SIZE,
   };
   return result;
 }

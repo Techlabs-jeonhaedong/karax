@@ -426,6 +426,48 @@ describe("karax ui — 스모크 통합 테스트", () => {
     expect(parsed.error).toBe("INVALID_ARGUMENT");
     expect(code).toBe(1);
   });
+
+  // ─── M10 검수: iOS idb 와이어링 스모크 테스트 ─────────────────────────
+  // M4 교훈: 단위 테스트만으론 라우팅·와이어링 버그를 못 잡음.
+  // bin.ts에서 --platform ios 시 idb probe가 실제로 동작하는지 검증한다.
+  // - idb 미설치 환경: IDB_UNAVAILABLE JSON
+  // - idb 설치 환경: DEVICE 관련 에러 (가짜 device ID로 연결 실패)
+  // 두 경우 모두 stdout이 단일 유효 JSON이어야 한다.
+  it("ui dump --platform ios → idb 미설치 시 IDB_UNAVAILABLE JSON, exit 1", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli([
+      "ui", "dump", "--device", "fake-udid-0000", "--platform", "ios",
+    ]);
+    // stdout은 항상 단일 유효 JSON이어야 한다
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    // idb 없으면 IDB_UNAVAILABLE, idb 있으면 DEVICE/DUMP 관련 에러 — 둘 다 허용
+    expect(["IDB_UNAVAILABLE", "DEVICE_NOT_FOUND", "DUMP_FAILED", "INVALID_ARGUMENT"]).toContain(parsed.error);
+    expect(code).toBe(1);
+  });
+
+  it("ui locate --platform ios → stdout이 단일 JSON, exit 1 (가짜 device)", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli([
+      "ui", "locate", "--device", "fake-udid-0000", "--platform", "ios", "--label", "확인",
+    ]);
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    expect(["IDB_UNAVAILABLE", "DEVICE_NOT_FOUND", "DUMP_FAILED", "INVALID_ARGUMENT"]).toContain(parsed.error);
+    expect(code).toBe(1);
+  });
+
+  it("ui which-screen --platform ios → stdout이 단일 JSON, exit 1 (가짜 device)", async () => {
+    if (!cliBuildExists) return;
+    const appmapPath = path.join(path.resolve(__dirname, "../../../.."), "packages/cli/src/__tests__/fixtures/appmap-v2.json");
+    const { stdout, code } = await runCli([
+      "ui", "which-screen", "--device", "fake-udid-0000", "--platform", "ios", "--appmap", appmapPath,
+    ]);
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    expect(["IDB_UNAVAILABLE", "DEVICE_NOT_FOUND", "DUMP_FAILED", "INVALID_ARGUMENT"]).toContain(parsed.error);
+    expect(code).toBe(1);
+  });
 });
 
 // ─── React Native fixture karax detect / karax list e2e ───────────────

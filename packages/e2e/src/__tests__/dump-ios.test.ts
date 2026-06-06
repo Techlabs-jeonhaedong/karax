@@ -137,4 +137,39 @@ describe("dumpIosUI — idb 미설치(ENOENT)", () => {
     expect(error).toBeInstanceOf(E2eError);
     expect(error.code).toBe("IDB_UNAVAILABLE");
   });
+
+  // ─── M10 검수: 에러 메시지에 원본 err.message 노출 금지 ─────────────────
+  // 시스템 경로, 내부 정보 등이 노출되면 안 된다.
+
+  it("IDB_UNAVAILABLE 메시지에 원본 시스템 에러 경로가 포함되지 않는다 (ENOENT)", async () => {
+    const sensitiveMsg = "/usr/local/bin/idb: spawn ENOENT /private/var/folders/secret-path";
+    const err = Object.assign(new Error(sensitiveMsg), { code: "ENOENT" });
+    mockExeca.mockRejectedValueOnce(err);
+    const error = await dumpIosUI("00008020-001A2B3C4D5E6F70").catch((e) => e);
+    expect(error.code).toBe("IDB_UNAVAILABLE");
+    // 원본 메시지(시스템 경로 포함)가 그대로 노출되면 안 됨
+    expect(error.message).not.toContain(sensitiveMsg);
+    // brew 안내만 포함해야 한다
+    expect(error.message).toMatch(/brew/i);
+  });
+
+  it("IDB_UNAVAILABLE 메시지에 원본 타임아웃 상세 정보가 포함되지 않는다", async () => {
+    const sensitiveMsg = "Command timed out after 30000ms at /private/tmp/karax/internal/idb_helper";
+    mockExeca.mockRejectedValueOnce(new Error(sensitiveMsg));
+    const error = await dumpIosUI("00008020-001A2B3C4D5E6F70").catch((e) => e);
+    expect(error.code).toBe("IDB_UNAVAILABLE");
+    expect(error.message).not.toContain(sensitiveMsg);
+    expect(error.message).toMatch(/brew/i);
+  });
+
+  it("IDB_UNAVAILABLE 메시지는 고정 힌트만 포함한다 (내용 계약)", async () => {
+    const err = Object.assign(new Error("any error"), { code: "ENOENT" });
+    mockExeca.mockRejectedValueOnce(err);
+    const error = await dumpIosUI("00008020-001A2B3C4D5E6F70").catch((e) => e);
+    // 고정 힌트 문자열만 포함해야 함: idb 관련 + brew 설치 안내
+    expect(error.message).toContain("idb");
+    expect(error.message).toMatch(/brew install/i);
+    // 원본 "any error" 문자열이 노출되면 안 됨
+    expect(error.message).not.toContain("any error");
+  });
 });

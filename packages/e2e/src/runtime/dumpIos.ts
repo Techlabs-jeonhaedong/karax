@@ -54,11 +54,9 @@ export async function dumpIosUI(deviceId: string): Promise<string> {
       timeout: IDB_DUMP_TIMEOUT,
     });
     return String(result.stdout ?? "");
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new E2eError(
-      "IDB_UNAVAILABLE",
-      `idb 실행 실패: ${msg}. ${IDB_UNAVAILABLE_HINT}`
-    );
+  } catch {
+    // 원본 err.message는 시스템 경로 등 내부 정보를 포함할 수 있으므로 노출하지 않는다.
+    // IDB_UNAVAILABLE 메시지는 고정 힌트만 포함한다.
+    throw new E2eError("IDB_UNAVAILABLE", IDB_UNAVAILABLE_HINT);
   }
 }

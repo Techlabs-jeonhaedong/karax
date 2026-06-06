@@ -667,8 +667,16 @@ uiCmd
 
       let result: unknown;
 
+      // iOS 전용: idb 가용 여부를 1회 probe한다 (android는 probe 불필요).
+      // M4 교훈: 단위 테스트만으론 와이어링 버그를 못 잡으므로 bin.ts에서 직접 주입.
+      let idbAvailable: boolean | undefined;
+      if (args.platform === "ios") {
+        const { isIdbAvailable } = await import("@karax/e2e");
+        idbAvailable = await isIdbAvailable();
+      }
+
       if (args.subcommand === "dump") {
-        result = await runUiDump({ device: args.device, platform: args.platform });
+        result = await runUiDump({ device: args.device, platform: args.platform, idbAvailable });
       } else if (args.subcommand === "locate") {
         result = await runUiLocate({
           device: args.device,
@@ -676,6 +684,7 @@ uiCmd
           label: args.label ?? "",
           appmap: args.appmap,
           screen: args.screen,
+          idbAvailable,
         });
       } else {
         // which-screen
@@ -683,6 +692,7 @@ uiCmd
           device: args.device,
           platform: args.platform,
           appmap: args.appmap,
+          idbAvailable,
         });
       }
 

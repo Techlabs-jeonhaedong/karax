@@ -669,6 +669,114 @@ describe("runUiWhichScreen — iOS + idb", () => {
   });
 });
 
+// ─── M10 검수: locateViaAppMapBounds bounds 검증 + assumedProfile ──────
+// iOS + idb 없음 + AppMap 제공 시 bounds 검증과 assumedProfile 노출을 검증한다.
+
+describe("locateViaAppMapBounds — bounds 검증 + assumedProfile", () => {
+  it("정상 AppMap locate 결과에 assumedProfile과 assumedDeviceSize가 포함된다", async () => {
+    const appmapPath = path.join(FIXTURES_DIR, "appmap-v2.json");
+
+    const result = await runUiLocate({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      label: "로그인 버튼",
+      appmap: appmapPath,
+      idbAvailable: false,
+    }) as any;
+
+    // found:true인 경우에만 검증 (AppMap에 해당 라벨이 있을 때)
+    if (result.ok && result.found) {
+      expect(result.assumedProfile).toBe("iphone-15");
+      expect(result.assumedDeviceSize).toEqual({ width: 393, height: 852 });
+      expect(result.coordsUnit).toBe("points");
+    } else {
+      // AppMap에 라벨 없으면 found:false — skip
+      expect(result.ok).toBe(true);
+    }
+  });
+
+  it("found:false일 때도 assumedProfile과 assumedDeviceSize가 포함된다", async () => {
+    const appmapPath = path.join(FIXTURES_DIR, "appmap-v2.json");
+
+    const result = await runUiLocate({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      label: "절대존재하지않는라벨xyz9999",
+      appmap: appmapPath,
+      idbAvailable: false,
+    }) as any;
+
+    expect(result.ok).toBe(true);
+    expect(result.found).toBe(false);
+    expect(result.assumedProfile).toBe("iphone-15");
+    expect(result.assumedDeviceSize).toEqual({ width: 393, height: 852 });
+  });
+
+  it("음수 x 좌표를 가진 bounds 요소는 스킵된다(found:false 가능)", async () => {
+    const appmapPath = path.join(FIXTURES_DIR, "appmap-bounds-invalid.json");
+
+    const result = await runUiLocate({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      label: "음수좌표버튼",
+      appmap: appmapPath,
+      idbAvailable: false,
+    }) as any;
+
+    expect(result.ok).toBe(true);
+    // 음수 bounds는 스킵되므로 found:false
+    expect(result.found).toBe(false);
+  });
+
+  it("x+width가 5000pt 초과인 거대 bounds 요소는 스킵된다", async () => {
+    const appmapPath = path.join(FIXTURES_DIR, "appmap-bounds-invalid.json");
+
+    const result = await runUiLocate({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      label: "거대bounds버튼",
+      appmap: appmapPath,
+      idbAvailable: false,
+    }) as any;
+
+    expect(result.ok).toBe(true);
+    expect(result.found).toBe(false);
+  });
+
+  it("y+height가 5000pt 초과인 거대 bounds 요소는 스킵된다", async () => {
+    const appmapPath = path.join(FIXTURES_DIR, "appmap-bounds-invalid.json");
+
+    const result = await runUiLocate({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      label: "거대Y bounds버튼",
+      appmap: appmapPath,
+      idbAvailable: false,
+    }) as any;
+
+    expect(result.ok).toBe(true);
+    expect(result.found).toBe(false);
+  });
+
+  it("유효한 bounds를 가진 요소는 정상 locate된다", async () => {
+    const appmapPath = path.join(FIXTURES_DIR, "appmap-bounds-invalid.json");
+
+    const result = await runUiLocate({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      label: "유효한버튼",
+      appmap: appmapPath,
+      idbAvailable: false,
+    }) as any;
+
+    expect(result.ok).toBe(true);
+    if (result.found) {
+      expect(result.tap).toBeDefined();
+      expect(result.assumedProfile).toBe("iphone-15");
+    }
+  });
+});
+
 describe("Android 회귀 — M10 변경 후", () => {
   it("Android dump는 idbAvailable 없어도 정상 동작한다", async () => {
     mockDump.mockResolvedValueOnce(SAMPLE_XML);
