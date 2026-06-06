@@ -22,8 +22,13 @@ function validateDeviceId(deviceId: string): void {
   }
 }
 
-const DUMP_PATH = "/sdcard/karax_window_dump.xml";
 const ADB_TIMEOUT = 30_000;
+
+/** 동시 호출 race condition 방지용 고유 덤프 경로 생성 */
+function makeDumpPath(): string {
+  const suffix = Math.random().toString(36).slice(2, 10);
+  return `/sdcard/karax_dump_${suffix}.xml`;
+}
 
 /**
  * Android 디바이스에서 uiautomator dump를 실행하고 raw XML을 반환한다.
@@ -31,6 +36,8 @@ const ADB_TIMEOUT = 30_000;
  * 1. adb -s <id> shell uiautomator dump <path>
  * 2. adb -s <id> exec-out cat <path>  → XML 수신
  * 3. adb -s <id> shell rm -f <path>   → best-effort 정리
+ *
+ * 호출마다 고유 경로를 사용해 동시 호출 race condition을 방지한다.
  */
 export async function dumpAndroidUI(deviceId: string): Promise<string> {
   validateDeviceId(deviceId);
@@ -45,9 +52,11 @@ export async function dumpAndroidUI(deviceId: string): Promise<string> {
     ...(sdkPath ? { ANDROID_HOME: sdkPath, ANDROID_SDK_ROOT: sdkPath } : {}),
   };
 
+  const dumpPath = makeDumpPath();
+
   // 1. uiautomator dump
   try {
-    await execa(adbBin, ["-s", deviceId, "shell", "uiautomator", "dump", DUMP_PATH], {
+    await execa(adbBin, ["-s", deviceId, "shell", "uiautomator", "dump", dumpPath], {
       timeout: ADB_TIMEOUT,
       env,
     });
@@ -62,7 +71,7 @@ export async function dumpAndroidUI(deviceId: string): Promise<string> {
   // 2. exec-out cat — XML 수신
   let xml: string;
   try {
-    const result = await execa(adbBin, ["-s", deviceId, "exec-out", "cat", DUMP_PATH], {
+    const result = await execa(adbBin, ["-s", deviceId, "exec-out", "cat", dumpPath], {
       timeout: ADB_TIMEOUT,
       env,
     });
@@ -77,7 +86,7 @@ export async function dumpAndroidUI(deviceId: string): Promise<string> {
 
   // 3. best-effort rm
   try {
-    await execa(adbBin, ["-s", deviceId, "shell", "rm", "-f", DUMP_PATH], {
+    await execa(adbBin, ["-s", deviceId, "shell", "rm", "-f", dumpPath], {
       timeout: ADB_TIMEOUT,
       env,
     });

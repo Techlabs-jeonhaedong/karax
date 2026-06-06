@@ -21,8 +21,18 @@ export interface BuildPromptOptions {
   appMapJsonPath?: string;
 }
 
+/**
+ * appMapJsonPath를 프롬프트에 삽입하기 전에 sanitize한다.
+ * 첫 개행 이후를 잘라내 개행 기반 프롬프트 인젝션을 방지한다.
+ */
+function sanitizePathArg(raw: string): string {
+  const crlfIdx = raw.search(/[\r\n]/);
+  return crlfIdx === -1 ? raw : raw.slice(0, crlfIdx);
+}
+
 function buildAndroidCheatsheet(deviceId: string, appMapJsonPath?: string): string {
-  const appmapArg = appMapJsonPath ? ` --appmap ${appMapJsonPath}` : "";
+  const safePathArg = appMapJsonPath ? sanitizePathArg(appMapJsonPath) : undefined;
+  const appmapArg = safePathArg ? ` --appmap ${safePathArg}` : "";
 
   return `## Android 제어 치트시트 (adb)
 - 스크린샷: adb -s ${deviceId} exec-out screencap -p > <path>.png

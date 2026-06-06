@@ -49,7 +49,9 @@ describe("dumpAndroidUI — 정상 흐름", () => {
     expect(dumpCall[1]).toContain("emulator-5554");
     expect(dumpCall[1]).toContain("uiautomator");
     expect(dumpCall[1]).toContain("dump");
-    expect(dumpCall[1]).toContain("/sdcard/karax_window_dump.xml");
+    // 고유 경로 — /sdcard/karax_dump_*.xml 패턴 확인
+    const dumpPath = dumpCall[1].find((a: string) => a.startsWith("/sdcard/karax_dump_"));
+    expect(dumpPath).toMatch(/^\/sdcard\/karax_dump_[a-z0-9]+\.xml$/);
   });
 
   it("exec-out cat 명령으로 XML을 수신한다", async () => {
@@ -65,7 +67,9 @@ describe("dumpAndroidUI — 정상 흐름", () => {
     expect(catCall[1]).toContain("emulator-5554");
     expect(catCall[1]).toContain("exec-out");
     expect(catCall[1]).toContain("cat");
-    expect(catCall[1]).toContain("/sdcard/karax_window_dump.xml");
+    // dump와 동일한 고유 경로 사용 확인
+    const catPath = catCall[1].find((a: string) => a.startsWith("/sdcard/karax_dump_"));
+    expect(catPath).toMatch(/^\/sdcard\/karax_dump_[a-z0-9]+\.xml$/);
   });
 
   it("rm -f로 임시 파일을 정리한다 (best-effort)", async () => {
@@ -79,7 +83,9 @@ describe("dumpAndroidUI — 정상 흐름", () => {
     expect(rmCall[0]).toContain("adb");
     expect(rmCall[1]).toContain("rm");
     expect(rmCall[1]).toContain("-f");
-    expect(rmCall[1]).toContain("/sdcard/karax_window_dump.xml");
+    // dump와 동일한 고유 경로 rm 확인
+    const rmPath = rmCall[1].find((a: string) => a.startsWith("/sdcard/karax_dump_"));
+    expect(rmPath).toMatch(/^\/sdcard\/karax_dump_[a-z0-9]+\.xml$/);
   });
 
   it("rm 실패해도 XML을 정상 반환한다 (best-effort)", async () => {
