@@ -20,7 +20,11 @@
   const { spawnSync } = await import("node:child_process");
   const { shouldRespawn, WASM_FLAGS, WASM_MARKER_ENV } = await import("./wasmFlags.js");
 
-  if (shouldRespawn(process.execArgv, process.env)) {
+  // `karax ui` 서브커맨드는 정적 분석(tree-sitter WASM) 불필요 → respawn 건너뜀
+  // 에이전트가 매 탭마다 호출하므로 기동 비용 절감
+  const isUiSubcommand = process.argv[2] === "ui";
+
+  if (!isUiSubcommand && shouldRespawn(process.execArgv, process.env)) {
     const result = spawnSync(
       process.execPath,
       [...WASM_FLAGS, process.argv[1], ...process.argv.slice(2)],
@@ -48,6 +52,13 @@ import {
   parseMcpConfigArgs,
   parseTestArgs,
 } from "./commands.js";
+import { stripControls } from "./sanitize.js";
+import {
+  parseUiArgs,
+  runUiDump,
+  runUiLocate,
+  runUiWhichScreen,
+} from "./commands/ui.js";
 import type { DeviceProfileId } from "@karax/sdk";
 
 // repo 루트: packages/cli/dist/bin.js → ../../../ (= repo root)
@@ -492,6 +503,11 @@ program
   .option("--max-steps <n>", "에이전트 최대 스텝 수", "20")
   .option("--json", "JSON 형식으로 출력", false)
   .option("--keep-booted", "테스트 후 디바이스를 종료하지 않음", false)
+  .option("--no-fail-on-crash", "크래시 감지 시 fail 강등을 비활성화한다")
+  .option("--reuse-build", "소스 핑거프린트 일치 시 이전 빌드를 재사용한다", false)
+  .option("--no-build", "빌드를 수행하지 않고 캐시 artifact만 사용한다 (없으면 에러)")
+  .option("--grant-permissions", "시나리오의 permissions[]를 자동으로 디바이스에 grant한다", false)
+  .option("--record-video", "앱 실행 중 화면을 비디오로 녹화한다", false)
   .action(
     async (
       pathArg: string,
@@ -506,6 +522,11 @@ program
         maxSteps: string;
         json: boolean;
         keepBooted: boolean;
+        failOnCrash: boolean; // --no-fail-on-crash → opts.failOnCrash = false
+        reuseBuild: boolean;
+        build: boolean; // --no-build → opts.build = false
+        grantPermissions: boolean;
+        recordVideo: boolean;
       }
     ) => {
       try {
@@ -521,16 +542,31 @@ program
           "--max-steps", opts.maxSteps,
           ...(opts.json ? ["--json"] : []),
           ...(opts.keepBooted ? ["--keep-booted"] : []),
+          ...(opts.failOnCrash === false ? ["--no-fail-on-crash"] : []),
+          ...(opts.reuseBuild ? ["--reuse-build"] : []),
+          ...(opts.build === false ? ["--no-build"] : []),
+          ...(opts.grantPermissions ? ["--grant-permissions"] : []),
+          ...(opts.recordVideo ? ["--record-video"] : []),
         ]);
 
-        const { runE2eTest } = await import("@karax/e2e");
+        // SDK 단일 진입점 원칙 — @karax/sdk의 runE2eTest/runE2eSuite가 기본 AppMapGenerator를 주입한다
+        const sdk = await import("@karax/sdk");
 
-        console.log(`\nE2E 테스트 시작: ${args.path} (플랫폼: ${args.platform}, 에이전트: ${args.agent})\n`);
+        // --scenario가 디렉토리이면 runE2eSuite, 파일이면 runE2eTest
+        const { statSync } = await import("node:fs");
+        const scenarioIsDir =
+          args.scenario !== undefined &&
+          (() => {
+            try {
+              return statSync(args.scenario!).isDirectory();
+            } catch {
+              return false;
+            }
+          })();
 
-        const result = await runE2eTest({
+        const commonOpts = {
           projectPath: args.path,
           platform: args.platform,
-          scenarioPath: args.scenario,
           agent: args.agent,
           apiKey: args.apiKey,
           deviceId: args.device,
@@ -538,28 +574,94 @@ program
           timeoutMs: args.timeout,
           maxSteps: args.maxSteps,
           keepBooted: args.keepBooted,
-        });
+          failOnCrash: args.failOnCrash,
+          // M11: 운영 품질 옵션
+          reuseBuild: args.reuseBuild,
+          noBuild: args.noBuild,
+          grantPermissions: args.grantPermissions || undefined,
+          recordVideo: args.recordVideo,
+        };
 
-        if (args.json) {
-          console.log(JSON.stringify(result, null, 2));
-        } else {
-          const outcomeIcon = result.outcome === "pass" ? "✓" : result.outcome === "fail" ? "✗" : "!";
-          console.log(`\nE2E 테스트 ${result.outcome === "pass" ? "통과" : result.outcome === "fail" ? "실패" : "오류"}:\n`);
-          console.log(`  결과:       ${outcomeIcon} ${result.outcome}`);
-          console.log(`  요약:       ${result.summary}`);
-          console.log(`  리포트:     ${result.reportJsonPath}`);
-          console.log(`  스크린샷:   ${result.screenshotsDir}`);
-          console.log(`  스텝 수:    ${result.steps.length}\n`);
-        }
+        if (scenarioIsDir && args.scenario) {
+          // 디렉토리 시나리오 → suite 실행
+          console.log(`\nE2E 테스트 스위트 시작: ${args.path} (시나리오 디렉토리: ${args.scenario}, 플랫폼: ${args.platform})\n`);
 
-        // 종료 코드 매핑
-        // pass → 0, fail → 2 (PARTIAL_FAILURE), error → 1 (FAILURE)
-        if (result.outcome === "pass") {
-          process.exit(EXIT_CODES.SUCCESS);
-        } else if (result.outcome === "fail") {
-          process.exit(EXIT_CODES.PARTIAL_FAILURE);
+          const suiteResult = await sdk.runE2eSuite({
+            ...commonOpts,
+            scenarioPath: args.scenario,
+          });
+
+          if (args.json) {
+            console.log(JSON.stringify(suiteResult, null, 2));
+          } else {
+            console.log(`\n스위트 결과:\n`);
+            console.log(`  전체:       ${suiteResult.outcome}`);
+            console.log(`  요약:       ${stripControls(suiteResult.summary)}`);
+            for (const r of suiteResult.results) {
+              const icon =
+                r.result.outcome === "pass" ? "✓" :
+                r.result.outcome === "fail" ? "✗" :
+                r.result.outcome === "partial" ? "~" : "!";
+              console.log(`  ${icon} ${stripControls(r.scenarioPath)} — ${r.result.outcome}`);
+            }
+            console.log("");
+          }
+
+          if (suiteResult.outcome === "pass") {
+            process.exit(EXIT_CODES.SUCCESS);
+          } else if (suiteResult.outcome === "fail" || suiteResult.outcome === "partial") {
+            // partial → exit 2 (PARTIAL_FAILURE), fail과 동일 코드
+            process.exit(EXIT_CODES.PARTIAL_FAILURE);
+          } else {
+            process.exit(EXIT_CODES.FAILURE);
+          }
         } else {
-          process.exit(EXIT_CODES.FAILURE);
+          // 단일 파일 / 시나리오 없음 → 기존 runE2eTest
+          console.log(`\nE2E 테스트 시작: ${args.path} (플랫폼: ${args.platform}, 에이전트: ${args.agent})\n`);
+
+          const result = await sdk.runE2eTest({
+            ...commonOpts,
+            scenarioPath: args.scenario,
+          });
+
+          if (args.json) {
+            console.log(JSON.stringify(result, null, 2));
+          } else {
+            const outcomeIcon =
+              result.outcome === "pass" ? "✓" :
+              result.outcome === "fail" ? "✗" :
+              result.outcome === "partial" ? "~" : "!";
+            const outcomeLabel =
+              result.outcome === "pass" ? "통과" :
+              result.outcome === "fail" ? "실패" :
+              result.outcome === "partial" ? "부분 완료" : "오류";
+            console.log(`\nE2E 테스트 ${outcomeLabel}:\n`);
+            console.log(`  결과:       ${outcomeIcon} ${result.outcome}`);
+            console.log(`  요약:       ${result.summary}`);
+            console.log(`  리포트:     ${result.reportJsonPath}`);
+            console.log(`  스크린샷:   ${result.screenshotsDir}`);
+            console.log(`  스텝 수:    ${result.steps.length}`);
+            if (result.findings && result.findings.length > 0) {
+              console.log(`  발견사항:   ${result.findings.length}건`);
+            }
+            if (result.coverage) {
+              const pct = (result.coverage.coverageRatio * 100).toFixed(0);
+              console.log(`  커버리지:   ${result.coverage.visitedScreens}/${result.coverage.totalScreens} (${pct}%)`);
+            }
+            if (result.crashes && result.crashes.length > 0) {
+              console.log(`  크래시:     ${result.crashes.length}건 감지`);
+            }
+            console.log("");
+          }
+
+          if (result.outcome === "pass") {
+            process.exit(EXIT_CODES.SUCCESS);
+          } else if (result.outcome === "fail" || result.outcome === "partial") {
+            // M8: partial→2 (fail과 동일한 exit code)
+            process.exit(EXIT_CODES.PARTIAL_FAILURE);
+          } else {
+            process.exit(EXIT_CODES.FAILURE);
+          }
         }
       } catch (e) {
         console.error("오류:", e instanceof Error ? e.message : String(e));
@@ -567,6 +669,77 @@ program
       }
     }
   );
+
+// ─── ui ───────────────────────────────────────────────────────────
+// 에이전트용 결정론 헬퍼 — dump/locate/which-screen
+// stdout에는 JSON 한 덩어리만 출력. 진단·로그는 stderr.
+
+const uiCmd = program.command("ui").description("에이전트용 런타임 UI 헬퍼 (dump|locate|which-screen)");
+uiCmd
+  .argument("[subcommand]", "서브커맨드: dump | locate | which-screen")
+  .allowUnknownOption(true)
+  .allowExcessArguments(true)
+  .action(async (_sub: string | undefined) => {
+    // commander에서 나머지 argv를 수동으로 파싱
+    const rawArgs = process.argv.slice(3); // ["dump", "--device", "emulator-5554", ...]
+    try {
+      const args = parseUiArgs(rawArgs);
+
+      let result: unknown;
+
+      // iOS 전용: idb 가용 여부를 1회 probe한다 (android는 probe 불필요).
+      // M4 교훈: 단위 테스트만으론 와이어링 버그를 못 잡으므로 bin.ts에서 직접 주입.
+      let idbAvailable: boolean | undefined;
+      if (args.platform === "ios") {
+        const { isIdbAvailable } = await import("@karax/e2e");
+        idbAvailable = await isIdbAvailable();
+      }
+
+      if (args.subcommand === "dump") {
+        result = await runUiDump({ device: args.device, platform: args.platform, idbAvailable });
+      } else if (args.subcommand === "locate") {
+        result = await runUiLocate({
+          device: args.device,
+          platform: args.platform,
+          label: args.label ?? "",
+          appmap: args.appmap,
+          screen: args.screen,
+          idbAvailable,
+        });
+      } else {
+        // which-screen
+        result = await runUiWhichScreen({
+          device: args.device,
+          platform: args.platform,
+          appmap: args.appmap,
+          idbAvailable,
+        });
+      }
+
+      const json = result as { ok: boolean; found?: boolean };
+
+      // stdout: JSON 한 덩어리
+      console.log(JSON.stringify(result));
+
+      // exit code
+      if (!json.ok) {
+        process.exit(EXIT_CODES.FAILURE);
+      } else if (json.ok && json.found === false) {
+        // locate: 미발견 → exit 2
+        process.exit(EXIT_CODES.PARTIAL_FAILURE);
+      } else {
+        process.exit(EXIT_CODES.SUCCESS);
+      }
+    } catch (e) {
+      const errorResult = {
+        ok: false,
+        error: "INVALID_ARGUMENT",
+        message: e instanceof Error ? e.message : String(e),
+      };
+      console.log(JSON.stringify(errorResult));
+      process.exit(EXIT_CODES.FAILURE);
+    }
+  });
 
 // ─── 알 수 없는 커맨드 처리 ───────────────────────────────────────
 

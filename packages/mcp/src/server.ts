@@ -163,13 +163,16 @@ export function createMcpServer(): McpServer {
     {
       capabilities: { tools: {} },
       instructions:
-        "소스코드를 분석해 앱 화면 스크린샷을 추출하는 MCP 서버. " +
+        "모바일 앱 테스트 자동화 MCP 서버. " +
+        "최종 목표: 사용자가 시나리오를 주면 Android 에뮬레이터/iOS 시뮬레이터에서 완전 자동으로 E2E 테스트를 수행하고 보고서를 작성한다. " +
+        "시나리오가 없으면 앱을 자유 탐색하며 anomaly 10종 taxonomy로 findings를 보고한다. " +
         "Flutter/React Native/Android Compose/iOS SwiftUI 4개 프레임워크를 지원한다. " +
-        "2-티어 캡처(Tier 1: 부분 컴파일, Tier 2: 정적 IR→Chromium) 전략으로 동작하며, " +
-        "captureMode(auto/compile/static), variant 전개, overlay(confidence 시각화), " +
-        "enrich(LLM 보강) 옵션을 제공한다. " +
-        "generate_app_map으로 화면 구조·네비게이션 그래프를 AppMap으로 추출하고, " +
-        "run_e2e_test로 에뮬레이터/시뮬레이터에서 LLM 에이전트 기반 E2E 테스트를 실행할 수 있다.",
+        "run_e2e_test: scenarioPath(파일 또는 디렉토리)를 전달하면 에뮬레이터/시뮬레이터에서 LLM 에이전트가 E2E 테스트를 실행한다. " +
+        "세션 시작 시 AppMap을 자동 생성해 에이전트 프롬프트에 주입하므로 에이전트가 버튼 위치를 찾는 시간을 줄인다. " +
+        "generate_app_map: 화면 구조·네비게이션 그래프를 AppMap(appmap/2 스키마)으로 추출한다. 광고 영역은 role:\"ad\"로 태깅된다. " +
+        "capture_screen / capture_all: 2-티어 캡처(Tier 1: 부분 컴파일, Tier 2: 정적 IR→Chromium)로 화면 스크린샷을 추출한다. " +
+        "이 기능은 AppMap 생성의 기반이 되는 하부 기능이다. " +
+        "doctor: 환경 진단 — emulator/simulator/idb/agent CLI 체크 후 필요 항목 자동 설치(fix=true).",
     }
   );
 
@@ -556,7 +559,8 @@ export function createMcpServer(): McpServer {
   server.tool(
     "run_e2e_test",
     "Android 에뮬레이터 / iOS 시뮬레이터에서 LLM 에이전트로 E2E 테스트를 실행한다. " +
-    "에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요될 수 있습니다.",
+    "에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요될 수 있습니다. " +
+    "scenarioPath에 디렉토리를 전달하면 *.md 파일을 일괄 실행(suite)한다.",
     {
       projectPath: z.string().min(1),
       platform: z.enum(["android", "ios"]),
@@ -568,34 +572,98 @@ export function createMcpServer(): McpServer {
       timeoutMs: z.number().int().positive().optional(),
       maxSteps: z.number().int().positive().optional(),
       keepBooted: z.boolean().optional().default(false),
+      /** M8: 크래시 감지 시 fail 강등 여부 (기본 true) */
+      failOnCrash: z.boolean().optional().default(true),
+      /** M11: 이전 빌드 캐시 재사용 */
+      reuseBuild: z.boolean().optional().default(false),
+      /** M11: 빌드 없이 캐시 artifact만 사용 */
+      noBuild: z.boolean().optional().default(false),
+      /** M11: 시나리오 permissions 자동 grant */
+      grantPermissions: z.boolean().optional(),
+      /** M11: 비디오 녹화 */
+      recordVideo: z.boolean().optional().default(false),
     },
-    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted }) => {
+    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted, failOnCrash, reuseBuild, noBuild, grantPermissions, recordVideo }) => {
       try {
         validateProjectPath(projectPath);
 
-        const { runE2eTest } = await import("@karax/e2e");
+        // scenarioPath가 디렉토리이면 runE2eSuite, 아니면 runE2eTest
+        const scenarioIsDir =
+          scenarioPath !== undefined &&
+          (() => {
+            try {
+              return fs.statSync(scenarioPath).isDirectory();
+            } catch {
+              return false;
+            }
+          })();
 
-        const result = await runE2eTest({
+        const sdk = await import("@karax/sdk");
+
+        const commonOpts = {
           projectPath,
           platform,
           agent,
-          scenarioPath,
           apiKey,
           deviceId,
           outDir,
           timeoutMs,
           maxSteps,
           keepBooted,
-        });
+          failOnCrash,
+          // M11
+          reuseBuild,
+          noBuild,
+          ...(grantPermissions !== undefined ? { grantPermissions } : {}),
+          recordVideo,
+        };
+
+        if (scenarioIsDir && scenarioPath) {
+          // suite 실행 — 시나리오별 요약 응답
+          const suiteResult = await sdk.runE2eSuite({ ...commonOpts, scenarioPath });
+
+          const summaryLines = [
+            `E2E 스위트 결과: ${suiteResult.outcome}`,
+            `요약: ${suiteResult.summary}`,
+            "",
+            "시나리오별 결과:",
+            ...suiteResult.results.map((r) => {
+              const icon =
+                r.result.outcome === "pass" ? "✓" :
+                r.result.outcome === "fail" ? "✗" :
+                r.result.outcome === "partial" ? "~" : "!";
+              return `  ${icon} ${path.basename(r.scenarioPath)} — ${r.result.outcome}: ${r.result.summary}`;
+            }),
+          ].join("\n");
+
+          return { content: [{ type: "text" as const, text: summaryLines }] };
+        }
+
+        // 단일 파일 / 시나리오 없음 → 기존 runE2eTest
+        const result = await sdk.runE2eTest({ ...commonOpts, scenarioPath });
 
         // 응답: 요약 텍스트 + 리포트 경로 + 최종 스크린샷 소량 base64
-        const summaryText = [
+        const summaryLines = [
           `E2E 테스트 결과: ${result.outcome}`,
           `요약: ${result.summary}`,
           `리포트: ${result.reportJsonPath}`,
           `스크린샷 디렉토리: ${result.screenshotsDir}`,
           `스텝 수: ${result.steps.length}`,
-        ].join("\n");
+        ];
+
+        // M8: findings/coverage/crash 요약 추가
+        if (result.findings && result.findings.length > 0) {
+          summaryLines.push(`발견사항: ${result.findings.length}건 (critical: ${result.findings.filter((f) => f.severity === "critical").length}건)`);
+        }
+        if (result.coverage) {
+          const pct = (result.coverage.coverageRatio * 100).toFixed(0);
+          summaryLines.push(`커버리지: ${result.coverage.visitedScreens}/${result.coverage.totalScreens} (${pct}%)`);
+        }
+        if (result.crashes && result.crashes.length > 0) {
+          summaryLines.push(`크래시: ${result.crashes.length}건 감지`);
+        }
+
+        const summaryText = summaryLines.join("\n");
 
         // 마지막 스크린샷 1개만 base64로 포함 (응답 크기 제한)
         const lastScreenshot = result.steps

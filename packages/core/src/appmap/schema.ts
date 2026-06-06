@@ -94,6 +94,16 @@ export type NavigationEdge = z.infer<typeof NavigationEdgeSchema>;
 
 // ── MapElement ───────────────────────────────────────────────────────
 
+export const MapElementRoleSchema = z.enum([
+  "ad",
+  "dynamic-content",
+  "list-item",
+  "media",
+  "webview",
+]);
+
+export type MapElementRole = z.infer<typeof MapElementRoleSchema>;
+
 export const MapElementSchema = z
   .object({
     type: z.enum([
@@ -112,6 +122,12 @@ export const MapElementSchema = z
       .optional(),
     style: ElementStyleSchema.optional(),
     bounds: BoundsSchema.optional(),
+    /** 매 실행마다 내용이 바뀌는 영역 (광고·원격 데이터). 화면 식별·매칭 시 제외 대상 */
+    dynamic: z.boolean().optional(),
+    /** 의미 역할. role:"ad"는 자동 테스터가 탭 회피 */
+    role: MapElementRoleSchema.optional(),
+    /** 태깅 근거 위젯명 (디버깅·리포트용) */
+    dynamicSource: z.string().optional(),
   })
   .strict();
 
@@ -145,7 +161,7 @@ export type ScreenNode = z.infer<typeof ScreenNodeSchema>;
 
 export const AppMapSchema = z
   .object({
-    schemaVersion: z.literal("appmap/1"),
+    schemaVersion: z.literal("appmap/2"),
     appName: z.string(),
     framework: z.enum(["flutter", "react-native", "android", "ios"]),
     entryScreenId: z.string().nullable(),
@@ -157,6 +173,16 @@ export const AppMapSchema = z
   .strict();
 
 export type AppMap = z.infer<typeof AppMapSchema>;
+
+/**
+ * 읽기 허용 스키마 — appmap/1(구버전)과 appmap/2 모두 파싱 허용.
+ * 구버전 파일을 거부하지 않기 위한 하위호환 스키마.
+ */
+export const AppMapReadSchema = AppMapSchema.extend({
+  schemaVersion: z.union([z.literal("appmap/1"), z.literal("appmap/2")]),
+});
+
+export type AppMapRead = z.infer<typeof AppMapReadSchema>;
 
 // ── NavigationGraph (어댑터 반환용 중간 타입) ─────────────────────────
 

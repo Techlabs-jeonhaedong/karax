@@ -11,10 +11,12 @@ import {
   checkAdb,
   checkEmulator,
   checkAgentClis,
+  checkIosSimulator,
+  checkIosIdb,
 } from "./checks/index.js";
 import type { CheckResult } from "./checks/types.js";
 import { computeTiers, type TiersAvailable } from "./tiers.js";
-import { ensureChromium, getManualInstallHints } from "./ensure.js";
+import { ensureChromium, ensureIdb, getManualInstallHints } from "./ensure.js";
 
 export type { CheckResult } from "./checks/index.js";
 export { detectAndroidSdkPath } from "./checks/index.js";
@@ -59,6 +61,8 @@ export async function doctorFix(report?: DoctorReport): Promise<DoctorReport> {
   for (const check of autoInstallable) {
     if (check.id === "playwright-chromium") {
       await ensureChromium();
+    } else if (check.id === "ios-idb") {
+      await ensureIdb();
     }
   }
 
@@ -92,6 +96,9 @@ async function runAllChecks(projectPath?: string): Promise<CheckResult[]> {
     // E2E 체크 (E2E 캡처 티어와 직교 — tiers.ts 영향 없음)
     checkAdb(),
     checkEmulator(),
+    // iOS 환경 체크 (optional — iOS Tier 1/E2E 전용)
+    checkIosSimulator(),
+    checkIosIdb(),
     // agentClis는 배열 반환 — Promise.all 결과가 중첩 배열이 되므로 flat()으로 처리
     checkAgentClis(),
   ]);

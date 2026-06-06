@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "appmap/2",
+  "appName": "SimpleApp",
+  "framework": "flutter",
+  "entryScreenId": "HomeScreen",
+  "screens": [
+    {
+      "id": "HomeScreen",
+      "title": "홈",
+      "discovery": "route",
+      "isEntry": true,
+      "confidence": 0.95,
+      "elements": [
+        { "type": "Button", "label": "시작하기" },
+        { "type": "Text", "label": "환영합니다" },
+        {
+          "type": "Unknown",
+          "label": "AdBanner",
+          "role": "ad",
+          "dynamic": true
+        }
+      ],
+      "outgoing": [
+        {
+          "from": "HomeScreen",
+          "to": "DetailScreen",
+          "action": "push",
+          "trigger": { "kind": "button", "label": "시작하기" },
+          "confidence": 0.9,
+          "diagnostics": []
+        }
+      ]
+    },
+    {
+      "id": "DetailScreen",
+      "title": "상세",
+      "discovery": "route",
+      "isEntry": false,
+      "confidence": 0.88,
+      "elements": [
+        { "type": "Button", "label": "뒤로가기" },
+        { "type": "Text", "label": "상세 내용" }
+      ],
+      "outgoing": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "HomeScreen",
+      "to": "DetailScreen",
+      "action": "push",
+      "trigger": { "kind": "button", "label": "시작하기" },
+      "confidence": 0.9,
+      "diagnostics": []
+    }
+  ],
+  "diagnostics": [],
+  "overallConfidence": 0.91
+}

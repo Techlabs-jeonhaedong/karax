@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트 개요
 
-**karax** — 소스코드를 정적 분석해서 앱을 빌드하지 않고도 화면 스크린샷을 추출하는 도구. Flutter / React Native / Android(Compose·XML) / iOS(SwiftUI·UIKit)를 지원하며 SDK + MCP 서버 + CLI 형태로 제공된다. pnpm workspace 기반 TypeScript 모노레포(ESM, NodeNext).
+**karax** — 모바일 앱 테스트 자동화 도구. 사용자가 시나리오를 주면 Android 에뮬레이터/iOS 시뮬레이터에서 완전 자동으로 E2E 테스트를 수행하고 보고서를 작성한다. 시나리오가 없으면 앱을 자유 탐색하며 findings(anomaly 분류 + severity)를 보고한다. Flutter / React Native / Android(Compose·XML) / iOS(SwiftUI·UIKit)를 지원하며 SDK + MCP 서버 + CLI 형태로 제공된다. pnpm workspace 기반 TypeScript 모노레포(ESM, NodeNext).
+
+스크린샷 추출과 AppMap(화면 간 이동 관계 지도) 생성은 테스트 자동화의 하부 기능이다 — AppMap을 세션 시작 시 자동으로 에이전트 프롬프트에 주입해 LLM이 버튼 위치를 찾는 시간을 줄인다.
 
 > **리네임 완료**: 프로젝트 이름은 `karax`다. 구 명칭 `screenshot-from-code` / `sfc`는 사용하지 않는다. 패키지 스코프는 `@karax/*`이며, 루트 package.json name은 `karax`다. pnpm filter 명령어에서는 `@karax/*`를 사용할 것.
 
@@ -40,6 +42,8 @@ plan 모드로 계획을 세울 경우, 계획을 `./plans` 디렉토리 안에 
 
 ### 파이프라인 (데이터 흐름)
 
+**스크린샷/AppMap 파이프라인 (하부 기능)**
+
 ```
 projectPath
  → [1] Project Detector (프레임워크 후보 + confidence + evidence)
@@ -51,24 +55,45 @@ projectPath
  → PNG + *.report.json (confidence, tierUsed, diagnostics)
 ```
 
+**E2E 테스트 파이프라인 (최종 목표)**
+
+```
+projectPath + platform + scenarioPath?
+ → [1] Doctor (환경 진단 — emulator/simulator/idb/agent CLI 체크)
+ → [2] AppMap 자동 생성 (세션마다 3단계 압축 후 에이전트 프롬프트에 주입)
+ → [3] Build + Install (에뮬레이터/시뮬레이터에 풀 빌드·설치, --reuse-build로 캐시 재사용 가능)
+ → [4] LLM 에이전트 spawn (claude/codex/gemini 헤드리스 CLI)
+      ├─ 시나리오 모드: frontmatter steps(action+expect) 순서대로 수행
+      └─ 탐색적 모드: 자유 탐색 + anomaly 10종 taxonomy로 findings 분류
+ → report.json (v2: findings/coverage/crashes/videos/qualityWarnings) + report.md + screenshots/
+```
+
 - 화면 **발견(discovery)은 항상 정적 분석**. **캡처만** 2티어로 나뉜다. 기본 모드 `auto`는 Tier 1 시도 후 화면 단위로 Tier 2 fallback (`COMPILE_FALLBACK` diagnostic 기록).
 - Capture Engine 본체: `packages/core/src/pipeline/captureEngine.ts`
 
 ### 패키지 구조와 의존 방향
 
 ```
-core (IR 스키마·detect·mock·confidence·pipeline, zod만 의존)
+core (IR 스키마·detect·mock·confidence·pipeline·runtime, zod만 의존)
  ↑
 adapter-api (FrameworkAdapter 인터페이스, 공유 타입 — FrameworkId, ScreenSummary, CaptureResult 등)
  ↑
 adapter-{flutter,react-native,android,ios}   ← 프레임워크별 정적 분석 → IR 생성 (Tier 2)
 compile-{flutter,react-native,android,ios}   ← 프레임워크별 부분 컴파일 백엔드 (Tier 1)
 renderer (IR → HTML/CSS → Chromium 캡처, 디바이스 프로파일)
-doctor (환경 진단·자동 설치, 티어 가용성 판정)
+doctor (환경 진단·자동 설치 — adb/emulator/ios-simulator/ios-idb/agent CLI 체크, ensureIdb(brew))
+e2e (E2E 테스트 엔진)
+  ├─ scenario/ (schema.ts, parser, runner, suite — v2 frontmatter)
+  ├─ agent/ (resultSchema, prompt 생성 — AppMap 주입·budget 조정)
+  ├─ anomaly/ (taxonomy.ts — 10종 분류, severity)
+  ├─ crash/ (detect.ts — logcat/idb crash 감지)
+  ├─ recovery/ (부분 복구, outcome: partial)
+  └─ report/ (schema.ts v2 — findings/coverage/crashes/videos/qualityWarnings)
  ↑
-sdk (모든 패키지를 묶은 public API: detectFramework, listScreens, captureScreen, captureAll, buildScreenIR)
+sdk (모든 패키지를 묶은 public API: detectFramework, listScreens, captureScreen, captureAll, buildScreenIR,
+      generateAppMap, runE2eTest, runE2eSuite)
  ↑
-cli (@karax/cli — bin.ts, commands.ts) / mcp (@karax/mcp — MCP 서버, tool 7종)
+cli (@karax/cli — bin.ts, commands.ts, ui 서브커맨드) / mcp (@karax/mcp — MCP 서버, tool 9종)
 
 enrich-llm (선택 플러그인 — confidence 낮은 노드만 LLM으로 보강)
 ```

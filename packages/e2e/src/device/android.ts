@@ -8,7 +8,7 @@ import { execa } from "execa";
 import { detectAndroidSdkPath } from "@karax/doctor";
 import { E2eError } from "../types.js";
 import { parseAdbDevices, parseEmulatorListAvds } from "./parse.js";
-import type { DeviceManager, DeviceInfo } from "./types.js";
+import type { DeviceManager, DeviceInfo, InstallOptions } from "./types.js";
 
 const ADB_TIMEOUT = 60_000;
 const EMULATOR_BOOT_TIMEOUT_DEFAULT = 180_000;
@@ -29,6 +29,11 @@ export interface AndroidDeviceManagerOptions {
 const DEVICE_ID_RE = /^[A-Za-z0-9_][A-Za-z0-9_:.\-]*$/;
 /** appId 유효성: 영문자 시작, 영숫자·'_'·'.' 허용. */
 const APP_ID_RE = /^[A-Za-z][A-Za-z0-9_.]*$/;
+/**
+ * M11: 권한명 유효성 — 인젝션 방어.
+ * 영숫자, '_', '.' 만 허용. 셸 메타문자·공백 등 거부.
+ */
+const PERMISSION_RE = /^[A-Za-z0-9_.]+$/;
 
 function validateDeviceId(deviceId: string): void {
   if (!DEVICE_ID_RE.test(deviceId)) {
@@ -187,10 +192,14 @@ export function createAndroidDeviceManager(
       );
     },
 
-    async install(deviceId: string, artifactPath: string): Promise<void> {
+    async install(deviceId: string, artifactPath: string, opts?: InstallOptions): Promise<void> {
       validateDeviceId(deviceId);
       validateArtifactPath(artifactPath);
-      const result = await execa(...adbArgs(deviceId, "install", "-r", "-t", artifactPath));
+      // M11: grantAllPermissions=true 이면 -g 플래그 추가
+      const installArgs = opts?.grantAllPermissions
+        ? ["-s", deviceId, "install", "-g", "-r", "-t", artifactPath]
+        : ["-s", deviceId, "install", "-r", "-t", artifactPath];
+      const result = await execa(adbBin, installArgs, { timeout: ADB_TIMEOUT, env: buildEnv(sdkPath) });
       if (result.exitCode !== 0) {
         throw new E2eError(
           "INSTALL_FAILED",
@@ -232,6 +241,60 @@ export function createAndroidDeviceManager(
         await execa(...adbArgs(deviceId, "emu", "kill"));
       } catch {
         // 종료 실패는 무시
+      }
+    },
+
+    async captureLogcat(deviceId: string): Promise<string | undefined> {
+      validateDeviceId(deviceId);
+      try {
+        const [bin, args, opts] = adbArgs(deviceId, "logcat", "-d");
+        const result = await execa(bin, args, {
+          ...opts,
+          maxBuffer: 64 * 1024 * 1024, // 64MB — logcat 대용량 출력 대비
+        });
+        return String(result.stdout ?? "");
+      } catch {
+        // best-effort: 실패 시 undefined 반환
+        return undefined;
+      }
+    },
+
+    async clearLogcat(deviceId: string): Promise<void> {
+      validateDeviceId(deviceId);
+      try {
+        await execa(...adbArgs(deviceId, "logcat", "-c"));
+      } catch {
+        // best-effort: 실패해도 테스트 비차단
+      }
+    },
+
+    async grantPermissions(deviceId: string, appId: string, permissions: string[]): Promise<void> {
+      validateDeviceId(deviceId);
+      validateAppId(appId);
+
+      for (const rawPerm of permissions) {
+        // 권한명 검증 — 인젝션 방어
+        if (!PERMISSION_RE.test(rawPerm)) {
+          process.stderr.write(
+            `[karax/e2e] 권한명 검증 실패, 스킵: "${rawPerm}"\n`
+          );
+          continue;
+        }
+
+        // android.permission. 접두 없으면 자동 부착
+        const perm = rawPerm.startsWith("android.permission.")
+          ? rawPerm
+          : `android.permission.${rawPerm}`;
+
+        try {
+          await execa(...adbArgs(deviceId, "shell", "pm", "grant", appId, perm));
+        } catch (e) {
+          // 개별 실패 무시 — stderr 경고
+          const msg = e instanceof Error ? e.message : String(e);
+          process.stderr.write(
+            `[karax/e2e] pm grant ${perm} 실패 (무시): ${msg}\n`
+          );
+        }
       }
     },
   };

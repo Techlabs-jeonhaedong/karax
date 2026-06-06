@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { assembleAppMap, extractElementStyle, matchElement } from "../appmap/assemble.js";
 import type { ScreenSummary } from "../appmap/assemble.js";
+import { AppMapSchema } from "../appmap/schema.js";
 import type { NavigationGraph, MapElement, TriggerInfo } from "../appmap/schema.js";
 import type { IRDocument, IRNode } from "../ir/schema.js";
 
@@ -68,7 +69,7 @@ describe("assembleAppMap", () => {
       irDocs,
     });
 
-    expect(appMap.schemaVersion).toBe("appmap/1");
+    expect(appMap.schemaVersion).toBe("appmap/2");
     expect(appMap.appName).toBe("TestApp");
     expect(appMap.framework).toBe("flutter");
     expect(appMap.entryScreenId).toBe("HomeScreen");
@@ -951,5 +952,309 @@ describe("assembleAppMap — 전역/(global) 엣지 처리", () => {
 
     const codes = appMap.edges[0]!.diagnostics.map((d) => d.code);
     expect(codes).not.toContain("TRIGGER_UNMATCHED");
+  });
+});
+
+// ── 광고/동적 노드 수집 테스트 (M2) ──────────────────────────────────
+
+describe("collectElements — 광고/동적 노드 태깅", () => {
+  function makeAdIR(screenId: string): IRDocument {
+    return {
+      schemaVersion: "1",
+      screen: {
+        id: screenId,
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          children: [
+            {
+              // 광고 노드 — Unknown 타입 + component:GADBannerView
+              type: "Unknown",
+              confidence: 0.3,
+              role: "component:GADBannerView",
+            },
+            {
+              // 일반 버튼
+              type: "Button",
+              confidence: 1.0,
+              text: { value: "Login" },
+            },
+            {
+              // Unknown 타입이지만 광고 아님
+              type: "Unknown",
+              confidence: 0.5,
+              role: "component:Container",
+            },
+          ],
+        },
+      },
+      diagnostics: [],
+    };
+  }
+
+  it("Unknown + component:GADBannerView → role:ad, dynamic:true 로 수집된다", () => {
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "ios",
+      screens: [{ id: "HomeScreen", discovery: "route", confidence: 1.0 }],
+      navGraph: { entryScreenId: "HomeScreen", edges: [], diagnostics: [] },
+      irDocs: [makeAdIR("HomeScreen")],
+    });
+
+    const homeNode = appMap.screens.find((s) => s.id === "HomeScreen");
+    const adElem = homeNode?.elements.find((e) => e.role === "ad");
+    expect(adElem).toBeDefined();
+    expect(adElem?.dynamic).toBe(true);
+    expect(adElem?.dynamicSource).toBe("GADBannerView");
+    expect(adElem?.type).toBe("Unknown");
+  });
+
+  it("일반 Button은 그대로 수집되고 role/dynamic 없다", () => {
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "ios",
+      screens: [{ id: "HomeScreen", discovery: "route", confidence: 1.0 }],
+      navGraph: { entryScreenId: "HomeScreen", edges: [], diagnostics: [] },
+      irDocs: [makeAdIR("HomeScreen")],
+    });
+
+    const homeNode = appMap.screens.find((s) => s.id === "HomeScreen");
+    const buttonElem = homeNode?.elements.find((e) => e.type === "Button");
+    expect(buttonElem).toBeDefined();
+    expect(buttonElem?.role).toBeUndefined();
+    expect(buttonElem?.dynamic).toBeUndefined();
+  });
+
+  it("Unknown + component:Container (광고 아님) → 수집 안 됨", () => {
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "ios",
+      screens: [{ id: "HomeScreen", discovery: "route", confidence: 1.0 }],
+      navGraph: { entryScreenId: "HomeScreen", edges: [], diagnostics: [] },
+      irDocs: [makeAdIR("HomeScreen")],
+    });
+
+    const homeNode = appMap.screens.find((s) => s.id === "HomeScreen");
+    // Container Unknown 노드는 수집 안 됨 (광고도 아니고 INTERACTIVE도 아님)
+    const containerElem = homeNode?.elements.find(
+      (e) => e.type === "Unknown" && e.dynamicSource !== "GADBannerView"
+    );
+    expect(containerElem).toBeUndefined();
+  });
+
+  it("Flutter AdWidget → role:ad, dynamicSource:AdWidget", () => {
+    const irDoc: IRDocument = {
+      schemaVersion: "1",
+      screen: {
+        id: "S",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          children: [
+            { type: "Unknown", confidence: 0.3, role: "component:AdWidget" },
+          ],
+        },
+      },
+      diagnostics: [],
+    };
+
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [{ id: "S", discovery: "route", confidence: 1.0 }],
+      navGraph: { entryScreenId: "S", edges: [], diagnostics: [] },
+      irDocs: [irDoc],
+    });
+
+    const adElem = appMap.screens[0]?.elements.find((e) => e.role === "ad");
+    expect(adElem?.dynamicSource).toBe("AdWidget");
+  });
+
+  it("FutureBuilder → role:dynamic-content", () => {
+    const irDoc: IRDocument = {
+      schemaVersion: "1",
+      screen: {
+        id: "S",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          children: [
+            { type: "Unknown", confidence: 0.5, role: "component:FutureBuilder" },
+          ],
+        },
+      },
+      diagnostics: [],
+    };
+
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [{ id: "S", discovery: "route", confidence: 1.0 }],
+      navGraph: { entryScreenId: "S", edges: [], diagnostics: [] },
+      irDocs: [irDoc],
+    });
+
+    const dynElem = appMap.screens[0]?.elements.find((e) => e.role === "dynamic-content");
+    expect(dynElem).toBeDefined();
+    expect(dynElem?.dynamic).toBe(true);
+  });
+
+  // ── [수정 2] 광고/Unknown 노드가 트리거 매칭 후보에서 제외되는지 ──────
+
+  it("같은 파일 ±1행에 광고 Unknown(sourceRef 있음)과 Button이 있을 때 Button이 매칭된다", () => {
+    // 광고 Unknown 노드가 ±2 TOL 안에 있어도 매칭 후보에서 제외돼야 함
+    const irDoc: IRDocument = {
+      schemaVersion: "1",
+      screen: {
+        id: "S",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          children: [
+            // 광고 노드: ±0행 (완전 일치) — 매칭 우선순위에서 제외돼야 함
+            {
+              type: "Unknown",
+              confidence: 0.3,
+              role: "component:GADBannerView",
+              sourceRef: { file: "lib/home.dart", line: 42 },
+            },
+            // 버튼: ±1행 — 광고보다 멀지만 비광고이므로 선택돼야 함
+            {
+              type: "Button",
+              confidence: 1.0,
+              text: { value: "Go" },
+              sourceRef: { file: "lib/home.dart", line: 43 },
+            },
+          ],
+        },
+      },
+      diagnostics: [],
+    };
+
+    const navGraph: NavigationGraph = {
+      entryScreenId: "S",
+      edges: [
+        {
+          from: "S",
+          to: null,
+          action: "push",
+          trigger: {
+            kind: "button",
+            label: "Go",
+            elementRef: { file: "lib/home.dart", line: 42 },
+          },
+          confidence: 1.0,
+          diagnostics: [],
+        },
+      ],
+      diagnostics: [],
+    };
+
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [{ id: "S", discovery: "route", confidence: 1.0 }],
+      navGraph,
+      irDocs: [irDoc],
+    });
+
+    // Button이 매칭돼야 하므로 trigger.style 없이도 TRIGGER_UNMATCHED는 없어야 함
+    // (광고가 아닌 Button이 ±1 TOL 안에 있으므로)
+    const edge = appMap.edges[0];
+    expect(edge?.diagnostics.find((d) => d.code === "TRIGGER_UNMATCHED")).toBeUndefined();
+  });
+
+  it("광고 Unknown 노드만 있고 Button이 없으면 TRIGGER_UNMATCHED가 발생한다", () => {
+    // 광고 노드는 매칭 후보에서 제외 → elements에 적합 후보 없음 → TRIGGER_UNMATCHED
+    const irDoc: IRDocument = {
+      schemaVersion: "1",
+      screen: {
+        id: "S",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          children: [
+            {
+              type: "Unknown",
+              confidence: 0.3,
+              role: "component:GADBannerView",
+              sourceRef: { file: "lib/home.dart", line: 42 },
+            },
+          ],
+        },
+      },
+      diagnostics: [],
+    };
+
+    const navGraph: NavigationGraph = {
+      entryScreenId: "S",
+      edges: [
+        {
+          from: "S",
+          to: null,
+          action: "push",
+          trigger: {
+            kind: "button",
+            label: "AdTrigger",
+            elementRef: { file: "lib/home.dart", line: 42 },
+          },
+          confidence: 1.0,
+          diagnostics: [],
+        },
+      ],
+      diagnostics: [],
+    };
+
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [{ id: "S", discovery: "route", confidence: 1.0 }],
+      navGraph,
+      irDocs: [irDoc],
+    });
+
+    const edge = appMap.edges[0];
+    expect(edge?.diagnostics.find((d) => d.code === "TRIGGER_UNMATCHED")).toBeDefined();
+  });
+
+  it("광고 노드가 있어도 전체 elements 배열 구조가 AppMapSchema를 통과한다", () => {
+    const irDoc: IRDocument = {
+      schemaVersion: "1",
+      screen: {
+        id: "S",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          children: [
+            { type: "Unknown", confidence: 0.3, role: "component:AdWidget" },
+            { type: "Button", confidence: 1.0, text: { value: "OK" } },
+          ],
+        },
+      },
+      diagnostics: [],
+    };
+
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [{ id: "S", discovery: "route", confidence: 1.0 }],
+      navGraph: { entryScreenId: "S", edges: [], diagnostics: [] },
+      irDocs: [irDoc],
+    });
+
+    // AppMapSchema는 appmap/2라 통과해야 함
+    expect(() => AppMapSchema.parse(appMap)).not.toThrow();
   });
 });

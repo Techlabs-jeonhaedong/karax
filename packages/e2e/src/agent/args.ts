@@ -14,6 +14,30 @@
 import type { AgentKind, AgentInvocation, AgentRunOptions } from "./types.js";
 
 /**
+ * screenshotsDir 경로가 Read 규칙에 안전한지 판별한다.
+ *
+ * 허용:
+ * - 유니코드 문자·숫자(\p{L}\p{N} + u 플래그): 한글, 일본어 등 비ASCII 경로 지원
+ * - 기호: _ . / : @ -
+ *
+ * 불허 (Read 규칙 구문·인자 분리를 깨는 문자):
+ * - 공백 (--allowedTools 공백 구분 목록을 깨뜨림)
+ * - 괄호 () — Read() 구문을 조기 종료시킴
+ * - 별표 * — 글로브 충돌
+ * - 콤마 , — 인자 구분자
+ * - 셸 메타문자: ; ` $ & | ? ! # " ' \
+ * - 개행·탭 등 제어문자
+ *
+ * unsafe면 throw 하지 않는다 — 호출 측에서 Read 부여를 생략(폴백)한다.
+ */
+export function isPathSafeForReadRule(dir: string): boolean {
+  if (!dir || !dir.startsWith("/")) return false;
+  // 허용 문자: 유니코드 글자/숫자, 그리고 _ . / : @ -
+  // 그 외 모든 문자(공백, 괄호, 글로브, 셸 메타, 제어문자 등)는 불허
+  return /^[\p{L}\p{N}_.\/:@\-]+$/u.test(dir);
+}
+
+/**
  * 에이전트 서브프로세스에 전달할 최소 env를 구성한다.
  *
  * 보안 원칙:
@@ -60,6 +84,31 @@ export function buildAgentInvocation(
           env["ANTHROPIC_API_KEY"] = process.env["ANTHROPIC_API_KEY"];
         }
       }
+
+      // screenshotsDir 있으면 스코프 제한 Read 허용
+      // VERIFIED (2026-06-06, 실 claude CLI 실험): 아래 형식 모두 동작 확인됨.
+      //   - 반복 --allowedTools 플래그는 누적됨 (Bash 유지: bash=BASH_OK)
+      //   - Read(//{절대경로}/**) — 절대경로가 /로 시작해 슬래시 3개가 되어도 정상 매칭
+      //   - 스코프 실효: 범위 안 파일 읽힘, 범위 밖 파일 DENIED 확인
+      //   - 단, Bash 자체는 경로 스코프 불가 — Read 표면 최소화 목적의 방어선임
+      //
+      // 허용 문자: 유니코드(@, 한글 등 포함), _ . / : @ -
+      // unsafe(공백·괄호·셸 메타 등)면 Read 부여를 생략하고 Bash만 유지 (폴백).
+      //   → 에러 throw 하지 않음: E2E 자체가 계속 동작해야 하며 Read 미부여는 더 제한적이라 보안상 안전.
+      //   → 경로 길이+첫 20자만 stderr에 경고 출력.
+      const allowedToolsArgs: string[] = ["--allowedTools", "Bash"];
+      if (opts.screenshotsDir !== undefined) {
+        if (isPathSafeForReadRule(opts.screenshotsDir)) {
+          allowedToolsArgs.push("--allowedTools", `Read(//${opts.screenshotsDir}/**)`);
+        } else {
+          const preview = opts.screenshotsDir.slice(0, 20);
+          process.stderr.write(
+            `[karax/e2e] screenshotsDir에 Read-unsafe 문자가 포함됨 — Read 스코프 생략, Bash만 허용. ` +
+            `(길이=${opts.screenshotsDir.length}, 앞20자="${preview}")\n`
+          );
+        }
+      }
+
       return {
         bin: "claude",
         args: [
@@ -67,8 +116,7 @@ export function buildAgentInvocation(
           opts.prompt,
           "--output-format",
           "json",
-          "--allowedTools",
-          "Bash",
+          ...allowedToolsArgs,
           // VERIFY: headless -p 모드에서 --allowedTools만으로 Bash 자동 허용 확인 필요.
           // --dangerously-skip-permissions 제거 — allowedTools 지정 도구만 허용하는 것이 더 제한적임.
         ],

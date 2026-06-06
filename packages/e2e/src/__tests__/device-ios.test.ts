@@ -251,4 +251,69 @@ describe("createIosDeviceManager", () => {
       });
     });
   });
+
+  // ── M11: grantPermissions ──────────────────────────────────────────
+
+  describe("grantPermissions(deviceId, appId, permissions)", () => {
+    it("xcrun simctl privacy grant 를 각 서비스에 호출한다", async () => {
+      mockExeca.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as unknown as ReturnType<typeof execa>);
+
+      const manager = createIosDeviceManager();
+      await manager.grantPermissions!("UDID-1234", "com.example.app", ["camera", "photos"]);
+
+      expect(mockExeca).toHaveBeenCalledTimes(2);
+      expect(mockExeca).toHaveBeenCalledWith(
+        "xcrun",
+        expect.arrayContaining([
+          "simctl", "privacy", "UDID-1234", "grant", "camera", "com.example.app",
+        ]),
+        expect.any(Object)
+      );
+    });
+
+    it("지원 매핑 없는 권한명(예: 'bluetooth')은 스킵하고 경고만 낸다", async () => {
+      const manager = createIosDeviceManager();
+      // throw 없이 완료
+      await expect(
+        manager.grantPermissions!("UDID-1234", "com.example.app", ["bluetooth"])
+      ).resolves.toBeUndefined();
+
+      // simctl privacy 미호출
+      expect(mockExeca).not.toHaveBeenCalled();
+    });
+
+    it("빈 배열이면 execa 미호출", async () => {
+      const manager = createIosDeviceManager();
+      await manager.grantPermissions!("UDID-1234", "com.example.app", []);
+      expect(mockExeca).not.toHaveBeenCalled();
+    });
+
+    it("개별 grant 실패는 무시하고 나머지를 계속 처리한다", async () => {
+      mockExeca
+        .mockRejectedValueOnce(new Error("unsupported service"))
+        .mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 } as unknown as ReturnType<typeof execa>);
+
+      const manager = createIosDeviceManager();
+      await expect(
+        manager.grantPermissions!("UDID-1234", "com.example.app", ["camera", "microphone"])
+      ).resolves.toBeUndefined();
+
+      expect(mockExeca).toHaveBeenCalledTimes(2);
+    });
+
+    it("유효하지 않은 appId는 INVALID_ARGUMENT 코드로 reject한다 (Android와 대칭)", async () => {
+      const manager = createIosDeviceManager();
+      const err = await manager.grantPermissions!("UDID-1234", "../etc/passwd", ["camera"]).catch((e) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect((err as { code?: string }).code).toBe("INVALID_ARGUMENT");
+    });
+
+    it("유효한 appId는 정상 처리된다 (번들 ID 형식)", async () => {
+      mockExeca.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as ReturnType<typeof execa>);
+      const manager = createIosDeviceManager();
+      await expect(
+        manager.grantPermissions!("UDID-1234", "com.example.MyApp", ["camera"])
+      ).resolves.toBeUndefined();
+    });
+  });
 });

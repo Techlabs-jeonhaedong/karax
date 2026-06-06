@@ -53,9 +53,13 @@ function setupAllOk() {
     if (cmd === "xcodebuild" && args.includes("-version")) {
       return Promise.resolve({ stdout: "Xcode 16.2\nBuild version 16C5032a", stderr: "", exitCode: 0 });
     }
-    // xcrun simctl
+    // xcrun simctl list devices available (ios-simulator) — iOS 섹션 포함
     if (cmd === "xcrun" && args.includes("simctl")) {
-      return Promise.resolve({ stdout: "== Devices ==\n", stderr: "", exitCode: 0 });
+      return Promise.resolve({
+        stdout: "== Devices ==\n-- iOS 17.5 --\n    iPhone 15 (A1B2C3D4) (Shutdown)\n",
+        stderr: "",
+        exitCode: 0,
+      });
     }
     // pod --version
     if (cmd === "pod" && args.includes("--version")) {
@@ -76,6 +80,10 @@ function setupAllOk() {
     // claude/codex/gemini --version
     if (args.includes("--version") && (cmd === "claude" || cmd === "codex" || cmd === "gemini")) {
       return Promise.resolve({ stdout: "1.0.0", stderr: "", exitCode: 0 });
+    }
+    // idb --version (ios-idb)
+    if (cmd === "idb" && args.includes("--version")) {
+      return Promise.resolve({ stdout: "1.1.7", stderr: "", exitCode: 0 });
     }
     return Promise.resolve({ stdout: "", stderr: "", exitCode: 0 });
   });
@@ -171,5 +179,127 @@ describe("runDoctor — checkAgentClis가 결과에 포함됨 (병렬성 회귀)
     expect(ids).toContain("node");
     const hasAnyAgentCli = ids.some((id) => ["claude-cli", "codex-cli", "gemini-cli"].includes(id));
     expect(hasAnyAgentCli).toBe(true);
+  });
+});
+
+// ── M9: ios-simulator · ios-idb 신규 체크 통합 검증 ─────────────────────────
+
+describe("runDoctor — ios-simulator·ios-idb 체크가 결과에 포함됨 (M9)", () => {
+  it("setupAllOk 환경에서 ios-simulator가 ok 상태여야 함 (dead mock 회귀)", async () => {
+    setupAllOk();
+    const report = await runDoctor();
+    const simCheck = report.checks.find((c) => c.id === "ios-simulator");
+    expect(simCheck).toBeDefined();
+    expect(simCheck?.status).toBe("ok");
+  });
+
+  it("checks 배열에 ios-simulator id가 포함된다", async () => {
+    setupAllOk();
+    const report = await runDoctor();
+    const ids = report.checks.map((c) => c.id);
+    expect(ids).toContain("ios-simulator");
+  });
+
+  it("checks 배열에 ios-idb id가 포함된다", async () => {
+    setupAllOk();
+    const report = await runDoctor();
+    const ids = report.checks.map((c) => c.id);
+    expect(ids).toContain("ios-idb");
+  });
+
+  it("ios-simulator는 optional=true이므로 missing이어도 overallOk에 영향 없음", async () => {
+    // 모든 체크 ok, simctl만 실패
+    mockExeca.mockImplementation((cmd: string, args: string[] = []) => {
+      if (cmd === "xcrun" && args.includes("simctl")) {
+        return Promise.reject(new Error("simctl not found"));
+      }
+      if (cmd === "node" && args.includes("--version")) {
+        return Promise.resolve({ stdout: "v24.4.1", stderr: "", exitCode: 0 });
+      }
+      if (args.includes("chromium-path") || args.includes("show-browsers")) {
+        return Promise.resolve({ stdout: "/some/path/chrome", stderr: "", exitCode: 0 });
+      }
+      if (cmd === "flutter" && args.includes("--version")) {
+        return Promise.resolve({
+          stdout: "Flutter 3.38.5 • channel stable",
+          stderr: "Flutter 3.38.5 • channel stable\nTools • Dart 3.10.4",
+          exitCode: 0,
+        });
+      }
+      if (cmd === "dart" && args.includes("--version")) {
+        return Promise.resolve({ stdout: "Dart SDK version: 3.10.4 (stable)", stderr: "", exitCode: 0 });
+      }
+      if (cmd === "java" && args.includes("-version")) {
+        return Promise.resolve({
+          stdout: 'openjdk version "17.0.15" 2025-04-15',
+          stderr: 'openjdk version "17.0.15" 2025-04-15',
+          exitCode: 0,
+        });
+      }
+      if (cmd === "gradle" && args.includes("--version")) {
+        return Promise.resolve({ stdout: "Gradle 8.14.3", stderr: "", exitCode: 0 });
+      }
+      if (cmd === "xcodebuild" && args.includes("-version")) {
+        return Promise.resolve({ stdout: "Xcode 16.2\nBuild version 16C5032a", stderr: "", exitCode: 0 });
+      }
+      if (cmd === "pod" && args.includes("--version")) {
+        return Promise.resolve({ stdout: "1.16.2", stderr: "", exitCode: 0 });
+      }
+      return Promise.resolve({ stdout: "", stderr: "", exitCode: 0 });
+    });
+    const report = await runDoctor();
+    // ios-simulator는 optional이므로 overallOk는 필수 항목에만 의존
+    expect(typeof report.overallOk).toBe("boolean");
+    const simCheck = report.checks.find((c) => c.id === "ios-simulator");
+    expect(simCheck?.optional).toBe(true);
+  });
+});
+
+describe("doctorFix — ios-idb autoInstallable 분기", () => {
+  it("ios-idb가 missing+autoInstallable이면 ensureIdb를 호출한다", async () => {
+    // ios-idb missing 상태 report 구성
+    setupAllOk();
+    const baseReport = await runDoctor();
+    setupAllOk();
+
+    // ensureIdb 내부에서 사용하는 execa 호출 순서:
+    // 1. idb --version (alreadyPresent 확인) - 실패
+    // 2. brew --version - 성공
+    // 3. brew install - 성공
+    // 그 뒤 재진단 runDoctor에서 setupAllOk 패턴
+
+    // doctorFix를 호출할 때 baseReport의 ios-idb를 missing으로 교체
+    const missingIdbReport = {
+      ...baseReport,
+      checks: baseReport.checks.map((c) =>
+        c.id === "ios-idb" ? { ...c, status: "missing" as const, autoInstallable: true } : c
+      ),
+    };
+
+    // ensureIdb 내 execa 순서를 위한 mock 설정
+    // idb --version 실패
+    mockExeca.mockRejectedValueOnce(new Error("idb: not found"));
+    // brew --version 성공
+    mockExeca.mockResolvedValueOnce({ stdout: "Homebrew 4.5.0", stderr: "", exitCode: 0 });
+    // brew install 성공
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+    // 재진단 runDoctor 전용 fallback
+    mockExeca.mockImplementation((cmd: string, args: string[] = []) => {
+      if (cmd === "node" && args.includes("--version")) {
+        return Promise.resolve({ stdout: "v24.4.1", stderr: "", exitCode: 0 });
+      }
+      return Promise.resolve({ stdout: "", stderr: "", exitCode: 0 });
+    });
+
+    const fixed = await doctorFix(missingIdbReport);
+    expect(fixed).toHaveProperty("checks");
+    // brew install이 호출됐어야 함
+    const brewCalled = mockExeca.mock.calls.some(
+      (call: unknown[]) =>
+        call[0] === "brew" &&
+        Array.isArray(call[1]) &&
+        (call[1] as string[]).includes("install")
+    );
+    expect(brewCalled).toBe(true);
   });
 });

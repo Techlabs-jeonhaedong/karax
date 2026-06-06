@@ -385,12 +385,106 @@ describe("karax mcp install-config", () => {
   });
 });
 
+// ─── karax test --no-fail-on-crash 스모크 ─────────────────────────────
+// 실제 에뮬레이터 없이 CLI 옵션 등록 여부만 검증한다.
+// --no-fail-on-crash가 "unknown option"으로 거부되지 않아야 한다.
+// --platform 이후 바로 실패(에뮬레이터 없음)하므로 exit != 0이지만, stderr에
+// "unknown option"이 없어야 하는 게 핵심 조건이다.
+
+describe("karax test --no-fail-on-crash 스모크", () => {
+  it("--no-fail-on-crash가 unknown option 없이 통과한다", async () => {
+    if (!cliBuildExists) return;
+    const { stderr } = await runCli([
+      "test", "/tmp/fake-project",
+      "--platform", "android",
+      "--no-fail-on-crash",
+    ], 10_000);
+    // "unknown option" 이 stderr에 없어야 한다
+    expect(stderr).not.toMatch(/unknown option/i);
+  });
+});
+
 // ─── 알 수 없는 서브커맨드 ────────────────────────────────────────
 
 describe("알 수 없는 서브커맨드", () => {
   it("알 수 없는 커맨드는 종료코드 1을 반환한다", async () => {
     if (!cliBuildExists) return;
     const { code } = await runCli(["unknowncommand"]);
+    expect(code).toBe(1);
+  });
+});
+
+// ─── karax ui 스모크 테스트 ─────────────────────────────────────────────
+// 실제 adb 없이 CLI 라우팅·JSON 출력 계약·exit code를 검증한다.
+// (adb 호출은 dumpAndroid.ts 내부에서 실패 → ok:false JSON 반환 → exit 1)
+
+describe("karax ui — 스모크 통합 테스트", () => {
+  it("ui dump --device <없는id> → stdout이 단일 JSON이고 ok:false, exit 1", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["ui", "dump", "--device", "nonexistent-9999"]);
+    // JSON 파싱 가능해야 한다 (빈 문자열이면 SyntaxError)
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    expect(code).toBe(1);
+  });
+
+  it("ui 인자 없이 (서브커맨드 미지정) → JSON 에러, exit 1", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["ui"]);
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    expect(typeof parsed.error).toBe("string");
+    expect(code).toBe(1);
+  });
+
+  it("ui which-screen --device x (--appmap 미지정) → INVALID_ARGUMENT JSON, exit 1", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["ui", "which-screen", "--device", "x"]);
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error).toBe("INVALID_ARGUMENT");
+    expect(code).toBe(1);
+  });
+
+  // ─── M10 검수: iOS idb 와이어링 스모크 테스트 ─────────────────────────
+  // M4 교훈: 단위 테스트만으론 라우팅·와이어링 버그를 못 잡음.
+  // bin.ts에서 --platform ios 시 idb probe가 실제로 동작하는지 검증한다.
+  // - idb 미설치 환경: IDB_UNAVAILABLE JSON
+  // - idb 설치 환경: DEVICE 관련 에러 (가짜 device ID로 연결 실패)
+  // 두 경우 모두 stdout이 단일 유효 JSON이어야 한다.
+  it("ui dump --platform ios → idb 미설치 시 IDB_UNAVAILABLE JSON, exit 1", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli([
+      "ui", "dump", "--device", "fake-udid-0000", "--platform", "ios",
+    ]);
+    // stdout은 항상 단일 유효 JSON이어야 한다
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    // idb 없으면 IDB_UNAVAILABLE, idb 있으면 DEVICE/DUMP 관련 에러 — 둘 다 허용
+    expect(["IDB_UNAVAILABLE", "DEVICE_NOT_FOUND", "DUMP_FAILED", "INVALID_ARGUMENT"]).toContain(parsed.error);
+    expect(code).toBe(1);
+  });
+
+  it("ui locate --platform ios → stdout이 단일 JSON, exit 1 (가짜 device)", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli([
+      "ui", "locate", "--device", "fake-udid-0000", "--platform", "ios", "--label", "확인",
+    ]);
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    expect(["IDB_UNAVAILABLE", "DEVICE_NOT_FOUND", "DUMP_FAILED", "INVALID_ARGUMENT"]).toContain(parsed.error);
+    expect(code).toBe(1);
+  });
+
+  it("ui which-screen --platform ios → stdout이 단일 JSON, exit 1 (가짜 device)", async () => {
+    if (!cliBuildExists) return;
+    const appmapPath = path.join(path.resolve(__dirname, "../../../.."), "packages/cli/src/__tests__/fixtures/appmap-v2.json");
+    const { stdout, code } = await runCli([
+      "ui", "which-screen", "--device", "fake-udid-0000", "--platform", "ios", "--appmap", appmapPath,
+    ]);
+    const parsed = JSON.parse(stdout) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    expect(["IDB_UNAVAILABLE", "DEVICE_NOT_FOUND", "DUMP_FAILED", "INVALID_ARGUMENT"]).toContain(parsed.error);
     expect(code).toBe(1);
   });
 });

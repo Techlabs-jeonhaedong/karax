@@ -5,6 +5,12 @@ export interface EnsureChromiumResult {
   alreadyPresent: boolean;
 }
 
+export interface EnsureIdbResult {
+  installed: boolean;
+  alreadyPresent: boolean;
+  skipped?: "non-darwin" | "no-brew" | "incomplete-install";
+}
+
 /**
  * Playwright Chromium 자동 설치.
  * - 이미 있으면: { installed: false, alreadyPresent: true }
@@ -125,6 +131,51 @@ async function findChromiumInCache(): Promise<string | null> {
 }
 
 /**
+ * idb (iOS 입력 주입) 자동 설치.
+ * - non-darwin: { skipped: "non-darwin" }
+ * - idb 이미 존재: { alreadyPresent: true }
+ * - brew 없음: { skipped: "no-brew" } — 대형 툴체인 정책에 따라 throw 금지
+ * - brew 있음: `brew install facebook/fb/idb-companion` 실행 — stdout은 stderr로 리다이렉트
+ */
+export async function ensureIdb(): Promise<EnsureIdbResult> {
+  if (process.platform !== "darwin") {
+    return { installed: false, alreadyPresent: false, skipped: "non-darwin" };
+  }
+
+  // idb 이미 있으면 조기 반환
+  try {
+    await execa("idb", ["--version"], { timeout: 10_000 });
+    return { installed: false, alreadyPresent: true };
+  } catch {
+    // 미설치 → 계속
+  }
+
+  // brew 확인
+  try {
+    await execa("brew", ["--version"], { timeout: 10_000 });
+  } catch {
+    // brew 없음 — throw 금지 (대형 툴체인 정책)
+    return { installed: false, alreadyPresent: false, skipped: "no-brew" };
+  }
+
+  // brew install — stdout을 process.stderr로 리다이렉트해 MCP stdout 프로토콜 채널 보호
+  await execa("brew", ["install", "facebook/fb/idb-companion"], {
+    stdin: "ignore",
+    stdout: process.stderr,
+    stderr: "inherit",
+  });
+
+  // 설치 후 검증 — brew install 성공이 idb 동작을 보장하지 않음
+  try {
+    await execa("idb", ["--version"], { timeout: 10_000 });
+  } catch {
+    return { installed: false, alreadyPresent: false, skipped: "incomplete-install" };
+  }
+
+  return { installed: true, alreadyPresent: false };
+}
+
+/**
  * 대형 툴체인(flutter, xcode, android SDK)은 hint만 반환.
  * 에러를 throw하지 않아 Tier 2로 자동 degrade됨.
  */
@@ -137,6 +188,8 @@ export function getManualInstallHints(missingIds: string[]): string[] {
     gradle: "Gradle: https://gradle.org/install 또는 `brew install gradle`",
     xcodebuild: "Xcode: App Store에서 설치. macOS 전용입니다.",
     cocoapods: "CocoaPods: `sudo gem install cocoapods` 또는 `brew install cocoapods`",
+    "ios-simulator":
+      "iOS Simulator: Xcode > Settings > Platforms에서 iOS 런타임을 설치하고 디바이스를 생성하세요.",
   };
 
   return missingIds

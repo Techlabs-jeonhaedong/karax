@@ -207,6 +207,81 @@ describe("parseTestArgs", () => {
     const result = parseTestArgs(["/proj", "--platform", "android", "--json"]);
     expect(result.json).toBe(true);
   });
+
+  // ── M11 플래그 ────────────────────────────────────────────────────
+
+  it("기본값: noBuild=false (--no-build 미지정 시)", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.noBuild).toBe(false);
+  });
+
+  it("--no-build 지정 시 noBuild=true", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--no-build"]);
+    expect(result.noBuild).toBe(true);
+  });
+
+  it("기본값: reuseBuild=false", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.reuseBuild).toBe(false);
+  });
+
+  it("--reuse-build 지정 시 reuseBuild=true", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--reuse-build"]);
+    expect(result.reuseBuild).toBe(true);
+  });
+
+  it("기본값: grantPermissions=false", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.grantPermissions).toBe(false);
+  });
+
+  it("--grant-permissions 지정 시 grantPermissions=true", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--grant-permissions"]);
+    expect(result.grantPermissions).toBe(true);
+  });
+
+  it("기본값: recordVideo=false", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.recordVideo).toBe(false);
+  });
+
+  it("--record-video 지정 시 recordVideo=true", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--record-video"]);
+    expect(result.recordVideo).toBe(true);
+  });
+
+  it("4개 M11 플래그 동시 지정", () => {
+    const result = parseTestArgs([
+      "/proj", "--platform", "android",
+      "--reuse-build", "--no-build", "--grant-permissions", "--record-video",
+    ]);
+    expect(result.reuseBuild).toBe(true);
+    expect(result.noBuild).toBe(true);
+    expect(result.grantPermissions).toBe(true);
+    expect(result.recordVideo).toBe(true);
+  });
+
+  // ── --no-fail-on-crash ─────────────────────────────────────────────
+
+  it("기본값: failOnCrash=true (--no-fail-on-crash 미지정 시)", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.failOnCrash).toBe(true);
+  });
+
+  it("--no-fail-on-crash 지정 시 failOnCrash=false", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--no-fail-on-crash"]);
+    expect(result.failOnCrash).toBe(false);
+  });
+
+  it("--no-fail-on-crash와 다른 플래그 동시 지정", () => {
+    const result = parseTestArgs([
+      "/proj", "--platform", "android",
+      "--no-fail-on-crash", "--keep-booted", "--json",
+    ]);
+    expect(result.failOnCrash).toBe(false);
+    expect(result.keepBooted).toBe(true);
+    expect(result.json).toBe(true);
+  });
 });
 
 // ─── map ───────────────────────────────────────────────────────────

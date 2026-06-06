@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "appmap/2",
+  "appName": "TestApp",
+  "framework": "flutter",
+  "entryScreenId": "LoginScreen",
+  "screens": [
+    {
+      "id": "LoginScreen",
+      "title": "로그인",
+      "discovery": "route",
+      "isEntry": true,
+      "confidence": 0.9,
+      "elements": [
+        { "type": "Text", "label": "로그인" },
+        { "type": "Button", "label": "로그인 버튼", "bounds": { "x": 100, "y": 500, "width": 880, "height": 200 } },
+        { "type": "Button", "label": "회원가입", "bounds": { "x": 100, "y": 800, "width": 880, "height": 200 } }
+      ],
+      "outgoing": []
+    },
+    {
+      "id": "HomeScreen",
+      "title": "홈",
+      "discovery": "route",
+      "isEntry": false,
+      "confidence": 0.85,
+      "elements": [
+        { "type": "Text", "label": "홈 화면" },
+        { "type": "Button", "label": "설정" }
+      ],
+      "outgoing": []
+    }
+  ],
+  "edges": [],
+  "diagnostics": [],
+  "overallConfidence": 0.87
+}
