@@ -262,6 +262,14 @@ export interface TestArgs {
   keepBooted: boolean;
   /** M8: 크래시 감지 시 fail 강등 여부. 기본 true, --no-fail-on-crash로 비활성화 */
   failOnCrash: boolean;
+  /** M11: 이전 빌드 캐시 재사용 */
+  reuseBuild: boolean;
+  /** M11: 빌드 없이 캐시 artifact만 사용 (없으면 에러) */
+  noBuild: boolean;
+  /** M11: 시나리오 permissions 자동 grant */
+  grantPermissions: boolean;
+  /** M11: 비디오 녹화 */
+  recordVideo: boolean;
 }
 
 const VALID_PLATFORMS: TestPlatform[] = ["android", "ios"];
@@ -281,6 +289,11 @@ export function parseTestArgs(argv: string[]): TestArgs {
   prog.option("--json", "JSON 형식으로 출력", false);
   prog.option("--keep-booted", "테스트 후 디바이스를 종료하지 않음", false);
   prog.option("--no-fail-on-crash", "크래시 감지 시 fail 강등을 비활성화한다");
+  // M11 옵션
+  prog.option("--reuse-build", "소스 핑거프린트 일치 시 이전 빌드를 재사용한다", false);
+  prog.option("--no-build", "빌드를 수행하지 않고 캐시 artifact만 사용한다 (없으면 에러)", false);
+  prog.option("--grant-permissions", "시나리오의 permissions[]를 자동으로 디바이스에 grant한다", false);
+  prog.option("--record-video", "앱 실행 중 화면을 비디오로 녹화한다", false);
   prog.parse(["node", "test", ...argv]);
 
   const opts = prog.opts<{
@@ -295,6 +308,10 @@ export function parseTestArgs(argv: string[]): TestArgs {
     json: boolean;
     keepBooted: boolean;
     failOnCrash: boolean;
+    reuseBuild: boolean;
+    build: boolean; // --no-build → opts.build = false
+    grantPermissions: boolean;
+    recordVideo: boolean;
   }>();
 
   if (!VALID_PLATFORMS.includes(opts.platform as TestPlatform)) {
@@ -322,5 +339,9 @@ export function parseTestArgs(argv: string[]): TestArgs {
     json: opts.json,
     keepBooted: opts.keepBooted,
     failOnCrash: opts.failOnCrash !== false, // --no-fail-on-crash 시 false
+    reuseBuild: opts.reuseBuild ?? false,
+    noBuild: opts.build === false, // --no-build → opts.build = false
+    grantPermissions: opts.grantPermissions ?? false,
+    recordVideo: opts.recordVideo ?? false,
   };
 }

@@ -571,8 +571,16 @@ export function createMcpServer(): McpServer {
       keepBooted: z.boolean().optional().default(false),
       /** M8: 크래시 감지 시 fail 강등 여부 (기본 true) */
       failOnCrash: z.boolean().optional().default(true),
+      /** M11: 이전 빌드 캐시 재사용 */
+      reuseBuild: z.boolean().optional().default(false),
+      /** M11: 빌드 없이 캐시 artifact만 사용 */
+      noBuild: z.boolean().optional().default(false),
+      /** M11: 시나리오 permissions 자동 grant */
+      grantPermissions: z.boolean().optional(),
+      /** M11: 비디오 녹화 */
+      recordVideo: z.boolean().optional().default(false),
     },
-    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted, failOnCrash }) => {
+    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted, failOnCrash, reuseBuild, noBuild, grantPermissions, recordVideo }) => {
       try {
         validateProjectPath(projectPath);
 
@@ -600,6 +608,11 @@ export function createMcpServer(): McpServer {
           maxSteps,
           keepBooted,
           failOnCrash,
+          // M11
+          reuseBuild,
+          noBuild,
+          ...(grantPermissions !== undefined ? { grantPermissions } : {}),
+          recordVideo,
         };
 
         if (scenarioIsDir && scenarioPath) {

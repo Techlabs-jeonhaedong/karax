@@ -32,6 +32,14 @@ import { parseLogcatForCrashes } from "./crash/detect.js";
 import type { CrashEvent } from "./crash/detect.js";
 import { recoverPartialResult } from "./recovery/partial.js";
 import type { Coverage } from "./report/schema.js";
+import {
+  computeSourceFingerprint,
+  readBuildCache,
+  writeBuildCache,
+  isArtifactFresh,
+} from "./build/cache.js";
+import { startAndroidRecording, startIosRecording } from "./recorder.js";
+import type { Recorder } from "./recorder.js";
 
 export type { RunE2eTestOptions, E2eTestResult, Platform };
 export { E2eError, E2E_ERROR_CODES } from "./types.js";
@@ -69,13 +77,16 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     outDir = "/tmp/karax-e2e-out",
     keepBooted = false,
     failOnCrash = true,
+    reuseBuild = false,
+    noBuild = false,
+    recordVideo = false,
   } = opts;
 
   const startTime = Date.now();
   const session = createSessionDir(outDir);
 
   // 시나리오 파싱
-  let scenario: { body: string; exploratory: boolean; appId?: string; platform?: Platform; steps?: import("./scenario/schema.js").ScenarioStep[] } = { body: "", exploratory: true };
+  let scenario: { body: string; exploratory: boolean; appId?: string; platform?: Platform; steps?: import("./scenario/schema.js").ScenarioStep[]; permissions?: string[] } = { body: "", exploratory: true };
   if (scenarioPath) {
     try {
       // 파일인지 확인 및 크기 상한(1MB) 검사
@@ -109,7 +120,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     const deviceInfo = await deviceManager.ensureBooted(deviceId);
     boostedByUs = true;
 
-    // 빌드 + AppMap 생성 병렬 실행 (AppMap 실패는 비차단)
+    // ── M11: 빌드 게이트 ──────────────────────────────────────────────
     const builder = selectBuilder(framework, platform);
     const appMapPromise = opts.appMapGenerator
       ? generateAppMapForSession({
@@ -120,17 +131,98 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
           generator: opts.appMapGenerator,
         }).catch(() => null)
       : Promise.resolve(null);
+
+    let buildResultPromise: Promise<import("./build/index.js").BuildResult>;
+
+    if (reuseBuild || noBuild) {
+      const fp = computeSourceFingerprint(projectPath, framework);
+      const cached = readBuildCache(projectPath, platform);
+
+      const canReuse =
+        cached !== null &&
+        cached.sourceHash === fp.hash &&
+        isArtifactFresh(cached.artifactPath, fp);
+
+      if (canReuse) {
+        // 캐시 히트 — 빌드 스킵
+        process.stderr.write(
+          `[karax/e2e] 빌드 스킵 (캐시 히트): ${cached!.artifactPath}\n`
+        );
+        buildResultPromise = Promise.resolve({
+          artifactPath: cached!.artifactPath,
+          appId: cached!.appId,
+        });
+      } else if (noBuild) {
+        // noBuild 모드에서 재사용 불가 → ARTIFACT_NOT_FOUND
+        throw new E2eError(
+          "ARTIFACT_NOT_FOUND",
+          `noBuild=true인데 유효한 캐시 artifact가 없습니다. 먼저 빌드하거나 reuseBuild=true를 사용하세요.`
+        );
+      } else {
+        // reuseBuild이지만 불일치 → 자동 재빌드
+        buildResultPromise = builder.build(projectPath);
+      }
+    } else {
+      // 기본 경로: 항상 빌드
+      buildResultPromise = builder.build(projectPath);
+    }
+
     const [buildResult, sessionAppMap] = await Promise.all([
-      builder.build(projectPath),
+      buildResultPromise,
       appMapPromise,
     ]);
 
-    // 설치
-    await deviceManager.install(deviceInfo.id, buildResult.artifactPath);
+    // M11: 빌드 성공 후 캐시 기록 (noBuild=true이면서 캐시 히트인 경우 제외)
+    if (!noBuild || !readBuildCache(projectPath, platform)) {
+      // 캐시를 항상 갱신 (빌드한 경우, 또는 재사용했어도 캐시 갱신)
+      const fp = computeSourceFingerprint(projectPath, framework);
+      writeBuildCache(projectPath, platform, {
+        artifactPath: buildResult.artifactPath,
+        appId: buildResult.appId,
+        sourceHash: fp.hash,
+        builtAtMs: Date.now(),
+      });
+    }
+
+    // M11: grantPermissions 결정
+    const scenarioPermissions = scenario.permissions;
+    const shouldGrant =
+      opts.grantPermissions === true ||
+      (opts.grantPermissions !== false && Array.isArray(scenarioPermissions) && scenarioPermissions.length > 0);
+
+    // 설치 (M11: grantAllPermissions Android -g)
+    await deviceManager.install(
+      deviceInfo.id,
+      buildResult.artifactPath,
+      { grantAllPermissions: shouldGrant && platform === "android" }
+    );
+
+    // M11: 런타임 pm grant (Android) / simctl privacy (iOS)
+    if (shouldGrant && deviceManager.grantPermissions && Array.isArray(scenarioPermissions) && scenarioPermissions.length > 0) {
+      const resolvedAppIdForGrant = scenario.appId ?? buildResult.appId;
+      await deviceManager.grantPermissions(deviceInfo.id, resolvedAppIdForGrant, scenarioPermissions).catch((e) => {
+        process.stderr.write(`[karax/e2e] grantPermissions 실패 (무시): ${e instanceof Error ? e.message : String(e)}\n`);
+      });
+    }
 
     // 실행
     const resolvedAppId = scenario.appId ?? buildResult.appId;
     await deviceManager.launch(deviceInfo.id, resolvedAppId);
+
+    // M11: 비디오 녹화 시작 (launch 직후)
+    let recorder: Recorder | null = null;
+    if (recordVideo) {
+      try {
+        if (platform === "android") {
+          recorder = await startAndroidRecording(deviceInfo.id, session.videosDir);
+        } else {
+          recorder = await startIosRecording(deviceInfo.id, session.videosDir);
+        }
+      } catch (e) {
+        // 녹화 시작 실패 — 비차단
+        process.stderr.write(`[karax/e2e] 비디오 녹화 시작 실패 (무시): ${e instanceof Error ? e.message : String(e)}\n`);
+      }
+    }
 
     // AppMap 화면 수 기반 budget 자동 조정
     const screenCount = sessionAppMap?.appMap.screens.length ?? 0;
@@ -222,6 +314,12 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
           crashes = detected;
         }
       }
+    }
+
+    // M11: 녹화 중지 (에이전트 완료 후, 비차단)
+    let videoFiles: string[] | undefined;
+    if (recorder) {
+      videoFiles = await recorder.stop().catch(() => undefined);
     }
 
     const durationMs = Date.now() - startTime;
@@ -327,6 +425,11 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       finalOutcome = "fail";
     }
 
+    // M11: videos — report에는 "videos/<basename>" 상대 형태 (write.ts buildVideosSection 정합)
+    const videosForReport = videoFiles
+      ?.filter((v) => v.length > 0)
+      .map((v) => `videos/${path.basename(v)}`);
+
     // 리포트 작성
     const report: E2eReport = {
       sessionId: session.sessionId,
@@ -347,6 +450,8 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       ...(crashes ? { crashes } : {}),
       ...(qualityWarnings.length > 0 ? { qualityWarnings } : {}),
       ...(visitedScreens !== undefined ? { visitedScreens } : {}),
+      // M11: 녹화 영상
+      ...(videosForReport && videosForReport.length > 0 ? { videos: videosForReport } : {}),
     };
 
     const { reportJsonPath, reportMdPath } = writeReport(session.dir, report);
@@ -372,6 +477,8 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       ...(visitedScreens !== undefined ? { visitedScreens } : {}),
       ...(crashes ? { crashes } : {}),
       ...(coverage ? { coverage } : {}),
+      // M11: 녹화 파일 경로 (절대 경로)
+      ...(videoFiles && videoFiles.length > 0 ? { videos: videoFiles } : {}),
     };
   } catch (e) {
     // 인프라 에러 → outcome: "error"로 리포트 작성

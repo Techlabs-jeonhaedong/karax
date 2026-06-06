@@ -172,6 +172,117 @@ describe("createAndroidDeviceManager", () => {
     });
   });
 
+  // ── M11: install opts.grantAllPermissions ─────────────────────────
+
+  describe("install(deviceId, artifactPath, { grantAllPermissions: true })", () => {
+    it("-g 플래그를 adb install 인자에 추가한다", async () => {
+      mockExeca.mockResolvedValueOnce({ stdout: "Success", stderr: "", exitCode: 0 });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.install("emulator-5554", "/tmp/app.apk", { grantAllPermissions: true });
+
+      expect(mockExeca).toHaveBeenCalledWith(
+        expect.stringContaining("adb"),
+        expect.arrayContaining(["-s", "emulator-5554", "install", "-g", "-r", "-t", "/tmp/app.apk"]),
+        expect.any(Object)
+      );
+    });
+
+    it("grantAllPermissions=false 면 -g 없이 호출한다", async () => {
+      mockExeca.mockResolvedValueOnce({ stdout: "Success", stderr: "", exitCode: 0 });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.install("emulator-5554", "/tmp/app.apk", { grantAllPermissions: false });
+
+      const call = mockExeca.mock.calls[0]!;
+      expect(call[1]).not.toContain("-g");
+    });
+
+    it("opts 미전달 시 -g 없이 호출한다 (기본 동작 무변경)", async () => {
+      mockExeca.mockResolvedValueOnce({ stdout: "Success", stderr: "", exitCode: 0 });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.install("emulator-5554", "/tmp/app.apk");
+
+      const call = mockExeca.mock.calls[0]!;
+      expect(call[1]).not.toContain("-g");
+    });
+  });
+
+  // ── M11: grantPermissions ──────────────────────────────────────────
+
+  describe("grantPermissions(deviceId, appId, permissions)", () => {
+    it("각 권한에 adb shell pm grant 를 호출한다", async () => {
+      // pm grant 2번
+      mockExeca.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as unknown as ReturnType<typeof execa>);
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.grantPermissions!("emulator-5554", "com.example.app", [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+      ]);
+
+      expect(mockExeca).toHaveBeenCalledTimes(2);
+      expect(mockExeca).toHaveBeenCalledWith(
+        expect.stringContaining("adb"),
+        expect.arrayContaining([
+          "-s", "emulator-5554",
+          "shell", "pm", "grant", "com.example.app", "android.permission.CAMERA",
+        ]),
+        expect.any(Object)
+      );
+    });
+
+    it("'android.permission.' 접두 없는 권한명에 자동 부착한다", async () => {
+      mockExeca.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as unknown as ReturnType<typeof execa>);
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.grantPermissions!("emulator-5554", "com.example.app", ["CAMERA"]);
+
+      expect(mockExeca).toHaveBeenCalledWith(
+        expect.stringContaining("adb"),
+        expect.arrayContaining(["android.permission.CAMERA"]),
+        expect.any(Object)
+      );
+    });
+
+    it("권한명이 ^[A-Za-z0-9_.]+$ 패턴 위반 시 해당 권한을 스킵한다 (인젝션 방어)", async () => {
+      // 유효 1개 + 위반 1개
+      mockExeca.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as unknown as ReturnType<typeof execa>);
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.grantPermissions!("emulator-5554", "com.example.app", [
+        "CAMERA",           // 유효
+        "CAMERA; rm -rf /", // 인젝션 — 스킵
+      ]);
+
+      // 유효한 1개만 호출
+      expect(mockExeca).toHaveBeenCalledTimes(1);
+    });
+
+    it("빈 배열이면 execa 미호출", async () => {
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.grantPermissions!("emulator-5554", "com.example.app", []);
+
+      expect(mockExeca).not.toHaveBeenCalled();
+    });
+
+    it("개별 grant 실패는 무시하고 나머지를 계속 처리한다 (best-effort)", async () => {
+      // 첫 번째 실패, 두 번째 성공
+      mockExeca
+        .mockRejectedValueOnce(new Error("permission denied"))
+        .mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 } as unknown as ReturnType<typeof execa>);
+
+      const manager = createAndroidDeviceManager("/sdk");
+      // throw 없이 완료
+      await expect(
+        manager.grantPermissions!("emulator-5554", "com.example.app", ["CAMERA", "RECORD_AUDIO"])
+      ).resolves.toBeUndefined();
+
+      expect(mockExeca).toHaveBeenCalledTimes(2);
+    });
+  });
+
   // ── ensureBooted — 폴링 타임아웃 경로 (항목 D) ────────────────────────────
 
   describe("ensureBooted — 폴링 타임아웃 경로", () => {

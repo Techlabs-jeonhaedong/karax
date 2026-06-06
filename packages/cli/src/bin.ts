@@ -560,6 +560,11 @@ program
           maxSteps: args.maxSteps,
           keepBooted: args.keepBooted,
           failOnCrash: args.failOnCrash,
+          // M11: 운영 품질 옵션
+          reuseBuild: args.reuseBuild,
+          noBuild: args.noBuild,
+          grantPermissions: args.grantPermissions || undefined,
+          recordVideo: args.recordVideo,
         };
 
         if (scenarioIsDir && args.scenario) {

@@ -9,6 +9,8 @@ export interface SessionInfo {
   dir: string;
   screenshotsDir: string;
   appMapDir: string;
+  /** M11: 비디오 녹화 파일 저장 디렉토리 */
+  videosDir: string;
   sessionId: string;
 }
 
@@ -51,9 +53,11 @@ export function createSessionDir(outDir: string): SessionInfo {
 
   const screenshotsDir = path.join(dir, "screenshots");
   const appMapDir = path.join(dir, "appmap");
+  const videosDir = path.join(dir, "videos");
 
   fs.mkdirSync(screenshotsDir, { recursive: true });
   fs.mkdirSync(appMapDir, { recursive: true });
+  // videosDir는 recordVideo=true일 때만 생성 — session 생성 시에는 경로만 계산
 
-  return { dir, screenshotsDir, appMapDir, sessionId };
+  return { dir, screenshotsDir, appMapDir, videosDir, sessionId };
 }

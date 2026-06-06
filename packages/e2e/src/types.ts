@@ -80,6 +80,28 @@ export interface RunE2eTestOptions {
    * false로 설정하면 크래시가 있어도 에이전트 outcome을 그대로 유지한다.
    */
   failOnCrash?: boolean;
+  /**
+   * M11: 이전 빌드 캐시를 재사용할지 여부. 기본값 false.
+   * true이면 소스 핑거프린트가 일치하고 artifact가 fresh할 때 빌드를 스킵한다.
+   * 불일치 시 자동 재빌드.
+   */
+  reuseBuild?: boolean;
+  /**
+   * M11: 빌드를 전혀 수행하지 않는다. 기본값 false.
+   * true이면 캐시 히트 + fresh artifact가 있을 때만 진행. 없으면 ARTIFACT_NOT_FOUND 에러.
+   */
+  noBuild?: boolean;
+  /**
+   * M11: 시나리오의 permissions[]를 디바이스에 자동 grant할지 여부.
+   * 기본값: 시나리오에 permissions 선언이 있으면 자동 true, 명시 false이면 끔.
+   */
+  grantPermissions?: boolean;
+  /**
+   * M11: 비디오 녹화 여부. 기본값 false.
+   * true이면 앱 실행 후 screenrecord(Android) / simctl recordVideo(iOS)를 시작한다.
+   * 녹화 실패는 비차단 — 테스트 결과에 영향 없음.
+   */
+  recordVideo?: boolean;
 }
 
 // ── AgentKind ─────────────────────────────────────────────────────────────
@@ -130,6 +152,8 @@ export interface E2eTestResult {
     unvisitedScreenIds: string[];
     coverageRatio: number;
   };
+  /** M11: 녹화 비디오 파일 경로 목록 (recordVideo=true일 때) */
+  videos?: string[];
 }
 
 export interface E2eStep {
