@@ -5,7 +5,7 @@
  * 떨어뜨리는 것을 활용한다.
  */
 
-export type MapElementRole = "ad" | "dynamic-content" | "list-item" | "media" | "webview";
+import type { MapElementRole } from "./schema.js";
 
 export interface ElementRoleInfo {
   dynamic?: boolean;

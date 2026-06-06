@@ -1,4 +1,5 @@
 import type { AppMap, ScreenNode, NavigationEdge, ElementStyle, Bounds, MapElement } from "./schema.js";
+import { INTERACTIVE_TYPES } from "./assemble.js";
 
 // ── 출력 타입 ─────────────────────────────────────────────────────────
 
@@ -57,7 +58,8 @@ function escapeMarkdownCell(value: string): string {
  */
 function formatElementRole(elem: MapElement): string {
   if (!elem.role) return "-";
-  const source = elem.dynamicSource ? escapeMarkdownCell(elem.dynamicSource) : "-";
+  // source는 raw 값 유지 — 최종 조립 문자열에 escapeMarkdownCell 1회만 적용
+  const source = elem.dynamicSource ?? "-";
   if (elem.role === "ad") {
     return escapeMarkdownCell(`⚠ ad (${source}) — 탭 회피`);
   }
@@ -231,8 +233,9 @@ function renderScreenSection(
   }
 
   // 요소 테이블 — interactive + 광고/동적 노드 (role 있는 것) 포함
+  // INTERACTIVE_TYPES는 assemble.ts와 공유 (Button/Input/List/Image/Icon)
   const displayElements = screen.elements.filter((e) =>
-    ["Button", "Input", "List", "Image"].includes(e.type) || e.role !== undefined
+    INTERACTIVE_TYPES.has(e.type as Parameters<typeof INTERACTIVE_TYPES.has>[0]) || e.role !== undefined
   );
 
   if (displayElements.length > 0) {

@@ -891,4 +891,65 @@ describe("renderAppMapMarkdown — 역할 컬럼 (M2)", () => {
       expect(row.endsWith("|")).toBe(true);
     }
   });
+
+  // ── [수정 1] formatElementRole 이중 이스케이프 버그 회귀 테스트 ──────
+
+  it("dynamicSource='Ad|Widget' → 역할 셀에 이스케이프가 1회만 적용된다 (백슬래시 1개)", () => {
+    // 이중 이스케이프 버그: escapeMarkdownCell(dynamicSource) 후 전체 문자열에 다시 escape →
+    // "Ad|Widget" → 1차: "Ad\\|Widget", 2차: "Ad\\\\\\|Widget" (잘못된 이중)
+    // 수정 후: raw 값을 한 번만 escape → "Ad\\|Widget" (백슬래시 1개)
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          title: "Home",
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [
+            {
+              type: "Unknown" as const,
+              role: "ad",
+              dynamic: true,
+              dynamicSource: "Ad|Widget",
+            },
+          ],
+          outgoing: [],
+        },
+      ],
+      edges: [],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs.map((d) => d.content).join("\n");
+    // 셀 안에 "Ad\|Widget" (백슬래시 정확히 1개)가 있어야 한다
+    expect(content).toContain("Ad\\|Widget");
+    // 이중 이스케이프된 "Ad\\\\|" 또는 "Ad\\\\\\|" 형태가 없어야 한다
+    expect(content).not.toContain("Ad\\\\");
+  });
+
+  // ── [수정 4] Icon 타입이 displayElements 필터에 포함되는지 ─────────────
+
+  it("Icon 타입 요소가 UI 요소 테이블에 렌더된다", () => {
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          title: "Home",
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [
+            { type: "Icon" as const, label: "settings_icon" },
+          ],
+          outgoing: [],
+        },
+      ],
+      edges: [],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs.map((d) => d.content).join("\n");
+    // Icon 행이 테이블에 나타나야 한다
+    expect(content).toContain("Icon");
+    expect(content).toContain("settings_icon");
+  });
 });

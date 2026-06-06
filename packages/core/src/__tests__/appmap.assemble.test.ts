@@ -1105,6 +1105,128 @@ describe("collectElements — 광고/동적 노드 태깅", () => {
     expect(dynElem?.dynamic).toBe(true);
   });
 
+  // ── [수정 2] 광고/Unknown 노드가 트리거 매칭 후보에서 제외되는지 ──────
+
+  it("같은 파일 ±1행에 광고 Unknown(sourceRef 있음)과 Button이 있을 때 Button이 매칭된다", () => {
+    // 광고 Unknown 노드가 ±2 TOL 안에 있어도 매칭 후보에서 제외돼야 함
+    const irDoc: IRDocument = {
+      schemaVersion: "1",
+      screen: {
+        id: "S",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          children: [
+            // 광고 노드: ±0행 (완전 일치) — 매칭 우선순위에서 제외돼야 함
+            {
+              type: "Unknown",
+              confidence: 0.3,
+              role: "component:GADBannerView",
+              sourceRef: { file: "lib/home.dart", line: 42 },
+            },
+            // 버튼: ±1행 — 광고보다 멀지만 비광고이므로 선택돼야 함
+            {
+              type: "Button",
+              confidence: 1.0,
+              text: { value: "Go" },
+              sourceRef: { file: "lib/home.dart", line: 43 },
+            },
+          ],
+        },
+      },
+      diagnostics: [],
+    };
+
+    const navGraph: NavigationGraph = {
+      entryScreenId: "S",
+      edges: [
+        {
+          from: "S",
+          to: null,
+          action: "push",
+          trigger: {
+            kind: "button",
+            label: "Go",
+            elementRef: { file: "lib/home.dart", line: 42 },
+          },
+          confidence: 1.0,
+          diagnostics: [],
+        },
+      ],
+      diagnostics: [],
+    };
+
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [{ id: "S", discovery: "route", confidence: 1.0 }],
+      navGraph,
+      irDocs: [irDoc],
+    });
+
+    // Button이 매칭돼야 하므로 trigger.style 없이도 TRIGGER_UNMATCHED는 없어야 함
+    // (광고가 아닌 Button이 ±1 TOL 안에 있으므로)
+    const edge = appMap.edges[0];
+    expect(edge?.diagnostics.find((d) => d.code === "TRIGGER_UNMATCHED")).toBeUndefined();
+  });
+
+  it("광고 Unknown 노드만 있고 Button이 없으면 TRIGGER_UNMATCHED가 발생한다", () => {
+    // 광고 노드는 매칭 후보에서 제외 → elements에 적합 후보 없음 → TRIGGER_UNMATCHED
+    const irDoc: IRDocument = {
+      schemaVersion: "1",
+      screen: {
+        id: "S",
+        discovery: "route",
+        confidence: 1.0,
+        root: {
+          type: "Box",
+          confidence: 1.0,
+          children: [
+            {
+              type: "Unknown",
+              confidence: 0.3,
+              role: "component:GADBannerView",
+              sourceRef: { file: "lib/home.dart", line: 42 },
+            },
+          ],
+        },
+      },
+      diagnostics: [],
+    };
+
+    const navGraph: NavigationGraph = {
+      entryScreenId: "S",
+      edges: [
+        {
+          from: "S",
+          to: null,
+          action: "push",
+          trigger: {
+            kind: "button",
+            label: "AdTrigger",
+            elementRef: { file: "lib/home.dart", line: 42 },
+          },
+          confidence: 1.0,
+          diagnostics: [],
+        },
+      ],
+      diagnostics: [],
+    };
+
+    const appMap = assembleAppMap({
+      appName: "App",
+      framework: "flutter",
+      screens: [{ id: "S", discovery: "route", confidence: 1.0 }],
+      navGraph,
+      irDocs: [irDoc],
+    });
+
+    const edge = appMap.edges[0];
+    expect(edge?.diagnostics.find((d) => d.code === "TRIGGER_UNMATCHED")).toBeDefined();
+  });
+
   it("광고 노드가 있어도 전체 elements 배열 구조가 AppMapSchema를 통과한다", () => {
     const irDoc: IRDocument = {
       schemaVersion: "1",

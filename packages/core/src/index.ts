@@ -55,7 +55,7 @@ export type {
 } from "./appmap/schema.js";
 
 export { classifyElementRole } from "./appmap/adDetection.js";
-export type { ElementRoleInfo, MapElementRole as AdDetectionRole } from "./appmap/adDetection.js";
+export type { ElementRoleInfo } from "./appmap/adDetection.js";
 
 export { assembleAppMap, matchElement, extractElementStyle } from "./appmap/assemble.js";
 export type { AssembleOptions, ScreenSummary as AppMapScreenSummary } from "./appmap/assemble.js";
