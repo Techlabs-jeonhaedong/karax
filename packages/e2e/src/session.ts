@@ -8,6 +8,7 @@ import path from "path";
 export interface SessionInfo {
   dir: string;
   screenshotsDir: string;
+  appMapDir: string;
   sessionId: string;
 }
 
@@ -23,8 +24,10 @@ export function createSessionDir(outDir: string): SessionInfo {
 
   const dir = path.join(outDir, sessionId);
   const screenshotsDir = path.join(dir, "screenshots");
+  const appMapDir = path.join(dir, "appmap");
 
   fs.mkdirSync(screenshotsDir, { recursive: true });
+  fs.mkdirSync(appMapDir, { recursive: true });
 
-  return { dir, screenshotsDir, sessionId };
+  return { dir, screenshotsDir, appMapDir, sessionId };
 }

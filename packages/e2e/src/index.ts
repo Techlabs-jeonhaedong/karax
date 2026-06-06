@@ -24,6 +24,8 @@ import { runAgent } from "./agent/runner.js";
 import { writeReport } from "./report/write.js";
 import type { E2eReport } from "./report/schema.js";
 import { sanitizeScreenshotPath } from "./report/sanitize.js";
+import { generateAppMapForSession } from "./appmap/sessionAppMap.js";
+import { summarizeAppMap, renderSummaryForPrompt } from "./appmap/promptSummary.js";
 
 export type { RunE2eTestOptions, E2eTestResult, Platform };
 export { E2eError, E2E_ERROR_CODES } from "./types.js";
@@ -84,9 +86,17 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     const deviceInfo = await deviceManager.ensureBooted(deviceId);
     boostedByUs = true;
 
-    // 빌드
+    // 빌드 + AppMap 생성 병렬 실행 (AppMap 실패는 비차단)
     const builder = selectBuilder(framework, platform);
-    const buildResult = await builder.build(projectPath);
+    const [buildResult, sessionAppMap] = await Promise.all([
+      builder.build(projectPath),
+      generateAppMapForSession({
+        projectPath,
+        framework,
+        platform,
+        appMapDir: session.appMapDir,
+      }).catch(() => null),
+    ]);
 
     // 설치
     await deviceManager.install(deviceInfo.id, buildResult.artifactPath);
@@ -94,6 +104,16 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     // 실행
     const resolvedAppId = scenario.appId ?? buildResult.appId;
     await deviceManager.launch(deviceInfo.id, resolvedAppId);
+
+    // AppMap 요약 생성 (있는 경우)
+    let appMapSection: string | undefined;
+    if (sessionAppMap) {
+      const summary = summarizeAppMap(sessionAppMap.appMap);
+      appMapSection = renderSummaryForPrompt(summary, {
+        markdownIndexPath: sessionAppMap.markdownIndexPath,
+        appMapJsonPath: sessionAppMap.appMapJsonPath,
+      });
+    }
 
     // 에이전트 프롬프트 생성
     const prompt = buildAgentPrompt({
@@ -104,6 +124,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       maxSteps,
       exploratory: scenario.exploratory,
       scenarioBody: scenario.exploratory ? undefined : scenario.body,
+      ...(appMapSection !== undefined ? { appMapSection } : {}),
     });
 
     // 에이전트 호출 인수 구성
@@ -158,6 +179,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       screenshotsDir: session.screenshotsDir,
       summary: agentResult.summary,
       steps: sanitizedSteps,
+      ...(sessionAppMap ? { appMapDir: session.appMapDir } : {}),
     };
   } catch (e) {
     // 인프라 에러 → outcome: "error"로 리포트 작성

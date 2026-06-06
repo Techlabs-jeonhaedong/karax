@@ -33,19 +33,30 @@ vi.mock("@karax/doctor", () => ({
   detectAndroidSdkPath: vi.fn().mockResolvedValue("/sdk"),
 }));
 
+// AppMap 생성 mock (sessionAppMap 모듈)
+vi.mock("../appmap/sessionAppMap.js", () => ({
+  generateAppMapForSession: vi.fn(),
+}));
+
 import { createDeviceManager } from "../device/index.js";
 import { selectBuilder } from "../build/index.js";
 import { runAgent } from "../agent/runner.js";
+import { buildAgentPrompt } from "../agent/prompt.js";
+import { generateAppMapForSession } from "../appmap/sessionAppMap.js";
 import { runE2eTest } from "../index.js";
 
 const mockCreateDeviceManager = vi.mocked(createDeviceManager);
 const mockSelectBuilder = vi.mocked(selectBuilder);
 const mockRunAgent = vi.mocked(runAgent);
+const mockBuildAgentPrompt = vi.mocked(buildAgentPrompt);
+const mockGenerateAppMapForSession = vi.mocked(generateAppMapForSession);
 
 let tmpDir: string;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // 기본값: AppMap 생성 실패(null 반환) — 각 테스트에서 필요 시 override
+  mockGenerateAppMapForSession.mockRejectedValue(new Error("AppMap 미설정"));
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-e2e-orch-test-"));
 });
 
@@ -166,6 +177,131 @@ describe("runE2eTest", () => {
     });
 
     expect(mockManager.shutdown).not.toHaveBeenCalled();
+  });
+
+  // ── AppMap 생성 + 프롬프트 주입 테스트 ─────────────────────────────────────
+
+  it("AppMap 생성 성공 시 프롬프트에 appMapSection이 전달된다", async () => {
+    const mockAppMap = {
+      schemaVersion: "appmap/2" as const,
+      appName: "TestApp",
+      framework: "flutter" as const,
+      entryScreenId: "home",
+      screens: [
+        {
+          id: "home",
+          title: "홈",
+          discovery: "route" as const,
+          isEntry: true,
+          confidence: 0.9,
+          elements: [{ type: "Button" as const, label: "시작" }],
+          outgoing: [],
+        },
+      ],
+      edges: [],
+      diagnostics: [],
+      overallConfidence: 0.9,
+    };
+
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+    mockGenerateAppMapForSession.mockResolvedValue({
+      appMap: mockAppMap,
+      appMapJsonPath: "/tmp/appmap/appmap.json",
+      markdownIndexPath: "/tmp/appmap/mockapp_map_1.md",
+      deviceProfileId: "pixel-8",
+    });
+
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    // buildAgentPrompt가 appMapSection과 함께 호출됐는지 확인
+    expect(mockBuildAgentPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ appMapSection: expect.any(String) })
+    );
+  });
+
+  it("AppMap 생성 실패 시 테스트가 계속 진행된다(비차단)", async () => {
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+    mockGenerateAppMapForSession.mockRejectedValue(new Error("AppMap 생성 실패"));
+
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    // 에러로 종료되지 않고 pass로 완료
+    expect(result.outcome).toBe("pass");
+  });
+
+  it("AppMap 생성 실패 시 buildAgentPrompt에 appMapSection이 없다", async () => {
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+    mockGenerateAppMapForSession.mockRejectedValue(new Error("실패"));
+
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    // appMapSection 없이 buildAgentPrompt 호출
+    const callArg = mockBuildAgentPrompt.mock.calls[0][0];
+    expect(callArg).not.toHaveProperty("appMapSection");
+  });
+
+  it("AppMap 성공 시 result에 appMapDir가 포함된다", async () => {
+    const mockAppMap = {
+      schemaVersion: "appmap/2" as const,
+      appName: "TestApp",
+      framework: "flutter" as const,
+      entryScreenId: null,
+      screens: [],
+      edges: [],
+      diagnostics: [],
+      overallConfidence: 0.5,
+    };
+
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+    mockGenerateAppMapForSession.mockResolvedValue({
+      appMap: mockAppMap,
+      appMapJsonPath: "/tmp/appmap/appmap.json",
+      markdownIndexPath: null,
+      deviceProfileId: "pixel-8",
+    });
+
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    expect(result.appMapDir).toBeDefined();
+  });
+
+  it("AppMap 실패 시 result에 appMapDir가 없다", async () => {
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+    mockGenerateAppMapForSession.mockRejectedValue(new Error("실패"));
+
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    expect(result.appMapDir).toBeUndefined();
   });
 
   it("path traversal 탈출 경로가 포함된 step은 screenshot 필드가 제거된다", async () => {

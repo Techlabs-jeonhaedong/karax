@@ -68,6 +68,8 @@ export interface E2eTestResult {
   screenshotsDir: string;
   summary: string;
   steps: E2eStep[];
+  /** AppMap이 생성된 경우 디렉토리 경로. 소비자 참고용 (없으면 undefined). */
+  appMapDir?: string;
 }
 
 export interface E2eStep {

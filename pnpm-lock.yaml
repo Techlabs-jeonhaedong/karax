@@ -311,6 +311,9 @@ importers:
       '@karax/adapter-api':
         specifier: workspace:*
         version: link:../adapter-api
+      '@karax/core':
+        specifier: workspace:*
+        version: link:../core
       '@karax/doctor':
         specifier: workspace:*
         version: link:../doctor
@@ -321,6 +324,9 @@ importers:
         specifier: ^3.22.0
         version: 3.25.76
     devDependencies:
+      '@karax/sdk':
+        specifier: workspace:*
+        version: link:../sdk
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
