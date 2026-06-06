@@ -22,17 +22,27 @@ export interface AppMapPromptSummary {
 const DEFAULT_MAX_SCREENS = 40;
 const DEFAULT_MAX_LABELS_PER_SCREEN = 10;
 const LABEL_MAX_LENGTH = 80;
+/**
+ * 이 값 이하일 때 renderSummaryForPrompt가 화면별 요소를 인라인으로 출력한다.
+ * DEFAULT_MAX_SCREENS(40)보다 작아야 한다 — 화면이 많을수록 프롬프트가 폭발적으로 커지므로.
+ */
+const INLINE_LABEL_MAX_SCREENS = 12;
 
 // ── 라벨 정제 ─────────────────────────────────────────────────────────────────
 
 /**
- * 앱 소스 유래 라벨에서 개행·백틱을 제거하고 80자로 절단한다.
+ * 앱 소스 유래 라벨에서 개행·백틱을 제거하고, 격리 경계 문자열(====)을 무력화한 뒤 80자로 절단한다.
  * 프롬프트 인젝션 1차 방어 (APPMAP 격리 블록과 이중 방어).
+ *
+ * - 개행 → 공백: 격리 블록 조기 탈출 방지
+ * - 4개 이상 연속 `=` → `==~`: `==== APPMAP END ====` 등 경계 시퀀스 무력화
+ * - 백틱 → 작은따옴표: 마크다운 코드 블록 탈출 방지
  */
 function sanitizeLabel(raw: string): string {
   return raw
-    .replace(/[\r\n]/g, " ")    // 개행 → 공백
-    .replace(/`/g, "'")          // 백틱 → 작은따옴표
+    .replace(/[\r\n]/g, " ")       // 개행 → 공백
+    .replace(/={4,}/g, "==~")      // 4개 이상 = 연속 → 경계 시퀀스 무력화
+    .replace(/`/g, "'")             // 백틱 → 작은따옴표
     .slice(0, LABEL_MAX_LENGTH)
     .trim();
 }
@@ -109,15 +119,17 @@ function buildPathHint(
   path: BfsPathStep[],
   screenTitleMap: Map<string, string | undefined>
 ): string {
+  const entryLabel = sanitizeLabel(screenTitleMap.get(entryId) ?? entryId);
+
   if (path.length === 0) {
     // 진입점 자체
-    return screenTitleMap.get(entryId) ?? entryId;
+    return entryLabel;
   }
 
-  const parts: string[] = [screenTitleMap.get(entryId) ?? entryId];
+  const parts: string[] = [entryLabel];
 
   for (const step of path) {
-    const screenLabel = screenTitleMap.get(step.screenId) ?? step.screenId;
+    const screenLabel = sanitizeLabel(screenTitleMap.get(step.screenId) ?? step.screenId);
     const triggerSuffix = step.triggerLabel
       ? `(버튼 '${sanitizeLabel(step.triggerLabel)}')`
       : `(${step.action})`;
@@ -145,19 +157,21 @@ export function summarizeAppMap(
   // BFS 경로 계산
   const bfsPaths = bfsAllPaths(appMap);
 
-  // navPaths 구성 (모든 화면)
+  // navPaths 구성 (모든 화면) — screenId·title 모두 정제
   const navPaths: AppMapPromptSummary["navPaths"] = appMap.screens.map((screen) => {
+    const safeId = sanitizeLabel(screen.id);
+    const safeTitle = screen.title !== undefined ? sanitizeLabel(screen.title) : undefined;
     const path = bfsPaths.get(screen.id);
     if (path === undefined) {
       return {
-        screenId: screen.id,
-        title: screen.title,
+        screenId: safeId,
+        title: safeTitle,
         pathHint: `(진입 경로 미발견 — 직접 탐색 필요)`,
       };
     }
     return {
-      screenId: screen.id,
-      title: screen.title,
+      screenId: safeId,
+      title: safeTitle,
       pathHint: buildPathHint(appMap.entryScreenId!, path, screenTitleMap),
     };
   });
@@ -183,8 +197,8 @@ export function summarizeAppMap(
     const adCount = screen.elements.filter((el) => el.role === "ad").length;
 
     return {
-      id: screen.id,
-      title: screen.title,
+      id: sanitizeLabel(screen.id),
+      title: screen.title !== undefined ? sanitizeLabel(screen.title) : undefined,
       interactiveLabels,
       adCount,
     };
@@ -192,7 +206,9 @@ export function summarizeAppMap(
 
   return {
     screenCount,
-    entryScreenId: appMap.entryScreenId,
+    entryScreenId: appMap.entryScreenId !== null
+      ? sanitizeLabel(appMap.entryScreenId)
+      : null,
     navPaths,
     screens,
     truncated,
@@ -220,8 +236,8 @@ export function renderSummaryForPrompt(
   }
   lines.push("");
 
-  // 화면별 상세 (screenCount ≤ 12인 경우만 라벨 인라인)
-  if (s.screenCount <= 12) {
+  // 화면별 상세 (screenCount ≤ INLINE_LABEL_MAX_SCREENS인 경우만 라벨 인라인)
+  if (s.screenCount <= INLINE_LABEL_MAX_SCREENS) {
     lines.push("### 화면별 요소");
     for (const screen of s.screens) {
       const adNote = screen.adCount > 0 ? ` ⚠ 이 화면에 광고 영역 ${screen.adCount}개 — 탭 회피` : "";
@@ -235,7 +251,7 @@ export function renderSummaryForPrompt(
       lines.push(`전체 지도 마크다운: ${paths.markdownIndexPath}`);
     }
   } else {
-    // 12 초과: 광고 경고만 포함
+    // INLINE_LABEL_MAX_SCREENS 초과: 광고 경고만 포함
     const screensWithAds = s.screens.filter((s) => s.adCount > 0);
     if (screensWithAds.length > 0) {
       lines.push("### 광고 영역 주의");
