@@ -251,6 +251,88 @@ describe("matchAppMapElement — none", () => {
 });
 
 // ──────────────────────────────────────────────────────────────
+// tiebreak — 빈 배열 계약 위반 (#1)
+// ──────────────────────────────────────────────────────────────
+
+describe("matchAppMapElement — bounds 0/음수 해상도 ScaleContext (#2)", () => {
+  it("appMapWidth=0 ScaleContext → method:none (NaN/Infinity 없이 결정론적)", () => {
+    const nodes = loadNodes("simple.xml");
+    const el: MapElement = {
+      type: "Button",
+      label: "존재안함xyz",
+      bounds: { x: 100, y: 200, width: 100, height: 50 },
+    };
+    const scale: ScaleContext = {
+      appMapWidth: 0,
+      appMapHeight: 915,
+      runtimeWidth: 1080,
+      runtimeHeight: 2400,
+    };
+    const result = matchAppMapElement(el, nodes, scale);
+    expect(result.method).toBe("none");
+    expect(Number.isFinite(result.score)).toBe(true);
+    expect(Number.isNaN(result.score)).toBe(false);
+  });
+
+  it("appMapHeight=0 ScaleContext → method:none (결정론적)", () => {
+    const nodes = loadNodes("simple.xml");
+    const el: MapElement = {
+      type: "Button",
+      label: "존재안함xyz",
+      bounds: { x: 100, y: 200, width: 100, height: 50 },
+    };
+    const scale: ScaleContext = {
+      appMapWidth: 412,
+      appMapHeight: 0,
+      runtimeWidth: 1080,
+      runtimeHeight: 2400,
+    };
+    const result = matchAppMapElement(el, nodes, scale);
+    expect(result.method).toBe("none");
+    expect(Number.isFinite(result.score)).toBe(true);
+    expect(Number.isNaN(result.score)).toBe(false);
+  });
+
+  it("runtimeWidth=0 ScaleContext → method:none (결정론적)", () => {
+    const nodes = loadNodes("simple.xml");
+    const el: MapElement = {
+      type: "Button",
+      label: "존재안함xyz",
+      bounds: { x: 100, y: 200, width: 100, height: 50 },
+    };
+    const scale: ScaleContext = {
+      appMapWidth: 412,
+      appMapHeight: 915,
+      runtimeWidth: 0,
+      runtimeHeight: 2400,
+    };
+    const result = matchAppMapElement(el, nodes, scale);
+    expect(result.method).toBe("none");
+    expect(Number.isFinite(result.score)).toBe(true);
+    expect(Number.isNaN(result.score)).toBe(false);
+  });
+
+  it("음수 해상도 ScaleContext → method:none (결정론적)", () => {
+    const nodes = loadNodes("simple.xml");
+    const el: MapElement = {
+      type: "Button",
+      label: "존재안함xyz",
+      bounds: { x: 100, y: 200, width: 100, height: 50 },
+    };
+    const scale: ScaleContext = {
+      appMapWidth: -100,
+      appMapHeight: -200,
+      runtimeWidth: -1080,
+      runtimeHeight: -2400,
+    };
+    const result = matchAppMapElement(el, nodes, scale);
+    expect(result.method).toBe("none");
+    expect(Number.isFinite(result.score)).toBe(true);
+    expect(Number.isNaN(result.score)).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────
 // locateLabel
 // ──────────────────────────────────────────────────────────────
 

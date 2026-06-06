@@ -54,12 +54,18 @@ const ENTITIES: Record<string, string> = {
 // ─────────────────────────────────────────────────────────────────
 
 function decodeEntities(s: string): string {
-  return s.replace(/&([^;]+);/g, (_, name: string) => {
+  return s.replace(/&([^;]+);/g, (match: string, name: string) => {
     if (name in ENTITIES) return ENTITIES[name];
-    // 숫자 엔티티
-    if (name.startsWith("#x")) return String.fromCharCode(parseInt(name.slice(2), 16));
-    if (name.startsWith("#")) return String.fromCharCode(parseInt(name.slice(1), 10));
-    return `&${name};`;
+    // 숫자 엔티티 — NaN이면 원문 그대로 반환 (NUL 변질 방지)
+    if (name.startsWith("#x")) {
+      const code = parseInt(name.slice(2), 16);
+      return Number.isNaN(code) ? match : String.fromCharCode(code);
+    }
+    if (name.startsWith("#")) {
+      const code = parseInt(name.slice(1), 10);
+      return Number.isNaN(code) ? match : String.fromCharCode(code);
+    }
+    return match;
   });
 }
 

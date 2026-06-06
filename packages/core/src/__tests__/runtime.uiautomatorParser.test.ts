@@ -210,6 +210,52 @@ describe("parseUiautomatorXml — 엣지 케이스", () => {
 });
 
 // ──────────────────────────────────────────────────────────────
+// decodeEntities — 잘못된 숫자 엔티티 NUL 변질 방지 (#3)
+// ──────────────────────────────────────────────────────────────
+
+describe("parseUiautomatorXml — 잘못된 숫자 엔티티 원문 보존 (#3)", () => {
+  it("&#xZZZZ; (잘못된 16진수) → 원문 그대로 보존", () => {
+    const xml = `<hierarchy rotation="0">
+      <node text="&#xZZZZ;" resource-id="" class="Foo" content-desc="" clickable="false" enabled="true" bounds="[0,0][1080,2400]" />
+    </hierarchy>`;
+    const tree = parseUiautomatorXml(xml);
+    expect(tree.root?.text).toBe("&#xZZZZ;");
+  });
+
+  it("&#ZZZZ; (잘못된 10진수) → 원문 그대로 보존", () => {
+    const xml = `<hierarchy rotation="0">
+      <node text="&#ZZZZ;" resource-id="" class="Foo" content-desc="" clickable="false" enabled="true" bounds="[0,0][1080,2400]" />
+    </hierarchy>`;
+    const tree = parseUiautomatorXml(xml);
+    expect(tree.root?.text).toBe("&#ZZZZ;");
+  });
+
+  it("&#x41; (정상 16진수 'A') → 'A'로 디코딩", () => {
+    const xml = `<hierarchy rotation="0">
+      <node text="&#x41;" resource-id="" class="Foo" content-desc="" clickable="false" enabled="true" bounds="[0,0][1080,2400]" />
+    </hierarchy>`;
+    const tree = parseUiautomatorXml(xml);
+    expect(tree.root?.text).toBe("A");
+  });
+
+  it("&#65; (정상 10진수 'A') → 'A'로 디코딩", () => {
+    const xml = `<hierarchy rotation="0">
+      <node text="&#65;" resource-id="" class="Foo" content-desc="" clickable="false" enabled="true" bounds="[0,0][1080,2400]" />
+    </hierarchy>`;
+    const tree = parseUiautomatorXml(xml);
+    expect(tree.root?.text).toBe("A");
+  });
+
+  it("NUL 문자(\\x00)가 text에 없어야 함 — 잘못된 엔티티가 NUL로 변질되지 않음", () => {
+    const xml = `<hierarchy rotation="0">
+      <node text="&#xZZZZ;" resource-id="" class="Foo" content-desc="" clickable="false" enabled="true" bounds="[0,0][1080,2400]" />
+    </hierarchy>`;
+    const tree = parseUiautomatorXml(xml);
+    expect(tree.root?.text).not.toContain("\x00");
+  });
+});
+
+// ──────────────────────────────────────────────────────────────
 // flattenInteractive
 // ──────────────────────────────────────────────────────────────
 

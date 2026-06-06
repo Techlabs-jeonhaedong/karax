@@ -185,6 +185,15 @@ export function matchAppMapElement(
 
   // ── 4. bounds 비례 스케일링 ──
   if (el.bounds && scale) {
+    // 0 또는 음수 해상도면 나눗셈 계산이 무의미하므로 스킵
+    if (
+      scale.appMapWidth <= 0 ||
+      scale.appMapHeight <= 0 ||
+      scale.runtimeWidth <= 0 ||
+      scale.runtimeHeight <= 0
+    ) {
+      return none;
+    }
     const center = toRuntimeCenter(el, scale);
     if (center) {
       const diag = diagonal(scale);
@@ -207,13 +216,19 @@ export function matchAppMapElement(
   return none;
 }
 
-/** 동점 후보들 중 bounds 스케일 근접도로 타이브레이크 */
+/**
+ * 동점 후보들 중 bounds 스케일 근접도로 타이브레이크
+ *
+ * @param candidates 길이 ≥ 1을 보장해야 한다. 빈 배열을 넘기면 throw.
+ */
 function tiebreak(
   candidates: RuntimeNode[],
   el: MapElement,
   scale?: ScaleContext
 ): { node: RuntimeNode; ambiguous?: boolean } {
-  if (candidates.length === 0) return { node: candidates[0] };
+  if (candidates.length === 0) {
+    throw new Error("tiebreak: candidates must have at least one element");
+  }
 
   if (el.bounds && scale) {
     const center = toRuntimeCenter(el, scale);
