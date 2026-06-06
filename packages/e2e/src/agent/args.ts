@@ -80,14 +80,14 @@ export function buildAgentInvocation(
       }
 
       // screenshotsDir 있으면 스코프 제한 Read 허용
-      // VERIFY: claude CLI --allowedTools에 스코프 Read 구문("Read(//<path>/**)") 동작 확인 필요.
-      //   - 권한 규칙 구문: Read(//<절대경로>/**) — // 프리픽스 사용
-      //   - 다중 툴: --allowedTools "Bash" --allowedTools "Read(//<path>/**)" 형식(각각 별도 argv 요소)
-      //   - 실패 시 폴백: assertSafePathArg throw로 screenshotsDir 검증 실패 시 Read 없이 Bash만
+      // VERIFIED (2026-06-06, 실 claude CLI 실험): 아래 형식 모두 동작 확인됨.
+      //   - 반복 --allowedTools 플래그는 누적됨 (Bash 유지: bash=BASH_OK)
+      //   - Read(//{절대경로}/**) — 절대경로가 /로 시작해 슬래시 3개가 되어도 정상 매칭
+      //   - 스코프 실효: 범위 안 파일 읽힘, 범위 밖 파일 DENIED 확인
+      //   - 단, Bash 자체는 경로 스코프 불가 — Read 표면 최소화 목적의 방어선임
       const allowedToolsArgs: string[] = ["--allowedTools", "Bash"];
       if (opts.screenshotsDir !== undefined) {
         assertSafePathArg(opts.screenshotsDir);
-        // // VERIFY: --allowedTools "Read(//<path>/**)" 형식으로 각각 별도 argv 요소 전달
         allowedToolsArgs.push("--allowedTools", `Read(//${opts.screenshotsDir}/**)`);
       }
 
