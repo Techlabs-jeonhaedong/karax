@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   AppMapSchema,
+  AppMapReadSchema,
   NavigationEdgeSchema,
   ScreenNodeSchema,
   NavigationGraphSchema,
@@ -201,9 +202,9 @@ describe("AppMap schema", () => {
   });
 
   describe("AppMapSchema", () => {
-    it("최소한의 유효한 AppMap을 파싱한다", () => {
+    it("최소한의 유효한 AppMap을 파싱한다 (appmap/2)", () => {
       const appMap = {
-        schemaVersion: "appmap/1",
+        schemaVersion: "appmap/2",
         appName: "TestApp",
         framework: "flutter",
         entryScreenId: "HomeScreen",
@@ -222,13 +223,57 @@ describe("AppMap schema", () => {
         overallConfidence: 1.0,
       };
       const result = AppMapSchema.parse(appMap);
-      expect(result.schemaVersion).toBe("appmap/1");
+      expect(result.schemaVersion).toBe("appmap/2");
       expect(result.appName).toBe("TestApp");
+    });
+
+    it("appmap/1을 AppMapSchema로 파싱하면 에러를 던진다 (발행 버전은 appmap/2)", () => {
+      const legacyAppMap = {
+        schemaVersion: "appmap/1",
+        appName: "LegacyApp",
+        framework: "flutter",
+        entryScreenId: null,
+        screens: [],
+        edges: [],
+        diagnostics: [],
+        overallConfidence: 0,
+      };
+      expect(() => AppMapSchema.parse(legacyAppMap)).toThrow();
+    });
+
+    it("appmap/1을 AppMapReadSchema로 파싱할 수 있다 (하위호환)", () => {
+      const legacyAppMap = {
+        schemaVersion: "appmap/1",
+        appName: "LegacyApp",
+        framework: "flutter",
+        entryScreenId: null,
+        screens: [],
+        edges: [],
+        diagnostics: [],
+        overallConfidence: 0,
+      };
+      const result = AppMapReadSchema.parse(legacyAppMap);
+      expect(result.schemaVersion).toBe("appmap/1");
+    });
+
+    it("appmap/2를 AppMapReadSchema로도 파싱할 수 있다", () => {
+      const appMap = {
+        schemaVersion: "appmap/2",
+        appName: "NewApp",
+        framework: "flutter",
+        entryScreenId: null,
+        screens: [],
+        edges: [],
+        diagnostics: [],
+        overallConfidence: 0,
+      };
+      const result = AppMapReadSchema.parse(appMap);
+      expect(result.schemaVersion).toBe("appmap/2");
     });
 
     it("빈 화면 목록(NAV_UNSUPPORTED 시나리오)도 유효하다", () => {
       const appMap = {
-        schemaVersion: "appmap/1",
+        schemaVersion: "appmap/2",
         appName: "EmptyApp",
         framework: "flutter",
         entryScreenId: null,

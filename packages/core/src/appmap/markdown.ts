@@ -1,4 +1,4 @@
-import type { AppMap, ScreenNode, NavigationEdge, ElementStyle, Bounds } from "./schema.js";
+import type { AppMap, ScreenNode, NavigationEdge, ElementStyle, Bounds, MapElement } from "./schema.js";
 
 // ── 출력 타입 ─────────────────────────────────────────────────────────
 
@@ -45,6 +45,23 @@ function escapeMarkdownCell(value: string): string {
     .replace(/`/g, "\\`")
     .replace(/\[/g, "\\[")
     .replace(/\]/g, "\\]");
+}
+
+// ── 역할 포맷 헬퍼 ────────────────────────────────────────────────────
+
+/**
+ * MapElement의 역할 컬럼 문자열을 생성한다.
+ * - role:"ad" → `⚠ ad (위젯명)` 형태로 명확하게 광고 표기 (에이전트가 탭 회피 인지)
+ * - 그 외 role → `역할명 (위젯명 또는 -)`
+ * - role 없음 → `-`
+ */
+function formatElementRole(elem: MapElement): string {
+  if (!elem.role) return "-";
+  const source = elem.dynamicSource ? escapeMarkdownCell(elem.dynamicSource) : "-";
+  if (elem.role === "ad") {
+    return escapeMarkdownCell(`⚠ ad (${source}) — 탭 회피`);
+  }
+  return escapeMarkdownCell(`${elem.role} (${source})`);
 }
 
 // ── bounds / style 포맷 헬퍼 ─────────────────────────────────────────
@@ -213,20 +230,21 @@ function renderScreenSection(
     lines.push(`**정의 위치**: \`${screen.sourceRef.file}\`${screen.sourceRef.line ? `:${screen.sourceRef.line}` : ""}`);
   }
 
-  // 요소 테이블
-  const interactiveElements = screen.elements.filter((e) =>
-    ["Button", "Input", "List", "Image"].includes(e.type)
+  // 요소 테이블 — interactive + 광고/동적 노드 (role 있는 것) 포함
+  const displayElements = screen.elements.filter((e) =>
+    ["Button", "Input", "List", "Image"].includes(e.type) || e.role !== undefined
   );
 
-  if (interactiveElements.length > 0) {
+  if (displayElements.length > 0) {
     lines.push("\n**UI 요소**:");
-    lines.push("| 타입 | 라벨 | 위치 | 크기 | 스타일 |");
-    lines.push("|------|------|------|------|--------|");
-    for (const elem of interactiveElements) {
+    lines.push("| 타입 | 라벨 | 역할 | 위치 | 크기 | 스타일 |");
+    lines.push("|------|------|------|------|------|--------|");
+    for (const elem of displayElements) {
       const pos = escapeMarkdownCell(formatPosition(elem.bounds));
       const size = escapeMarkdownCell(formatSize(elem.bounds));
       const style = escapeMarkdownCell(formatStyle(elem.style));
-      lines.push(`| ${escapeMarkdownCell(elem.type)} | ${escapeMarkdownCell(elem.label ?? "-")} | ${pos} | ${size} | ${style} |`);
+      const roleCell = formatElementRole(elem);
+      lines.push(`| ${escapeMarkdownCell(elem.type)} | ${escapeMarkdownCell(elem.label ?? "-")} | ${roleCell} | ${pos} | ${size} | ${style} |`);
     }
   }
 

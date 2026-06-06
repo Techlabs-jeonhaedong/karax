@@ -32,23 +32,30 @@ export type { VariantDoc } from "./ir/expandVariants.js";
 
 export {
   AppMapSchema,
+  AppMapReadSchema,
   NavigationEdgeSchema,
   NavigationGraphSchema,
   ScreenNodeSchema,
   MapElementSchema,
+  MapElementRoleSchema,
   TriggerInfoSchema,
   DiagnosticEntrySchema,
   sanitizeAppName,
 } from "./appmap/schema.js";
 export type {
   AppMap,
+  AppMapRead,
   NavigationEdge,
   NavigationGraph,
   ScreenNode,
   MapElement,
+  MapElementRole,
   TriggerInfo,
   DiagnosticEntry as AppMapDiagnosticEntry,
 } from "./appmap/schema.js";
+
+export { classifyElementRole } from "./appmap/adDetection.js";
+export type { ElementRoleInfo, MapElementRole as AdDetectionRole } from "./appmap/adDetection.js";
 
 export { assembleAppMap, matchElement, extractElementStyle } from "./appmap/assemble.js";
 export type { AssembleOptions, ScreenSummary as AppMapScreenSummary } from "./appmap/assemble.js";

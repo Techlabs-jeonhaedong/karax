@@ -21,7 +21,7 @@ describe("generateAppMap — flutter-basic", () => {
       projectPath: path.join(FIXTURES, "flutter-basic"),
       framework: "flutter",
     });
-    expect(appMap.schemaVersion).toBe("appmap/1");
+    expect(appMap.schemaVersion).toBe("appmap/2");
     expect(appMap.framework).toBe("flutter");
     expect(Array.isArray(appMap.screens)).toBe(true);
     expect(appMap.screens.length).toBeGreaterThan(0);
@@ -45,7 +45,7 @@ describe("generateAppMap — react-native-basic", () => {
       projectPath: path.join(FIXTURES, "react-native-basic"),
       framework: "react-native",
     });
-    expect(appMap.schemaVersion).toBe("appmap/1");
+    expect(appMap.schemaVersion).toBe("appmap/2");
     expect(appMap.framework).toBe("react-native");
     expect(Array.isArray(appMap.screens)).toBe(true);
     expect(appMap.screens.length).toBeGreaterThan(0);
@@ -58,7 +58,7 @@ describe("generateAppMap — android-compose-basic", () => {
       projectPath: path.join(FIXTURES, "android-compose-basic"),
       framework: "android",
     });
-    expect(appMap.schemaVersion).toBe("appmap/1");
+    expect(appMap.schemaVersion).toBe("appmap/2");
     expect(appMap.framework).toBe("android");
     expect(Array.isArray(appMap.screens)).toBe(true);
     expect(appMap.screens.length).toBeGreaterThan(0);
@@ -72,7 +72,7 @@ describe("generateAppMap — ios-swiftui-basic", () => {
       projectPath: path.join(FIXTURES, "ios-swiftui-basic"),
       framework: "ios",
     });
-    expect(appMap.schemaVersion).toBe("appmap/1");
+    expect(appMap.schemaVersion).toBe("appmap/2");
     expect(appMap.framework).toBe("ios");
     expect(Array.isArray(appMap.screens)).toBe(true);
     expect(appMap.screens.length).toBeGreaterThan(0);
@@ -113,7 +113,7 @@ describe("generateAppMap — elements 채우기 (결함 2)", () => {
       framework: "flutter",
       mockSeed: 0,
     });
-    expect(appMap.schemaVersion).toBe("appmap/1");
+    expect(appMap.schemaVersion).toBe("appmap/2");
     // IR 빌드 실패 화면은 elements=[] 이고 전체는 계속 진행됨
     for (const screen of appMap.screens) {
       expect(Array.isArray(screen.elements)).toBe(true);
@@ -307,7 +307,7 @@ describe("generateAppMap — measureScreenLayouts 실패 시 graceful degradatio
 
       vi.doUnmock("@karax/renderer");
 
-      expect(appMap.schemaVersion).toBe("appmap/1");
+      expect(appMap.schemaVersion).toBe("appmap/2");
       expect(appMap.screens.length).toBeGreaterThan(0);
     },
     60_000,
@@ -412,7 +412,7 @@ describe("generateAppMap — write 오버로드 (작업 C-1)", () => {
     expect(result).toHaveProperty("documents");
     expect(result).toHaveProperty("writtenPaths");
     const r = result as import("../appMap.js").GenerateAppMapResult;
-    expect(r.appMap.schemaVersion).toBe("appmap/1");
+    expect(r.appMap.schemaVersion).toBe("appmap/2");
     expect(Array.isArray(r.documents)).toBe(true);
     expect(r.documents.length).toBeGreaterThanOrEqual(1);
     expect(Array.isArray(r.writtenPaths)).toBe(true);

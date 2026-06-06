@@ -1,5 +1,6 @@
 import type { AppMap, NavigationGraph, NavigationEdge, ScreenNode, MapElement, TriggerInfo, ElementStyle } from "./schema.js";
 import type { IRDocument, IRNode } from "../ir/schema.js";
+import { classifyElementRole } from "./adDetection.js";
 
 // ── 외부 의존 없이 사용할 수 있는 최소 타입 재정의 ─────────────────────
 
@@ -127,7 +128,11 @@ function collectElements(root: IRNode): MapElement[] {
   while (queue.length > 0) {
     const node = queue.shift()!;
 
-    if (INTERACTIVE_TYPES.has(node.type)) {
+    const adInfo = classifyElementRole({ type: node.type, role: node.role ?? null });
+    const isInteractive = INTERACTIVE_TYPES.has(node.type);
+
+    // INTERACTIVE 타입이거나 광고/동적 노드면 수집
+    if (isInteractive || adInfo !== null) {
       const label = node.text?.value ?? node.text?.token ?? findChildTextLabel(node);
       const style = extractElementStyle(node);
       results.push({
@@ -135,6 +140,9 @@ function collectElements(root: IRNode): MapElement[] {
         ...(label ? { label } : {}),
         ...(node.sourceRef ? { sourceRef: node.sourceRef as MapElement["sourceRef"] } : {}),
         ...(style ? { style } : {}),
+        ...(adInfo?.dynamic !== undefined ? { dynamic: adInfo.dynamic } : {}),
+        ...(adInfo?.role !== undefined ? { role: adInfo.role } : {}),
+        ...(adInfo?.dynamicSource !== undefined ? { dynamicSource: adInfo.dynamicSource } : {}),
       });
     }
 
@@ -238,7 +246,7 @@ export function assembleAppMap(opts: AssembleOptions): AppMap {
   }
 
   return {
-    schemaVersion: "appmap/1",
+    schemaVersion: "appmap/2",
     appName,
     framework,
     entryScreenId: navGraph.entryScreenId,

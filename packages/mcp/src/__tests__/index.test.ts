@@ -504,7 +504,7 @@ describe("MCP 서버 — generate_app_map tool (includeLayout 옵션)", () => {
 
     const parsed = JSON.parse(summaryText!.text);
     expect(parsed.appMap).toBeDefined();
-    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+    expect(parsed.appMap.schemaVersion).toBe("appmap/2");
 
     // includeLayout=false → 모든 element에 bounds가 없어야 한다
     for (const screen of parsed.appMap.screens) {
@@ -526,7 +526,7 @@ describe("MCP 서버 — generate_app_map tool (includeLayout 옵션)", () => {
 
     const contents = result.content as Array<{ type: string; text: string }>;
     const parsed = JSON.parse(contents[0]!.text);
-    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+    expect(parsed.appMap.schemaVersion).toBe("appmap/2");
   }, 60_000);
 
   it("includeLayout 미전달 시 AppMap 반환 (기본 동작)", async () => {
@@ -538,7 +538,7 @@ describe("MCP 서버 — generate_app_map tool (includeLayout 옵션)", () => {
     expect(result.isError).toBeFalsy();
     const contents = result.content as Array<{ type: string; text: string }>;
     const parsed = JSON.parse(contents[0]!.text);
-    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+    expect(parsed.appMap.schemaVersion).toBe("appmap/2");
   }, 60_000);
 });
 
@@ -572,7 +572,7 @@ describe("MCP 서버 — generate_app_map tool", () => {
 
     const parsed = JSON.parse(summaryText!.text);
     expect(parsed.appMap).toBeDefined();
-    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+    expect(parsed.appMap.schemaVersion).toBe("appmap/2");
     expect(Array.isArray(parsed.appMap.screens)).toBe(true);
     expect(parsed.appMap.screens.length).toBeGreaterThan(0);
     expect(typeof parsed.documentCount).toBe("number");
@@ -1139,7 +1139,7 @@ describe("MCP 서버 — generate_app_map 신규 파라미터 (작업 C-3)", () 
     expect(result.isError).toBeFalsy();
     const contents = result.content as Array<{ type: string; text: string }>;
     const parsed = JSON.parse(contents[0]!.text);
-    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+    expect(parsed.appMap.schemaVersion).toBe("appmap/2");
   }, 30_000);
 
   it("write=true + outDir → writtenPaths 반환, 문서 본문 미포함", async () => {
