@@ -62,3 +62,27 @@ export type { AssembleOptions, ScreenSummary as AppMapScreenSummary } from "./ap
 
 export { renderAppMapMarkdown } from "./appmap/markdown.js";
 export type { AppMapDocument, RenderOptions as AppMapRenderOptions } from "./appmap/markdown.js";
+
+export {
+  parseUiautomatorXml,
+  flattenInteractive,
+} from "./runtime/uiautomatorParser.js";
+export type {
+  RuntimeBounds,
+  RuntimeNode,
+  RuntimeUITree,
+} from "./runtime/uiautomatorParser.js";
+
+export {
+  normalizeLabel,
+  matchAppMapElement,
+  locateLabel,
+} from "./runtime/matchRuntime.js";
+export type {
+  ScaleContext,
+  MatchMethod,
+  ElementMatch,
+} from "./runtime/matchRuntime.js";
+
+export { identifyScreen } from "./runtime/whichScreen.js";
+export type { ScreenIdentification } from "./runtime/whichScreen.js";
