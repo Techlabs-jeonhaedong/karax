@@ -26,6 +26,7 @@ import type { E2eReport } from "./report/schema.js";
 import { sanitizeScreenshotPath } from "./report/sanitize.js";
 import { generateAppMapForSession } from "./appmap/sessionAppMap.js";
 import { summarizeAppMap, renderSummaryForPrompt } from "./appmap/promptSummary.js";
+import { computeBudget } from "./agent/budget.js";
 
 export type { RunE2eTestOptions, E2eTestResult, Platform };
 export { E2eError, E2E_ERROR_CODES } from "./types.js";
@@ -44,8 +45,6 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     apiKey,
     deviceId,
     outDir = "/tmp/karax-e2e-out",
-    timeoutMs = 900_000,
-    maxSteps = 20,
     keepBooted = false,
   } = opts;
 
@@ -110,6 +109,15 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     const resolvedAppId = scenario.appId ?? buildResult.appId;
     await deviceManager.launch(deviceInfo.id, resolvedAppId);
 
+    // AppMap 화면 수 기반 budget 자동 조정
+    const screenCount = sessionAppMap?.appMap.screens.length ?? 0;
+    const budget = computeBudget({
+      screenCount,
+      exploratory: scenario.exploratory,
+      userMaxSteps: opts.maxSteps,
+      userTimeoutMs: opts.timeoutMs,
+    });
+
     // AppMap 요약 생성 (있는 경우)
     let appMapSection: string | undefined;
     if (sessionAppMap) {
@@ -126,7 +134,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       deviceId: deviceInfo.id,
       appId: resolvedAppId,
       screenshotsDir: session.screenshotsDir,
-      maxSteps,
+      maxSteps: budget.maxSteps,
       exploratory: scenario.exploratory,
       scenarioBody: scenario.exploratory ? undefined : scenario.body,
       ...(appMapSection !== undefined ? { appMapSection } : {}),
@@ -134,10 +142,10 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     });
 
     // 에이전트 호출 인수 구성
-    const invocation = buildAgentInvocation(agent, { prompt, apiKey });
+    const invocation = buildAgentInvocation(agent, { prompt, apiKey, screenshotsDir: session.screenshotsDir });
 
     // 에이전트 실행
-    const agentResult = await runAgent(invocation, session.screenshotsDir, { timeoutMs });
+    const agentResult = await runAgent(invocation, session.screenshotsDir, { timeoutMs: budget.timeoutMs });
 
     const durationMs = Date.now() - startTime;
 

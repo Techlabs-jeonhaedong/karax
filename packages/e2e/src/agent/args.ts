@@ -12,6 +12,24 @@
  */
 
 import type { AgentKind, AgentInvocation, AgentRunOptions } from "./types.js";
+import { E2eError } from "../types.js";
+
+/**
+ * screenshotsDir 절대경로가 안전한지 검증한다.
+ * - 절대경로여야 한다 (슬래시로 시작)
+ * - 허용 문자: ^[A-Za-z0-9_./:\-]+$ (공백, 세미콜론, 백틱, 개행 등 금지)
+ *
+ * 위반 시 E2eError("INVALID_ARGUMENT")를 throw한다.
+ * screenshotsDir은 세션 코드가 생성한 신뢰 경로이므로, 위반은 버그 신호 — 안전 폴백 없이 throw.
+ */
+export function assertSafePathArg(dir: string): void {
+  if (!dir || !dir.startsWith("/") || !/^[A-Za-z0-9_./:@\-]+$/.test(dir)) {
+    throw new E2eError(
+      "INVALID_ARGUMENT",
+      `screenshotsDir가 유효하지 않습니다: "${dir}". 절대경로이고 안전 문자([A-Za-z0-9_./:-])만 허용됩니다.`
+    );
+  }
+}
 
 /**
  * 에이전트 서브프로세스에 전달할 최소 env를 구성한다.
@@ -60,6 +78,19 @@ export function buildAgentInvocation(
           env["ANTHROPIC_API_KEY"] = process.env["ANTHROPIC_API_KEY"];
         }
       }
+
+      // screenshotsDir 있으면 스코프 제한 Read 허용
+      // VERIFY: claude CLI --allowedTools에 스코프 Read 구문("Read(//<path>/**)") 동작 확인 필요.
+      //   - 권한 규칙 구문: Read(//<절대경로>/**) — // 프리픽스 사용
+      //   - 다중 툴: --allowedTools "Bash" --allowedTools "Read(//<path>/**)" 형식(각각 별도 argv 요소)
+      //   - 실패 시 폴백: assertSafePathArg throw로 screenshotsDir 검증 실패 시 Read 없이 Bash만
+      const allowedToolsArgs: string[] = ["--allowedTools", "Bash"];
+      if (opts.screenshotsDir !== undefined) {
+        assertSafePathArg(opts.screenshotsDir);
+        // // VERIFY: --allowedTools "Read(//<path>/**)" 형식으로 각각 별도 argv 요소 전달
+        allowedToolsArgs.push("--allowedTools", `Read(//${opts.screenshotsDir}/**)`);
+      }
+
       return {
         bin: "claude",
         args: [
@@ -67,8 +98,7 @@ export function buildAgentInvocation(
           opts.prompt,
           "--output-format",
           "json",
-          "--allowedTools",
-          "Bash",
+          ...allowedToolsArgs,
           // VERIFY: headless -p 모드에서 --allowedTools만으로 Bash 자동 허용 확인 필요.
           // --dangerously-skip-permissions 제거 — allowedTools 지정 도구만 허용하는 것이 더 제한적임.
         ],

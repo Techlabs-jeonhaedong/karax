@@ -27,6 +27,10 @@ vi.mock("../agent/args.js", () => ({
   buildAgentInvocation: vi.fn().mockReturnValue({ bin: "claude", args: [], env: {} }),
 }));
 
+vi.mock("../agent/budget.js", () => ({
+  computeBudget: vi.fn().mockReturnValue({ maxSteps: 20, timeoutMs: 900_000 }),
+}));
+
 vi.mock("../agent/prompt.js", () => ({
   buildAgentPrompt: vi.fn().mockReturnValue("test prompt"),
 }));
@@ -45,6 +49,7 @@ import { selectBuilder } from "../build/index.js";
 import { runAgent } from "../agent/runner.js";
 import { buildAgentPrompt } from "../agent/prompt.js";
 import { generateAppMapForSession } from "../appmap/sessionAppMap.js";
+import { computeBudget } from "../agent/budget.js";
 import { runE2eTest } from "../index.js";
 
 const mockCreateDeviceManager = vi.mocked(createDeviceManager);
@@ -52,6 +57,7 @@ const mockSelectBuilder = vi.mocked(selectBuilder);
 const mockRunAgent = vi.mocked(runAgent);
 const mockBuildAgentPrompt = vi.mocked(buildAgentPrompt);
 const mockGenerateAppMapForSession = vi.mocked(generateAppMapForSession);
+const mockComputeBudget = vi.mocked(computeBudget);
 
 let tmpDir: string;
 
@@ -383,6 +389,129 @@ describe("runE2eTest", () => {
 
     const callArg = mockBuildAgentPrompt.mock.calls[0][0];
     expect(callArg).not.toHaveProperty("appMapJsonPath");
+  });
+
+  // ── budget 자동 조정 ────────────────────────────────────────────────
+
+  describe("budget 자동 조정", () => {
+    it("AppMap 화면 수가 computeBudget에 전달된다", async () => {
+      const mockAppMap = {
+        schemaVersion: "appmap/2" as const,
+        appName: "TestApp",
+        framework: "flutter" as const,
+        entryScreenId: "home",
+        screens: [
+          { id: "s1", title: "홈", discovery: "route" as const, isEntry: true, confidence: 0.9, elements: [], outgoing: [] },
+          { id: "s2", title: "설정", discovery: "route" as const, isEntry: false, confidence: 0.9, elements: [], outgoing: [] },
+          { id: "s3", title: "프로필", discovery: "route" as const, isEntry: false, confidence: 0.9, elements: [], outgoing: [] },
+        ],
+        edges: [],
+        diagnostics: [],
+        overallConfidence: 0.9,
+      };
+
+      mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+      mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+      mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+      mockGenerateAppMapForSession.mockResolvedValue({
+        appMap: mockAppMap,
+        appMapJsonPath: "/tmp/appmap/appmap.json",
+        markdownIndexPath: null,
+        deviceProfileId: "pixel-8",
+      });
+      // budget mock: screenCount=3 exploratory=true → 기본값 20/900_000
+      mockComputeBudget.mockReturnValue({ maxSteps: 20, timeoutMs: 900_000 });
+
+      await runE2eTest({
+        projectPath: tmpDir,
+        platform: "android",
+        outDir: tmpDir,
+        appMapGenerator: vi.fn().mockResolvedValue({ appMap: mockAppMap, writtenPaths: [] }),
+        // maxSteps/timeoutMs 미전달 → computeBudget에 위임
+      });
+
+      // computeBudget이 호출됐어야 한다
+      expect(mockComputeBudget).toHaveBeenCalled();
+      // screenCount가 AppMap 화면 수(3)로 전달됐어야 한다
+      const callArg = mockComputeBudget.mock.calls[0][0];
+      expect(callArg.screenCount).toBe(3);
+    });
+
+    it("AppMap 없으면 screenCount=0으로 computeBudget이 호출된다", async () => {
+      mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+      mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+      mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+      mockComputeBudget.mockReturnValue({ maxSteps: 20, timeoutMs: 900_000 });
+
+      await runE2eTest({
+        projectPath: tmpDir,
+        platform: "android",
+        outDir: tmpDir,
+        // appMapGenerator 없음 → screenCount=0
+      });
+
+      expect(mockComputeBudget).toHaveBeenCalled();
+      const callArg = mockComputeBudget.mock.calls[0][0];
+      expect(callArg.screenCount).toBe(0);
+    });
+
+    it("사용자 명시 maxSteps/timeoutMs가 computeBudget에 전달된다", async () => {
+      mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+      mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+      mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+      mockComputeBudget.mockReturnValue({ maxSteps: 42, timeoutMs: 1_234_567 });
+
+      await runE2eTest({
+        projectPath: tmpDir,
+        platform: "android",
+        outDir: tmpDir,
+        maxSteps: 42,
+        timeoutMs: 1_234_567,
+      });
+
+      const callArg = mockComputeBudget.mock.calls[0][0];
+      expect(callArg.userMaxSteps).toBe(42);
+      expect(callArg.userTimeoutMs).toBe(1_234_567);
+    });
+
+    it("computeBudget 반환값이 runAgent timeout에 적용된다", async () => {
+      const mockBuildAgentInvocation = vi.mocked(
+        (await import("../agent/args.js")).buildAgentInvocation
+      );
+      const mockRunAgentFn = vi.mocked(runAgent);
+
+      mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+      mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+      mockRunAgentFn.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+      mockComputeBudget.mockReturnValue({ maxSteps: 35, timeoutMs: 1_500_000 });
+
+      await runE2eTest({
+        projectPath: tmpDir,
+        platform: "android",
+        outDir: tmpDir,
+      });
+
+      // runAgent의 3번째 인자 options.timeoutMs가 1_500_000이어야 한다
+      const runAgentCallArgs = mockRunAgentFn.mock.calls[0];
+      expect(runAgentCallArgs[2]).toMatchObject({ timeoutMs: 1_500_000 });
+    });
+
+    it("computeBudget 반환값 maxSteps가 buildAgentPrompt에 전달된다", async () => {
+      mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+      mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+      mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+      mockComputeBudget.mockReturnValue({ maxSteps: 55, timeoutMs: 900_000 });
+
+      await runE2eTest({
+        projectPath: tmpDir,
+        platform: "android",
+        outDir: tmpDir,
+      });
+
+      expect(mockBuildAgentPrompt).toHaveBeenCalledWith(
+        expect.objectContaining({ maxSteps: 55 })
+      );
+    });
   });
 
   it("path traversal 탈출 경로가 포함된 step은 screenshot 필드가 제거된다", async () => {
