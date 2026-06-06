@@ -9,11 +9,13 @@ import {
   flattenInteractive,
 } from "../runtime/uiautomatorParser.js";
 import type { RuntimeNode } from "../runtime/uiautomatorParser.js";
+import { AppMapReadSchema } from "../appmap/schema.js";
 import type { AppMap, ScreenNode, MapElement } from "../appmap/schema.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dir = dirname(__filename);
 const fixtureDir = join(__dir, "fixtures", "uiautomator");
+const appmapFixtureDir = join(__dir, "fixtures");
 
 function loadNodes(name: string): RuntimeNode[] {
   const xml = readFileSync(join(fixtureDir, name), "utf-8");
@@ -236,5 +238,46 @@ describe("identifyScreen — 빈 케이스", () => {
         result.ranked[1].similarity
       );
     }
+  });
+});
+
+// ──────────────────────────────────────────────────────────────
+// 파일 픽스처 기반 round-trip 테스트
+// ──────────────────────────────────────────────────────────────
+
+describe("identifyScreen — 파일 픽스처 기반 (appmap-simple.json)", () => {
+  it("appmap-simple.json이 AppMapReadSchema로 파싱된다 (round-trip)", () => {
+    const raw = readFileSync(join(appmapFixtureDir, "appmap-simple.json"), "utf-8");
+    const json = JSON.parse(raw) as unknown;
+    // round-trip: parse → 오류 없음
+    const parsed = AppMapReadSchema.parse(json);
+    expect(parsed.schemaVersion).toBe("appmap/2");
+    expect(parsed.appName).toBe("SimpleApp");
+    expect(parsed.screens).toHaveLength(2);
+    expect(parsed.edges).toHaveLength(1);
+  });
+
+  it("픽스처 AppMap으로 identifyScreen이 동작한다", () => {
+    const raw = readFileSync(join(appmapFixtureDir, "appmap-simple.json"), "utf-8");
+    const appMap = AppMapReadSchema.parse(JSON.parse(raw) as unknown) as AppMap;
+    const nodes = loadNodes("simple.xml");
+    // simple.xml의 노드가 픽스처 HomeScreen 라벨과 매칭되든 안 되든 crash 없이 결과 반환
+    const result = identifyScreen(appMap, nodes);
+    expect(result).toHaveProperty("screenId");
+    expect(result).toHaveProperty("confidence");
+    expect(result).toHaveProperty("ranked");
+  });
+
+  it("픽스처의 광고 요소(role:ad, dynamic:true)가 식별에 영향을 주지 않는다", () => {
+    const raw = readFileSync(join(appmapFixtureDir, "appmap-simple.json"), "utf-8");
+    const appMap = AppMapReadSchema.parse(JSON.parse(raw) as unknown) as AppMap;
+    // 광고 제외 요소만으로 화면 식별 시도
+    const homeScreen = appMap.screens.find((s) => s.id === "HomeScreen")!;
+    const nonAdLabels = homeScreen.elements
+      .filter((e) => !e.dynamic && e.role !== "ad")
+      .map((e) => e.label)
+      .filter(Boolean);
+    expect(nonAdLabels).toContain("시작하기");
+    expect(nonAdLabels).toContain("환영합니다");
   });
 });

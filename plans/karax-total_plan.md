@@ -79,7 +79,7 @@ runE2eTest(projectPath, platform, scenarioPath?)
 ### Wave 1 — AppMap을 테스트 런타임에 연결 (핵심 가치, G1·G3)
 
 #### M1. core 런타임 매칭 모듈 (신규 `packages/core/src/runtime/`)
-- **`uiautomatorParser.ts`**: uiautomator dump XML → `RuntimeUITree`. `RuntimeNode {text, resourceId, contentDesc, className, clickable, enabled, bounds{x1,y1,x2,y2}, children}`. bounds는 `/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/` 파싱, 루트 bounds로 디바이스 물리 해상도 역산. `flattenClickable()` 제공. (adapter-android의 정적 XML 파서는 레이어가 달라 재사용하지 않음 — 패턴만 차용, 외부 의존 0)
+- **`uiautomatorParser.ts`**: uiautomator dump XML → `RuntimeUITree`. `RuntimeNode {text, resourceId, contentDesc, className, clickable, enabled, bounds{x1,y1,x2,y2}, children}`. bounds는 `/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/` 파싱, 루트 bounds로 디바이스 물리 해상도 역산. `flattenInteractive()` 제공 (조건: clickable OR text OR contentDesc — 단순 clickable보다 넓은 조건으로 구현됨; 정오표: 문서의 `flattenClickable` 표기는 오기). (adapter-android의 정적 XML 파서는 레이어가 달라 재사용하지 않음 — 패턴만 차용, 외부 의존 0)
 - **`matchRuntime.ts`**: `matchAppMapElement(el, nodes, scale): ElementMatch`. 매칭 우선순위: ① label 정확(1.0) ② label 정규화(0.85: lowercase/trim/공백압축) ③ content-desc(0.75) ④ bounds 비례 스케일링(0.3~0.6: AppMap 논리좌표×(런타임해상도/프로파일해상도), 화면 대각선 15% 이내 근접도). 동명 라벨은 bounds로 타이브레이크 + `ambiguous` 플래그. `ScaleContext {appMapWidth/Height, runtimeWidth/Height}`.
 - **`whichScreen.ts`**: `identifyScreen(appMap, nodes)` — 런타임 라벨 집합 vs 화면별 요소 라벨 집합, `0.5*Jaccard + 0.5*recall` 유사도. `dynamic:true`/`role:"ad"` 요소는 집합에서 제외(광고 노이즈 내성). 1·2위 격차 작으면 confidence 하락. 0.3 미만이면 `screenId: null`.
 - **테스트**: `packages/core/src/__tests__/fixtures/uiautomator/*.xml` 픽스처 3종 + 대응 appmap JSON. 4개 매칭 경로 각각, 해상도 2종(1080×2400/1440×3120) 스케일 정확도, 깨진 XML graceful, 광고 노이즈 내성.

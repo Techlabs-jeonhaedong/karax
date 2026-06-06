@@ -175,8 +175,8 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       appMapPromise,
     ]);
 
-    // M11: 빌드 성공 후 캐시 기록 (noBuild=true이면서 캐시 히트인 경우 제외)
-    if (!noBuild || !readBuildCache(projectPath, platform)) {
+    // M11: 빌드 성공 후 캐시 기록 (noBuild=true이면 이 분기 자체에 도달 불가 — 위에서 throw)
+    if (!noBuild) {
       // fp가 이미 계산됐으면 재사용, 아니면 새로 계산
       const fpForWrite = fp ?? computeSourceFingerprint(projectPath, framework);
       try {

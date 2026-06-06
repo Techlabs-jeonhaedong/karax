@@ -385,6 +385,25 @@ describe("karax mcp install-config", () => {
   });
 });
 
+// ─── karax test --no-fail-on-crash 스모크 ─────────────────────────────
+// 실제 에뮬레이터 없이 CLI 옵션 등록 여부만 검증한다.
+// --no-fail-on-crash가 "unknown option"으로 거부되지 않아야 한다.
+// --platform 이후 바로 실패(에뮬레이터 없음)하므로 exit != 0이지만, stderr에
+// "unknown option"이 없어야 하는 게 핵심 조건이다.
+
+describe("karax test --no-fail-on-crash 스모크", () => {
+  it("--no-fail-on-crash가 unknown option 없이 통과한다", async () => {
+    if (!cliBuildExists) return;
+    const { stderr } = await runCli([
+      "test", "/tmp/fake-project",
+      "--platform", "android",
+      "--no-fail-on-crash",
+    ], 10_000);
+    // "unknown option" 이 stderr에 없어야 한다
+    expect(stderr).not.toMatch(/unknown option/i);
+  });
+});
+
 // ─── 알 수 없는 서브커맨드 ────────────────────────────────────────
 
 describe("알 수 없는 서브커맨드", () => {

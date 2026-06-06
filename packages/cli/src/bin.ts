@@ -503,6 +503,7 @@ program
   .option("--max-steps <n>", "에이전트 최대 스텝 수", "20")
   .option("--json", "JSON 형식으로 출력", false)
   .option("--keep-booted", "테스트 후 디바이스를 종료하지 않음", false)
+  .option("--no-fail-on-crash", "크래시 감지 시 fail 강등을 비활성화한다")
   .option("--reuse-build", "소스 핑거프린트 일치 시 이전 빌드를 재사용한다", false)
   .option("--no-build", "빌드를 수행하지 않고 캐시 artifact만 사용한다 (없으면 에러)")
   .option("--grant-permissions", "시나리오의 permissions[]를 자동으로 디바이스에 grant한다", false)
@@ -521,6 +522,7 @@ program
         maxSteps: string;
         json: boolean;
         keepBooted: boolean;
+        failOnCrash: boolean; // --no-fail-on-crash → opts.failOnCrash = false
         reuseBuild: boolean;
         build: boolean; // --no-build → opts.build = false
         grantPermissions: boolean;
@@ -540,6 +542,7 @@ program
           "--max-steps", opts.maxSteps,
           ...(opts.json ? ["--json"] : []),
           ...(opts.keepBooted ? ["--keep-booted"] : []),
+          ...(opts.failOnCrash === false ? ["--no-fail-on-crash"] : []),
           ...(opts.reuseBuild ? ["--reuse-build"] : []),
           ...(opts.build === false ? ["--no-build"] : []),
           ...(opts.grantPermissions ? ["--grant-permissions"] : []),

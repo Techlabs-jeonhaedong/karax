@@ -10,6 +10,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import type { AppMap } from "@karax/core";
+import { AppMapReadSchema } from "@karax/core";
 import type { AppMapGenerator } from "../appmap/sessionAppMap.js";
 import { generateAppMapForSession } from "../appmap/sessionAppMap.js";
 
@@ -220,5 +221,26 @@ describe("generateAppMapForSession", () => {
       device: "iphone-15",
       outDir: appMapDir,
     });
+  });
+
+  it("기록된 appmap.json이 AppMapReadSchema로 재파싱 가능하다 (round-trip)", async () => {
+    const appMapDir = path.join(tmpDir, "appmap");
+    fs.mkdirSync(appMapDir, { recursive: true });
+
+    const result = await generateAppMapForSession({
+      projectPath: tmpDir,
+      framework: "flutter",
+      platform: "android",
+      appMapDir,
+      generator: makeGenerator(),
+    });
+
+    const content = fs.readFileSync(result.appMapJsonPath, "utf-8");
+    const json = JSON.parse(content) as unknown;
+    // round-trip: AppMapReadSchema.parse가 throw하지 않아야 한다
+    expect(() => AppMapReadSchema.parse(json)).not.toThrow();
+    const parsed = AppMapReadSchema.parse(json);
+    expect(parsed.schemaVersion).toBe("appmap/2");
+    expect(parsed.appName).toBe("MockApp");
   });
 });

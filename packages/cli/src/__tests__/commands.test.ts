@@ -260,6 +260,28 @@ describe("parseTestArgs", () => {
     expect(result.grantPermissions).toBe(true);
     expect(result.recordVideo).toBe(true);
   });
+
+  // ── --no-fail-on-crash ─────────────────────────────────────────────
+
+  it("기본값: failOnCrash=true (--no-fail-on-crash 미지정 시)", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.failOnCrash).toBe(true);
+  });
+
+  it("--no-fail-on-crash 지정 시 failOnCrash=false", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--no-fail-on-crash"]);
+    expect(result.failOnCrash).toBe(false);
+  });
+
+  it("--no-fail-on-crash와 다른 플래그 동시 지정", () => {
+    const result = parseTestArgs([
+      "/proj", "--platform", "android",
+      "--no-fail-on-crash", "--keep-booted", "--json",
+    ]);
+    expect(result.failOnCrash).toBe(false);
+    expect(result.keepBooted).toBe(true);
+    expect(result.json).toBe(true);
+  });
 });
 
 // ─── map ───────────────────────────────────────────────────────────

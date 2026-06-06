@@ -628,7 +628,10 @@ export function createMcpServer(): McpServer {
             "",
             "시나리오별 결과:",
             ...suiteResult.results.map((r) => {
-              const icon = r.result.outcome === "pass" ? "✓" : r.result.outcome === "fail" ? "✗" : "!";
+              const icon =
+                r.result.outcome === "pass" ? "✓" :
+                r.result.outcome === "fail" ? "✗" :
+                r.result.outcome === "partial" ? "~" : "!";
               return `  ${icon} ${path.basename(r.scenarioPath)} — ${r.result.outcome}: ${r.result.summary}`;
             }),
           ].join("\n");
