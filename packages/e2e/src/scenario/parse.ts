@@ -74,8 +74,10 @@ export function parseScenario(content: string): ParsedScenario {
         frontmatter = pickKnownFields(raw as Record<string, unknown>);
       }
     }
-  } catch {
-    // YAML 파싱 자체 실패 → exploratory 폴백
+  } catch (err) {
+    // YAML 파싱 자체 실패 → exploratory 폴백 (경고 1줄 출력)
+    const firstLine = (err instanceof Error ? err.message : String(err)).split("\n")[0];
+    process.stderr.write(`[karax/e2e] frontmatter YAML 파싱 실패 — exploratory 모드로 폴백: ${firstLine}\n`);
     return { body: content, exploratory: true };
   }
 

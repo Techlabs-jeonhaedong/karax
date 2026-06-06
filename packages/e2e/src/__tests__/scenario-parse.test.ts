@@ -4,7 +4,7 @@
  * 기존 8개 테스트(v1) + v2 신규 케이스
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { parseScenario } from "../scenario/parse.js";
 
 // ─── 기존 테스트 (v1) — 무수정 통과 필수 ────────────────────────────
@@ -222,6 +222,56 @@ steps:
     expect(result.exploratory).toBe(true);
   });
 
+  it("잘못된 YAML(이중 콜론) 파싱 실패 시 stderr에 경고 1줄을 출력한다", () => {
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      const md = `---
+key: value: duplicate_colon
+---
+본문`;
+      const result = parseScenario(md);
+      // exploratory 폴백 확인
+      expect(result.exploratory).toBe(true);
+      // stderr에 경고가 출력됐어야 한다
+      expect(stderrSpy).toHaveBeenCalledOnce();
+      const warningArg = stderrSpy.mock.calls[0][0] as string;
+      expect(warningArg).toContain("[karax/e2e] frontmatter YAML 파싱 실패");
+      expect(warningArg).toContain("exploratory 모드로 폴백");
+    } finally {
+      stderrSpy.mockRestore();
+    }
+  });
+
+  it("잘못된 들여쓰기 YAML 파싱 실패 시 stderr 경고에 에러 첫 줄이 포함된다", () => {
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      const md = `---
+steps:
+  - action: 탭
+ - action: 잘못된들여쓰기
+---
+본문`;
+      parseScenario(md);
+      expect(stderrSpy).toHaveBeenCalledOnce();
+      const warningArg = stderrSpy.mock.calls[0][0] as string;
+      // 경고 메시지가 \n으로 끝나야 한다 (한 줄 출력)
+      expect(warningArg).toMatch(/\n$/);
+    } finally {
+      stderrSpy.mockRestore();
+    }
+  });
+
+  it("frontmatter 없어서 exploratory 폴백 시에는 stderr 경고를 출력하지 않는다", () => {
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      const md = `# 그냥 탐색\n본문`;
+      parseScenario(md);
+      expect(stderrSpy).not.toHaveBeenCalled();
+    } finally {
+      stderrSpy.mockRestore();
+    }
+  });
+
   it("steps 중 action이 빈 문자열인 경우 해당 step은 무시된다", () => {
     const md = `---
 appId: com.example
@@ -231,14 +281,10 @@ steps:
 ---
 `;
     const result = parseScenario(md);
-    // 빈 action은 zod 스키마에서 min(1)이므로 파싱 실패 → steps 없이 처리
-    // 또는 해당 step만 무시 (구현에 따라 달라질 수 있음)
-    // 스키마 검증 실패 시 steps를 undefined로 처리
-    if (result.steps !== undefined) {
-      // 유효한 것만 남아있거나
-      const validSteps = result.steps.filter((s) => s.action.trim().length > 0);
-      expect(validSteps).toHaveLength(1);
-    }
+    // 빈 action은 zod 스키마에서 min(1)이므로 파싱 실패 → pickKnownFields가 유효한 step만 유지
+    expect(result.steps).toBeDefined();
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps![0].action).toBe("유효한 액션");
   });
 
   it("모든 v2 필드를 한꺼번에 파싱한다", () => {

@@ -219,4 +219,43 @@ describe("runE2eSuite — 에러 케이스", () => {
     expect(result.outcome).toBe("error");
     expect(result.results).toHaveLength(0);
   });
+
+  it("빈 디렉토리 에러 케이스에서 suiteDir 필드는 undefined", async () => {
+    const { runE2eSuite } = await import("../index.js");
+
+    const result = await runE2eSuite({
+      projectPath: tmpDir,
+      platform: "android",
+      scenarioPath: tmpDir,
+      outDir: tmpDir,
+    });
+
+    expect(result.outcome).toBe("error");
+    // 탐색 실패 시 suiteDir은 undefined (outDir 미결정)
+    expect(result.suiteDir).toBeUndefined();
+  });
+});
+
+describe("runE2eSuite — suiteDir 필드", () => {
+  it("정상 탐색 시 suiteDir은 resolve된 outDir을 반환한다", async () => {
+    const { runE2eSuite } = await import("../index.js");
+
+    // 시나리오 파일 1개 생성 (실제 실행은 error로 끝나도 OK — suiteDir만 확인)
+    const scenarioFile = path.join(tmpDir, "test.md");
+    fs.writeFileSync(scenarioFile, "# test\n본문", "utf-8");
+
+    const suiteDir = path.join(tmpDir, "suite-out");
+    fs.mkdirSync(suiteDir, { recursive: true });
+
+    const result = await runE2eSuite({
+      projectPath: tmpDir,
+      platform: "android",
+      scenarioPath: tmpDir, // 시나리오 있으므로 탐색 성공
+      outDir: suiteDir,
+    });
+
+    // 탐색은 성공하지만 실제 테스트는 에러 (빌드 환경 없음)
+    // suiteDir은 outDir 값으로 설정돼야 한다
+    expect(result.suiteDir).toBe(suiteDir);
+  });
 });

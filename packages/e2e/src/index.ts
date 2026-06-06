@@ -357,5 +357,5 @@ export async function runE2eSuite(opts: RunE2eSuiteOptions): Promise<E2eSuiteRes
   const passCount = results.filter((r) => r.result.outcome === "pass").length;
   const summary = `${passCount}/${total} pass`;
 
-  return { outcome, results, summary };
+  return { outcome, results, summary, suiteDir: restOpts.outDir };
 }

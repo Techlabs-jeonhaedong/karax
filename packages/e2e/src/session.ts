@@ -12,17 +12,43 @@ export interface SessionInfo {
   sessionId: string;
 }
 
+/** 최대 suffix 카운터 (충돌 회피 상한) */
+const MAX_SESSION_SUFFIX = 100;
+
 /**
  * outDir 아래에 타임스탬프 기반 세션 디렉토리를 생성한다.
  * 구조: <outDir>/<timestamp>/screenshots/
+ *
+ * 밀리초를 포함한 sessionId를 사용하고, 동일 타임스탬프 충돌 시
+ * -2, -3 suffix로 회피한다 (상한 100).
  */
 export function createSessionDir(outDir: string): SessionInfo {
-  const sessionId = new Date()
+  // 형식: 2026-06-06T12-34-56-789Z (밀리초 포함)
+  const baseId = new Date()
     .toISOString()
     .replace(/:/g, "-")
-    .replace(/\..+$/, "");
+    .replace(/\.(\d{3})Z$/, "-$1Z");
 
-  const dir = path.join(outDir, sessionId);
+  let sessionId = baseId;
+  let dir = path.join(outDir, sessionId);
+
+  if (fs.existsSync(dir)) {
+    let found = false;
+    for (let suffix = 2; suffix <= MAX_SESSION_SUFFIX; suffix++) {
+      sessionId = `${baseId}-${suffix}`;
+      dir = path.join(outDir, sessionId);
+      if (!fs.existsSync(dir)) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      throw new Error(
+        `[karax/e2e] 세션 디렉토리 생성 실패: ${MAX_SESSION_SUFFIX}개 suffix를 모두 소진했습니다 (baseId=${baseId})`
+      );
+    }
+  }
+
   const screenshotsDir = path.join(dir, "screenshots");
   const appMapDir = path.join(dir, "appmap");
 

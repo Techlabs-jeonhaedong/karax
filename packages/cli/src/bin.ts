@@ -52,6 +52,7 @@ import {
   parseMcpConfigArgs,
   parseTestArgs,
 } from "./commands.js";
+import { stripControls } from "./sanitize.js";
 import {
   parseUiArgs,
   runUiDump,
@@ -574,10 +575,10 @@ program
           } else {
             console.log(`\n스위트 결과:\n`);
             console.log(`  전체:       ${suiteResult.outcome}`);
-            console.log(`  요약:       ${suiteResult.summary}`);
+            console.log(`  요약:       ${stripControls(suiteResult.summary)}`);
             for (const r of suiteResult.results) {
               const icon = r.result.outcome === "pass" ? "✓" : r.result.outcome === "fail" ? "✗" : "!";
-              console.log(`  ${icon} ${r.scenarioPath} — ${r.result.outcome}`);
+              console.log(`  ${icon} ${stripControls(r.scenarioPath)} — ${r.result.outcome}`);
             }
             console.log("");
           }
