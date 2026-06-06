@@ -37,6 +37,7 @@ export type { RunE2eTestOptions, E2eTestResult, Platform };
 export { E2eError, E2E_ERROR_CODES } from "./types.js";
 export type { E2eErrorCode, AgentKind } from "./types.js";
 export { dumpAndroidUI } from "./runtime/dumpAndroid.js";
+export { isIdbAvailable, dumpIosUI } from "./runtime/dumpIos.js";
 
 // ── suite 타입 ────────────────────────────────────────────────────────
 
@@ -153,6 +154,13 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     // M7: AppMap 화면 id 목록 → targetScreenIds (커버리지 목표)
     const targetScreenIds = sessionAppMap?.appMap.screens.map((s) => s.id);
 
+    // M10: iOS 플랫폼에서 idb 가용 여부 probe (Android는 불필요)
+    let iosInputAvailable: boolean | undefined;
+    if (platform === "ios") {
+      const { isIdbAvailable } = await import("./runtime/dumpIos.js");
+      iosInputAvailable = await isIdbAvailable();
+    }
+
     // 에이전트 프롬프트 생성
     const prompt = buildAgentPrompt({
       platform,
@@ -167,6 +175,8 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       ...(targetScreenIds && targetScreenIds.length > 0 ? { targetScreenIds } : {}),
       // M7: 구조화 스텝 — 시나리오 모드에서만 전달
       ...(!scenario.exploratory && scenario.steps ? { scenarioSteps: scenario.steps } : {}),
+      // M10: iOS idb 가용 여부
+      ...(iosInputAvailable !== undefined ? { iosInputAvailable } : {}),
     });
 
     // 에이전트 호출 인수 구성

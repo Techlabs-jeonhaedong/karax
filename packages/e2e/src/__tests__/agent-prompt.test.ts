@@ -308,13 +308,27 @@ describe("buildAgentPrompt", () => {
     expect(result).not.toContain(dangerousPath);
   });
 
-  it("ios 치트시트에는 karax ui 명령어가 포함되지 않는다", () => {
+  it("ios + iosInputAvailable=false 치트시트에는 karax ui locate(추정 폴백)가 포함된다", () => {
+    // M10: idb 없을 때 AppMap 좌표 추정 폴백 안내가 포함됨
     const result = buildAgentPrompt({
       ...baseOpts,
       platform: "ios",
       exploratory: true,
+      iosInputAvailable: false,
     });
-    expect(result).not.toContain("karax ui");
+    // idb 없어도 locate 추정 안내가 있음 (idb 있을 때만 which-screen/dump 안내 없음)
+    expect(result).toContain("karax ui locate");
+  });
+
+  it("ios + iosInputAvailable=true 치트시트에는 karax ui locate/which-screen이 포함된다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      platform: "ios",
+      exploratory: true,
+      iosInputAvailable: true,
+    });
+    expect(result).toContain("karax ui locate");
+    expect(result).toContain("karax ui which-screen");
   });
 
   // ── M7: exploratory 대수술 테스트 ────────────────────────────────
@@ -477,5 +491,100 @@ describe("buildAgentPrompt", () => {
       scenarioBody: "로그인 버튼 탭",
     });
     expect(result).not.toContain("광고 영역 회피");
+  });
+
+  // ── M10: iOS idb 옵트인 치트시트 테스트 ─────────────────────────────
+
+  it("ios + iosInputAvailable=true 일 때 idb tap/swipe/text 안내가 포함된다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      platform: "ios",
+      exploratory: true,
+      iosInputAvailable: true,
+    });
+    expect(result).toContain("idb ui tap");
+    expect(result).toContain("idb ui swipe");
+    expect(result).toContain("idb ui text");
+  });
+
+  it("ios + iosInputAvailable=true 일 때 karax ui locate --platform ios 안내가 포함된다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      platform: "ios",
+      exploratory: true,
+      iosInputAvailable: true,
+    });
+    expect(result).toContain("--platform ios");
+    expect(result).toContain("karax ui locate");
+  });
+
+  it("ios + iosInputAvailable=true 일 때 'Bash로 직접 불가' 문구가 없다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      platform: "ios",
+      exploratory: true,
+      iosInputAvailable: true,
+    });
+    expect(result).not.toContain("Bash로 직접 불가");
+  });
+
+  it("ios + iosInputAvailable=true 일 때 --udid <id> 안내가 포함된다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      platform: "ios",
+      deviceId: "test-device-udid",
+      exploratory: true,
+      iosInputAvailable: true,
+    });
+    expect(result).toContain("test-device-udid");
+  });
+
+  it("ios + iosInputAvailable=false 일 때 기존 '텍스트 입력은 시뮬레이터 UI' 문구를 유지한다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      platform: "ios",
+      exploratory: true,
+      iosInputAvailable: false,
+    });
+    expect(result).toMatch(/시뮬레이터.*UI|Bash로 직접 불가/);
+  });
+
+  it("ios + iosInputAvailable=false 일 때 AppMap 좌표 추정 폴백 안내가 포함된다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      platform: "ios",
+      exploratory: true,
+      iosInputAvailable: false,
+    });
+    expect(result).toMatch(/appmap|locate.*--platform ios|좌표 추정/i);
+  });
+
+  it("ios + iosInputAvailable 미지정(undefined) 시 기존 문구(Bash로 직접 불가)가 유지된다(하위호환)", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      platform: "ios",
+      exploratory: true,
+    });
+    expect(result).toMatch(/시뮬레이터.*UI|Bash로 직접 불가/);
+    expect(result).not.toContain("idb ui tap");
+  });
+
+  it("android 플랫폼에서는 iosInputAvailable 옵션이 android 치트시트에 영향을 주지 않는다", () => {
+    const withIos = buildAgentPrompt({
+      ...baseOpts,
+      platform: "android",
+      exploratory: true,
+      iosInputAvailable: true,
+    });
+    const withoutIos = buildAgentPrompt({
+      ...baseOpts,
+      platform: "android",
+      exploratory: true,
+    });
+    expect(withIos).toContain("adb");
+    expect(withoutIos).toContain("adb");
+    // android에서 idb 안내가 없어야 함
+    expect(withIos).not.toContain("idb ui tap");
+    expect(withoutIos).not.toContain("idb ui tap");
   });
 });

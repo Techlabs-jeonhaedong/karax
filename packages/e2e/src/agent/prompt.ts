@@ -36,6 +36,12 @@ export interface BuildPromptOptions {
    * M7: 구조화된 시나리오 스텝 목록 — SCENARIO 격리 블록 안에 번호 목록으로 렌더된다.
    */
   scenarioSteps?: ScenarioStep[];
+  /**
+   * M10: idb 설치 여부 — iOS 플랫폼에서만 사용.
+   * true면 idb tap/swipe/text/describe-all 치트시트 노출,
+   * false/undefined면 기존 관찰 전용 문구 유지 + AppMap 좌표 추정 안내.
+   */
+  iosInputAvailable?: boolean;
 }
 
 /**
@@ -95,13 +101,35 @@ function buildAndroidCheatsheet(deviceId: string, appMapJsonPath?: string): stri
 - karax 커맨드가 없으면 uiautomator dump를 직접 파싱해 좌표를 추출할 것`.trim();
 }
 
-const IOS_CHEATSHEET = `
-## iOS 제어 치트시트 (simctl)
-- 스크린샷: xcrun simctl io <deviceId> screenshot <path>.png
-- 앱 실행: xcrun simctl launch <deviceId> <bundleId>
+function buildIosCheatsheet(deviceId: string, iosInputAvailable?: boolean, appMapJsonPath?: string): string {
+  const sanitized = appMapJsonPath ? sanitizePathArg(appMapJsonPath) : null;
+  const appmapArg = sanitized ? ` --appmap ${sanitized}` : "";
+
+  if (iosInputAvailable) {
+    return `## iOS 제어 치트시트 (simctl + idb)
+- 스크린샷: xcrun simctl io ${deviceId} screenshot <path>.png
+- 앱 실행: xcrun simctl launch ${deviceId} <bundleId>
+- URL 열기: xcrun simctl openurl ${deviceId} <url>
+
+## idb 입력 (idb 설치됨 — 직접 입력 가능)
+- 탭: idb ui tap <x> <y> --udid ${deviceId}
+- 스와이프: idb ui swipe <x1> <y1> <x2> <y2> --udid ${deviceId}
+- 텍스트 입력: idb ui text "<text>" --udid ${deviceId}
+
+## karax UI 헬퍼 (좌표 계산 금지 — 반드시 이 명령어 사용)
+- 요소 좌표 찾기(권장): karax ui locate --device ${deviceId} --platform ios --label "<버튼 라벨>"${appmapArg}
+  → JSON의 tap.x/tap.y를 idb ui tap에 사용. 좌표 단위는 논리 pt (idb ui tap과 동일).
+- 현재 화면 식별: karax ui which-screen --device ${deviceId} --platform ios${appmapArg}
+- karax 커맨드가 없으면 idb ui describe-all --udid ${deviceId} --json 으로 접근성 트리를 직접 파싱해 좌표를 추출할 것`.trim();
+  }
+
+  return `## iOS 제어 치트시트 (simctl)
+- 스크린샷: xcrun simctl io ${deviceId} screenshot <path>.png
+- 앱 실행: xcrun simctl launch ${deviceId} <bundleId>
 - 텍스트 입력은 시뮬레이터 UI를 통해 수행 (Bash로 직접 불가)
-- URL 열기: xcrun simctl openurl <deviceId> <url>
-`.trim();
+- URL 열기: xcrun simctl openurl ${deviceId} <url>
+- 좌표 추정(idb 없음): karax ui locate --device ${deviceId} --platform ios --label "<라벨>"${appmapArg} (검증 불가 — 스크린샷으로 확인)`.trim();
+}
 
 /**
  * taxonomy 체크리스트를 렌더한다.
@@ -281,7 +309,7 @@ export function buildAgentPrompt(opts: BuildPromptOptions): string {
   const cheatsheet =
     platform === "android"
       ? buildAndroidCheatsheet(deviceId, opts.appMapJsonPath)
-      : IOS_CHEATSHEET;
+      : buildIosCheatsheet(deviceId, opts.iosInputAvailable, opts.appMapJsonPath);
 
   const contractTemplate = exploratory
     ? EXPLORATORY_OUTPUT_CONTRACT

@@ -11,9 +11,11 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = path.join(__dirname, "fixtures");
 
-// dumpAndroidUI mock
+// dumpAndroidUI + dumpIosUI + isIdbAvailable mock
 vi.mock("@karax/e2e", () => ({
   dumpAndroidUI: vi.fn(),
+  dumpIosUI: vi.fn(),
+  isIdbAvailable: vi.fn(),
   E2eError: class E2eError extends Error {
     code: string;
     constructor(code: string, message: string) {
@@ -24,7 +26,7 @@ vi.mock("@karax/e2e", () => ({
   },
 }));
 
-import { dumpAndroidUI } from "@karax/e2e";
+import { dumpAndroidUI, dumpIosUI, isIdbAvailable } from "@karax/e2e";
 import {
   parseUiArgs,
   runUiDump,
@@ -38,6 +40,10 @@ import {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockDump = dumpAndroidUI as any as ReturnType<typeof vi.fn>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockDumpIos = dumpIosUI as any as ReturnType<typeof vi.fn>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockIsIdbAvailable = isIdbAvailable as any as ReturnType<typeof vi.fn>;
 
 const SAMPLE_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <hierarchy rotation="0">
@@ -185,12 +191,11 @@ describe("runUiDump", () => {
     expect(err.error).toBe("DUMP_FAILED");
   });
 
-  it("iOS 플랫폼은 UNSUPPORTED_PLATFORM 에러를 반환한다", async () => {
+  it("iOS + idb 없을 때(platform=ios, idbAvailable 미지정) IDB_UNAVAILABLE 에러를 반환한다", async () => {
     const result = await runUiDump({ device: "udid-1234", platform: "ios" });
     expect(result.ok).toBe(false);
     const err = result as UiErrorResult;
-    expect(err.error).toBe("UNSUPPORTED_PLATFORM");
-    expect(err.message).toMatch(/ios|미지원/i);
+    expect(err.error).toBe("IDB_UNAVAILABLE");
   });
 
   it("DEVICE_NOT_FOUND E2eError가 그대로 매핑된다", async () => {
@@ -347,7 +352,7 @@ describe("runUiLocate", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("iOS 플랫폼은 UNSUPPORTED_PLATFORM 에러를 반환한다", async () => {
+  it("iOS + idb 없을 때(platform=ios, idbAvailable 미지정) IDB_UNAVAILABLE 에러를 반환한다 (appmap 없음)", async () => {
     const result = await runUiLocate({
       device: "udid-1234",
       platform: "ios",
@@ -355,7 +360,7 @@ describe("runUiLocate", () => {
     });
     expect(result.ok).toBe(false);
     const err = result as UiErrorResult;
-    expect(err.error).toBe("UNSUPPORTED_PLATFORM");
+    expect(err.error).toBe("IDB_UNAVAILABLE");
   });
 
   it("label 인자가 없으면 INVALID_ARGUMENT를 반환한다", async () => {
@@ -454,7 +459,7 @@ describe("runUiWhichScreen", () => {
     expect(err.error).toBe("APPMAP_PARSE_ERROR");
   });
 
-  it("iOS 플랫폼은 UNSUPPORTED_PLATFORM 에러를 반환한다", async () => {
+  it("iOS + idb 없을 때(platform=ios, idbAvailable 미지정) IDB_UNAVAILABLE 에러를 반환한다", async () => {
     const appmapPath = path.join(FIXTURES_DIR, "appmap-v2.json");
 
     const result = await runUiWhichScreen({
@@ -464,7 +469,7 @@ describe("runUiWhichScreen", () => {
     });
     expect(result.ok).toBe(false);
     const err = result as UiErrorResult;
-    expect(err.error).toBe("UNSUPPORTED_PLATFORM");
+    expect(err.error).toBe("IDB_UNAVAILABLE");
   });
 
   it("ranked 각 항목에 screenId와 similarity가 있다", async () => {
@@ -488,10 +493,214 @@ describe("runUiWhichScreen", () => {
 // ─── 에러 계약 공통 ──────────────────────────────────────────────────
 
 describe("에러 응답 공통 계약", () => {
-  it("에러 응답에는 ok:false, error, message 필드가 있다", async () => {
-    const result = await runUiDump({ device: "emulator-5554", platform: "ios" }) as UiErrorResult;
+  it("에러 응답에는 ok:false, error, message 필드가 있다 (iOS idb 없음 케이스)", async () => {
+    const result = await runUiDump({ device: "udid-1234", platform: "ios" }) as UiErrorResult;
     expect(result.ok).toBe(false);
     expect(typeof result.error).toBe("string");
     expect(typeof result.message).toBe("string");
+  });
+});
+
+// ─── M10: iOS idb 분기 ───────────────────────────────────────────────
+
+const IDB_IOS_JSON = JSON.stringify([
+  {
+    type: "Application",
+    AXLabel: null,
+    AXEnabled: true,
+    frame: { x: 0, y: 0, width: 393, height: 852 },
+    children: [
+      {
+        type: "Button",
+        AXLabel: "로그인",
+        AXIdentifier: "btn_login",
+        AXEnabled: true,
+        frame: { x: 20, y: 100, width: 353, height: 50 },
+      },
+      {
+        type: "StaticText",
+        AXLabel: "환영합니다",
+        AXEnabled: false,
+        frame: { x: 0, y: 50, width: 393, height: 40 },
+      },
+    ],
+  },
+]);
+
+describe("runUiDump — iOS + idb", () => {
+  it("iOS + idb 있을 때 ok:true와 platform:ios를 반환한다", async () => {
+    mockDumpIos.mockResolvedValueOnce(IDB_IOS_JSON);
+
+    const result = await runUiDump({ device: "00008020-AABBCCDD", platform: "ios", idbAvailable: true });
+    expect(result.ok).toBe(true);
+    const ok = result as UiDumpResult;
+    expect(ok.platform).toBe("ios");
+  });
+
+  it("iOS + idb 있을 때 노드 목록이 반환된다", async () => {
+    mockDumpIos.mockResolvedValueOnce(IDB_IOS_JSON);
+
+    const result = await runUiDump({ device: "00008020-AABBCCDD", platform: "ios", idbAvailable: true }) as UiDumpResult;
+    expect(result.nodes.length).toBeGreaterThan(0);
+    const loginNode = result.nodes.find((n) => n.text === "로그인");
+    expect(loginNode).toBeDefined();
+  });
+
+  it("iOS + idb 있을 때 center 좌표가 계산된다", async () => {
+    mockDumpIos.mockResolvedValueOnce(IDB_IOS_JSON);
+
+    const result = await runUiDump({ device: "00008020-AABBCCDD", platform: "ios", idbAvailable: true }) as UiDumpResult;
+    const loginNode = result.nodes.find((n) => n.text === "로그인");
+    // frame x=20,y=100,w=353,h=50 → x2=373,y2=150 → center x=Math.round((20+373)/2)=197, y=Math.round((100+150)/2)=125
+    expect(loginNode!.center.x).toBe(197);
+    expect(loginNode!.center.y).toBe(125);
+  });
+
+  it("iOS + idb 없을 때(idbAvailable 생략) IDB_UNAVAILABLE을 반환한다", async () => {
+    const result = await runUiDump({ device: "00008020-AABBCCDD", platform: "ios" });
+    expect(result.ok).toBe(false);
+    const err = result as UiErrorResult;
+    expect(err.error).toBe("IDB_UNAVAILABLE");
+  });
+
+  it("iOS + idb 없을 때(idbAvailable:false) IDB_UNAVAILABLE을 반환한다", async () => {
+    const result = await runUiDump({ device: "00008020-AABBCCDD", platform: "ios", idbAvailable: false });
+    expect(result.ok).toBe(false);
+    const err = result as UiErrorResult;
+    expect(err.error).toBe("IDB_UNAVAILABLE");
+  });
+});
+
+describe("runUiLocate — iOS + idb", () => {
+  it("iOS + idb 있을 때 라벨 매칭 결과를 반환한다", async () => {
+    mockDumpIos.mockResolvedValueOnce(IDB_IOS_JSON);
+
+    const result = await runUiLocate({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      label: "로그인",
+      idbAvailable: true,
+    }) as UiLocateResult;
+
+    expect(result.ok).toBe(true);
+    expect(result.found).toBe(true);
+    expect(result.tap).toBeDefined();
+  });
+
+  it("iOS + idb 있을 때 coordsUnit:'points'가 반환된다", async () => {
+    mockDumpIos.mockResolvedValueOnce(IDB_IOS_JSON);
+
+    const result = await runUiLocate({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      label: "로그인",
+      idbAvailable: true,
+    }) as UiLocateResult;
+
+    expect((result as any).coordsUnit).toBe("points");
+  });
+
+  it("iOS + idb 없을 때 AppMap bounds 추정 폴백(estimated:true)을 반환한다", async () => {
+    const appmapPath = path.join(FIXTURES_DIR, "appmap-v2.json");
+
+    const result = await runUiLocate({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      label: "로그인 버튼",
+      appmap: appmapPath,
+      idbAvailable: false,
+    }) as any;
+
+    expect(result.ok).toBe(true);
+    // AppMap 추정 폴백이므로 estimated:true, method에 'appmap' 포함
+    if (result.found) {
+      expect(result.estimated).toBe(true);
+      expect(result.method).toMatch(/appmap/i);
+      expect((result as UiLocateResult).score).toBe(0.3);
+    } else {
+      // AppMap에 해당 라벨이 없으면 found:false도 정상
+      expect(result.found).toBe(false);
+    }
+  });
+
+  it("iOS + idb 없고 AppMap도 없을 때 IDB_UNAVAILABLE을 반환한다", async () => {
+    const result = await runUiLocate({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      label: "버튼",
+      idbAvailable: false,
+    });
+
+    expect(result.ok).toBe(false);
+    const err = result as UiErrorResult;
+    expect(err.error).toBe("IDB_UNAVAILABLE");
+  });
+});
+
+describe("runUiWhichScreen — iOS + idb", () => {
+  it("iOS + idb 있을 때 화면 식별을 반환한다", async () => {
+    mockDumpIos.mockResolvedValueOnce(IDB_IOS_JSON);
+    const appmapPath = path.join(FIXTURES_DIR, "appmap-v2.json");
+
+    const result = await runUiWhichScreen({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      appmap: appmapPath,
+      idbAvailable: true,
+    }) as UiWhichScreenResult;
+
+    expect(result.ok).toBe(true);
+    expect(typeof result.confidence).toBe("number");
+  });
+
+  it("iOS + idb 없을 때 IDB_UNAVAILABLE을 반환한다", async () => {
+    const appmapPath = path.join(FIXTURES_DIR, "appmap-v2.json");
+
+    const result = await runUiWhichScreen({
+      device: "00008020-AABBCCDD",
+      platform: "ios",
+      appmap: appmapPath,
+      idbAvailable: false,
+    });
+
+    expect(result.ok).toBe(false);
+    const err = result as UiErrorResult;
+    expect(err.error).toBe("IDB_UNAVAILABLE");
+  });
+});
+
+describe("Android 회귀 — M10 변경 후", () => {
+  it("Android dump는 idbAvailable 없어도 정상 동작한다", async () => {
+    mockDump.mockResolvedValueOnce(SAMPLE_XML);
+
+    const result = await runUiDump({ device: "emulator-5554", platform: "android" });
+    expect(result.ok).toBe(true);
+    expect((result as UiDumpResult).platform).toBe("android");
+  });
+
+  it("Android locate는 idbAvailable 없어도 정상 동작한다", async () => {
+    mockDump.mockResolvedValueOnce(SAMPLE_XML);
+
+    const result = await runUiLocate({
+      device: "emulator-5554",
+      platform: "android",
+      label: "로그인",
+    }) as UiLocateResult;
+
+    expect(result.ok).toBe(true);
+    expect(result.found).toBe(true);
+  });
+
+  it("Android which-screen은 idbAvailable 없어도 정상 동작한다", async () => {
+    mockDump.mockResolvedValueOnce(SAMPLE_XML);
+    const appmapPath = path.join(FIXTURES_DIR, "appmap-v2.json");
+
+    const result = await runUiWhichScreen({
+      device: "emulator-5554",
+      platform: "android",
+      appmap: appmapPath,
+    }) as UiWhichScreenResult;
+
+    expect(result.ok).toBe(true);
   });
 });

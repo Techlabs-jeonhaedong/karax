@@ -35,6 +35,11 @@ vi.mock("../agent/prompt.js", () => ({
   buildAgentPrompt: vi.fn().mockReturnValue("test prompt"),
 }));
 
+vi.mock("../runtime/dumpIos.js", () => ({
+  isIdbAvailable: vi.fn().mockResolvedValue(false),
+  dumpIosUI: vi.fn(),
+}));
+
 vi.mock("@karax/doctor", () => ({
   detectAndroidSdkPath: vi.fn().mockResolvedValue("/sdk"),
 }));
@@ -50,6 +55,7 @@ import { runAgent } from "../agent/runner.js";
 import { buildAgentPrompt } from "../agent/prompt.js";
 import { generateAppMapForSession } from "../appmap/sessionAppMap.js";
 import { computeBudget } from "../agent/budget.js";
+import { isIdbAvailable } from "../runtime/dumpIos.js";
 import { runE2eTest } from "../index.js";
 
 const mockCreateDeviceManager = vi.mocked(createDeviceManager);
@@ -58,6 +64,7 @@ const mockRunAgent = vi.mocked(runAgent);
 const mockBuildAgentPrompt = vi.mocked(buildAgentPrompt);
 const mockGenerateAppMapForSession = vi.mocked(generateAppMapForSession);
 const mockComputeBudget = vi.mocked(computeBudget);
+const mockIsIdbAvailable = vi.mocked(isIdbAvailable);
 
 let tmpDir: string;
 
@@ -797,6 +804,79 @@ describe("runE2eTest", () => {
     const validOccurrences = result.visitedScreens!.filter((id) => id === "valid");
     expect(validOccurrences).toHaveLength(1);
     expect(result.visitedScreens).toContain("also-valid");
+  });
+
+  // ── M10: iOS idb probe → 프롬프트 반영 ──────────────────────────────
+
+  it("platform=ios + idb 있을 때 buildAgentPrompt에 iosInputAvailable:true가 전달된다", async () => {
+    mockIsIdbAvailable.mockResolvedValue(true);
+    const mockIosManager = {
+      ...makeMockDeviceManager("00008020-AABBCCDD"),
+      platform: "ios" as const,
+      ensureBooted: vi.fn().mockResolvedValue({
+        id: "00008020-AABBCCDD",
+        name: "iPhone 15",
+        platform: "ios" as const,
+        isEmulator: true,
+        isBooted: true,
+      }),
+    };
+    mockCreateDeviceManager.mockResolvedValue(mockIosManager as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder("com.example.app", "/tmp/app.ipa") as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "ios",
+      outDir: tmpDir,
+    });
+
+    expect(mockBuildAgentPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ iosInputAvailable: true })
+    );
+  });
+
+  it("platform=ios + idb 없을 때 buildAgentPrompt에 iosInputAvailable:false가 전달된다", async () => {
+    mockIsIdbAvailable.mockResolvedValue(false);
+    const mockIosManager = {
+      ...makeMockDeviceManager("00008020-AABBCCDD"),
+      platform: "ios" as const,
+      ensureBooted: vi.fn().mockResolvedValue({
+        id: "00008020-AABBCCDD",
+        name: "iPhone 15",
+        platform: "ios" as const,
+        isEmulator: true,
+        isBooted: true,
+      }),
+    };
+    mockCreateDeviceManager.mockResolvedValue(mockIosManager as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder("com.example.app", "/tmp/app.ipa") as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "ios",
+      outDir: tmpDir,
+    });
+
+    expect(mockBuildAgentPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ iosInputAvailable: false })
+    );
+  });
+
+  it("platform=android 일 때 isIdbAvailable probe가 호출되지 않는다", async () => {
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({ outcome: "pass", summary: "통과", steps: [] });
+
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    // Android에서는 idb probe 호출 안 됨
+    expect(mockIsIdbAvailable).not.toHaveBeenCalled();
   });
 
   it("path traversal 탈출 경로가 포함된 step은 screenshot 필드가 제거된다", async () => {

@@ -28,7 +28,8 @@ export type UiErrorCode =
   | "DEVICE_NOT_FOUND"
   | "DUMP_FAILED"
   | "APPMAP_PARSE_ERROR"
-  | "UNSUPPORTED_PLATFORM";
+  | "UNSUPPORTED_PLATFORM"
+  | "IDB_UNAVAILABLE";
 
 export interface UiErrorResult {
   ok: false;
@@ -67,6 +68,10 @@ export interface UiLocateResult {
   ambiguous?: boolean;
   tappable?: false;
   candidates?: never;
+  /** iOS idb locate에서 반환: 좌표 단위가 논리 pt임을 명시 */
+  coordsUnit?: "points";
+  /** AppMap bounds 추정 폴백일 때 true */
+  estimated?: boolean;
 }
 
 export interface UiLocateNotFoundResult {
@@ -248,16 +253,50 @@ function readAppMap(appmapPath: string): AppMapReadResult {
 export interface RunUiDumpOptions {
   device: string;
   platform: string;
+  /** idb 가용 여부 (ios 전용, 미지정 시 false 처리) */
+  idbAvailable?: boolean;
 }
 
 export async function runUiDump(
   opts: RunUiDumpOptions
 ): Promise<UiDumpResult | UiErrorResult> {
   if (opts.platform === "ios") {
-    return makeError(
-      "UNSUPPORTED_PLATFORM",
-      "iOS 런타임 덤프는 미지원 — 스크린샷 + AppMap 좌표 추정 사용 (M10에서 idb 지원 예정)"
-    );
+    if (!opts.idbAvailable) {
+      return makeError(
+        "IDB_UNAVAILABLE",
+        "idb가 설치돼 있지 않아 iOS 런타임 덤프를 수행할 수 없습니다. " +
+          "설치: brew install facebook/fb/idb-companion"
+      );
+    }
+
+    const { dumpIosUI } = await import("@karax/e2e");
+    const { parseIdbDescribeAll } = await import("@karax/core");
+
+    let json: string;
+    try {
+      json = await dumpIosUI(opts.device);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return makeError("IDB_UNAVAILABLE", message);
+    }
+
+    const tree = parseIdbDescribeAll(json);
+    const allNodes = flattenInteractive(tree);
+
+    const truncated = allNodes.length > NODE_LIMIT;
+    const nodes = allNodes.slice(0, NODE_LIMIT).map(toUiDumpNode);
+
+    const result: UiDumpResult = {
+      ok: true,
+      platform: "ios",
+      deviceWidth: tree.deviceWidth,
+      deviceHeight: tree.deviceHeight,
+      nodes,
+    };
+    if (truncated) {
+      result.truncatedNodes = true;
+    }
+    return result;
   }
 
   // 동적 import: CLI에서는 e2e가 deps에 있어야 함
@@ -291,6 +330,139 @@ export async function runUiDump(
   return result;
 }
 
+/**
+ * AppMap elements에서 라벨을 정규화 매칭해 bounds 중심 좌표를 추정한다.
+ * idb 없을 때 iOS locate 폴백.
+ */
+type AppMapElement = {
+  label?: string | null;
+  bounds?: { x: number; y: number; width: number; height: number } | null;
+  [key: string]: unknown;
+};
+
+function locateViaAppMapBounds(
+  label: string,
+  appMap: ReturnType<typeof import("@karax/core").AppMapReadSchema.parse>,
+  screenId?: string
+): UiLocateAnyResult {
+  const normalizedTarget = label.trim().toLowerCase().replace(/\s+/g, " ");
+
+  // 검색 범위: 특정 화면이면 해당 화면만, 없으면 전체 화면
+  const screens = screenId
+    ? appMap.screens.filter((s) => s.id === screenId)
+    : appMap.screens;
+
+  let bestElement: AppMapElement | null = null;
+
+  for (const screen of screens) {
+    for (const el of screen.elements ?? []) {
+      if (!el.label) continue;
+      const normalizedEl = el.label.trim().toLowerCase().replace(/\s+/g, " ");
+      // 정확 매칭 우선
+      if (normalizedEl === normalizedTarget) {
+        bestElement = el as AppMapElement;
+        break;
+      }
+      // 부분 포함
+      if (!bestElement && (normalizedEl.includes(normalizedTarget) || normalizedTarget.includes(normalizedEl))) {
+        bestElement = el as AppMapElement;
+      }
+    }
+    if (bestElement?.label?.trim().toLowerCase().replace(/\s+/g, " ") === normalizedTarget) break;
+  }
+
+  if (!bestElement) {
+    return { ok: true, found: false, candidates: [] };
+  }
+
+  // bounds가 있으면 중심 좌표, 없으면 found:false
+  const bounds = bestElement.bounds;
+  if (!bounds) {
+    return { ok: true, found: false, candidates: [] };
+  }
+
+  // AppMap bounds는 iphone-15 논리 pt 단위 (393×852 프로파일)
+  const tapX = Math.round(bounds.x + bounds.width / 2);
+  const tapY = Math.round(bounds.y + bounds.height / 2);
+
+  const result: UiLocateResult & { estimated: boolean; coordsUnit: "points" } = {
+    ok: true,
+    found: true,
+    method: "appmap-bounds-estimate",
+    score: 0.3,
+    tap: { x: tapX, y: tapY },
+    bounds: {
+      x1: bounds.x,
+      y1: bounds.y,
+      x2: bounds.x + bounds.width,
+      y2: bounds.y + bounds.height,
+    },
+    clickable: true,
+    coordsUnit: "points",
+    estimated: true,
+  };
+  return result;
+}
+
+/** iOS idb 경로 또는 AppMap 폴백 */
+async function runUiLocateIos(opts: RunUiLocateOptions): Promise<UiLocateAnyResult> {
+  if (opts.idbAvailable) {
+    // idb 있음: dumpIosUI → parseIdbDescribeAll → locateLabel
+    const { dumpIosUI } = await import("@karax/e2e");
+    const { parseIdbDescribeAll } = await import("@karax/core");
+
+    let json: string;
+    try {
+      json = await dumpIosUI(opts.device);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return makeError("IDB_UNAVAILABLE", message);
+    }
+
+    const tree = parseIdbDescribeAll(json);
+    const nodes = flattenInteractive(tree);
+    const located = locateLabel(opts.label, nodes);
+
+    if (located.node === null) {
+      const candidates = located.candidates.map((n) => ({
+        text: n.text,
+        center: computeCenter(n.bounds),
+      }));
+      return { ok: true, found: false, candidates };
+    }
+
+    const node = located.node;
+    const center = computeCenter(node.bounds);
+
+    const result: UiLocateResult = {
+      ok: true,
+      found: true,
+      method: located.method,
+      score: located.score,
+      tap: center,
+      bounds: node.bounds,
+      clickable: node.clickable,
+      coordsUnit: "points",
+    };
+    if (!node.clickable) result.tappable = false;
+    return result;
+  }
+
+  // idb 없음: AppMap bounds 추정 폴백
+  if (!opts.appmap) {
+    return makeError(
+      "IDB_UNAVAILABLE",
+      "idb가 없고 --appmap도 제공되지 않아 iOS locate를 수행할 수 없습니다. " +
+        "idb 설치(brew install facebook/fb/idb-companion) 또는 --appmap 옵션을 제공하세요."
+    );
+  }
+
+  const appMapResult = readAppMap(opts.appmap);
+  if (!appMapResult.success) return appMapResult.error;
+
+  return locateViaAppMapBounds(opts.label, appMapResult.data, opts.screen);
+}
+
 // ── runUiLocate ────────────────────────────────────────────────────────
 
 export interface RunUiLocateOptions {
@@ -299,20 +471,19 @@ export interface RunUiLocateOptions {
   label: string;
   appmap?: string;
   screen?: string;
+  /** idb 가용 여부 (ios 전용, 미지정 시 false 처리) */
+  idbAvailable?: boolean;
 }
 
 export async function runUiLocate(
   opts: RunUiLocateOptions
 ): Promise<UiLocateAnyResult> {
-  if (opts.platform === "ios") {
-    return makeError(
-      "UNSUPPORTED_PLATFORM",
-      "iOS 런타임 덤프는 미지원 — 스크린샷 + AppMap 좌표 추정 사용 (M10에서 idb 지원 예정)"
-    );
-  }
-
   if (!opts.label || !opts.label.trim()) {
     return makeError("INVALID_ARGUMENT", "--label 옵션이 필요합니다.");
+  }
+
+  if (opts.platform === "ios") {
+    return runUiLocateIos(opts);
   }
 
   const { dumpAndroidUI } = await import("@karax/e2e");
@@ -377,16 +548,52 @@ export interface RunUiWhichScreenOptions {
   device: string;
   platform: string;
   appmap: string | undefined;
+  /** idb 가용 여부 (ios 전용, 미지정 시 false 처리) */
+  idbAvailable?: boolean;
 }
 
 export async function runUiWhichScreen(
   opts: RunUiWhichScreenOptions
 ): Promise<UiWhichScreenResult | UiErrorResult> {
   if (opts.platform === "ios") {
-    return makeError(
-      "UNSUPPORTED_PLATFORM",
-      "iOS 런타임 덤프는 미지원 — 스크린샷 + AppMap 좌표 추정 사용 (M10에서 idb 지원 예정)"
-    );
+    if (!opts.idbAvailable) {
+      return makeError(
+        "IDB_UNAVAILABLE",
+        "idb가 설치돼 있지 않아 iOS which-screen을 수행할 수 없습니다. " +
+          "설치: brew install facebook/fb/idb-companion"
+      );
+    }
+
+    if (!opts.appmap) {
+      return makeError("INVALID_ARGUMENT", "--appmap 옵션이 필요합니다.");
+    }
+
+    const appMapResult = readAppMap(opts.appmap);
+    if (!appMapResult.success) return appMapResult.error;
+    const appMap = appMapResult.data;
+
+    const { dumpIosUI } = await import("@karax/e2e");
+    const { parseIdbDescribeAll } = await import("@karax/core");
+
+    let json: string;
+    try {
+      json = await dumpIosUI(opts.device);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return makeError("IDB_UNAVAILABLE", message);
+    }
+
+    const tree = parseIdbDescribeAll(json);
+    const nodes = flattenInteractive(tree);
+    const identification = identifyScreen(appMap as AppMap, nodes);
+    const ranked = identification.ranked.slice(0, 5);
+
+    return {
+      ok: true,
+      screenId: identification.screenId,
+      confidence: identification.confidence,
+      ranked,
+    };
   }
 
   if (!opts.appmap) {

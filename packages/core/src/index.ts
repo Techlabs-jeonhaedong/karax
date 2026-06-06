@@ -86,3 +86,5 @@ export type {
 
 export { identifyScreen } from "./runtime/whichScreen.js";
 export type { ScreenIdentification } from "./runtime/whichScreen.js";
+
+export { parseIdbDescribeAll } from "./runtime/idbParser.js";

@@ -20,6 +20,8 @@ export const E2E_ERROR_CODES = {
   INVALID_ARGUMENT: "INVALID_ARGUMENT",
   /** uiautomator dump 실패 — 디바이스 없음 또는 dump 자체 오류 */
   DUMP_FAILED: "DUMP_FAILED",
+  /** idb 미설치 또는 사용 불가 — iOS 입력 주입 불가 */
+  IDB_UNAVAILABLE: "IDB_UNAVAILABLE",
 } as const;
 
 export type E2eErrorCode = keyof typeof E2E_ERROR_CODES;
