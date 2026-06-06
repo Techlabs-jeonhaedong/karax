@@ -556,7 +556,8 @@ export function createMcpServer(): McpServer {
   server.tool(
     "run_e2e_test",
     "Android 에뮬레이터 / iOS 시뮬레이터에서 LLM 에이전트로 E2E 테스트를 실행한다. " +
-    "에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요될 수 있습니다.",
+    "에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요될 수 있습니다. " +
+    "scenarioPath에 디렉토리를 전달하면 *.md 파일을 일괄 실행(suite)한다.",
     {
       projectPath: z.string().min(1),
       platform: z.enum(["android", "ios"]),
@@ -573,21 +574,51 @@ export function createMcpServer(): McpServer {
       try {
         validateProjectPath(projectPath);
 
-        // SDK 단일 진입점 원칙 — @karax/sdk의 runE2eTest가 기본 AppMapGenerator를 주입한다
-        const { runE2eTest } = await import("@karax/sdk");
+        // scenarioPath가 디렉토리이면 runE2eSuite, 아니면 runE2eTest
+        const scenarioIsDir =
+          scenarioPath !== undefined &&
+          (() => {
+            try {
+              return fs.statSync(scenarioPath).isDirectory();
+            } catch {
+              return false;
+            }
+          })();
 
-        const result = await runE2eTest({
+        const sdk = await import("@karax/sdk");
+
+        const commonOpts = {
           projectPath,
           platform,
           agent,
-          scenarioPath,
           apiKey,
           deviceId,
           outDir,
           timeoutMs,
           maxSteps,
           keepBooted,
-        });
+        };
+
+        if (scenarioIsDir && scenarioPath) {
+          // suite 실행 — 시나리오별 요약 응답
+          const suiteResult = await sdk.runE2eSuite({ ...commonOpts, scenarioPath });
+
+          const summaryLines = [
+            `E2E 스위트 결과: ${suiteResult.outcome}`,
+            `요약: ${suiteResult.summary}`,
+            "",
+            "시나리오별 결과:",
+            ...suiteResult.results.map((r) => {
+              const icon = r.result.outcome === "pass" ? "✓" : r.result.outcome === "fail" ? "✗" : "!";
+              return `  ${icon} ${path.basename(r.scenarioPath)} — ${r.result.outcome}: ${r.result.summary}`;
+            }),
+          ].join("\n");
+
+          return { content: [{ type: "text" as const, text: summaryLines }] };
+        }
+
+        // 단일 파일 / 시나리오 없음 → 기존 runE2eTest
+        const result = await sdk.runE2eTest({ ...commonOpts, scenarioPath });
 
         // 응답: 요약 텍스트 + 리포트 경로 + 최종 스크린샷 소량 base64
         const summaryText = [

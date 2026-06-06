@@ -27,11 +27,28 @@ import { sanitizeScreenshotPath } from "./report/sanitize.js";
 import { generateAppMapForSession } from "./appmap/sessionAppMap.js";
 import { summarizeAppMap, renderSummaryForPrompt } from "./appmap/promptSummary.js";
 import { computeBudget } from "./agent/budget.js";
+import { discoverScenarioFiles } from "./scenario/discover.js";
 
 export type { RunE2eTestOptions, E2eTestResult, Platform };
 export { E2eError, E2E_ERROR_CODES } from "./types.js";
 export type { E2eErrorCode, AgentKind } from "./types.js";
 export { dumpAndroidUI } from "./runtime/dumpAndroid.js";
+
+// ── suite 타입 ────────────────────────────────────────────────────────
+
+export interface RunE2eSuiteOptions extends Omit<RunE2eTestOptions, "scenarioPath"> {
+  /** 파일 또는 디렉토리 경로 */
+  scenarioPath: string;
+}
+
+export interface E2eSuiteResult {
+  /** 전체 집계: 하나라도 error→error, fail→fail, 전부 pass→pass */
+  outcome: "pass" | "fail" | "error";
+  results: Array<{ scenarioPath: string; result: E2eTestResult }>;
+  /** "3/5 pass" 형태 */
+  summary: string;
+  suiteDir?: string;
+}
 
 /**
  * E2E 테스트를 실행하고 결과를 반환한다.
@@ -283,4 +300,62 @@ function makeErrorResult(
     summary: errorMessage,
     steps: [],
   };
+}
+
+// ── runE2eSuite ───────────────────────────────────────────────────────
+
+/**
+ * 여러 시나리오를 순차적으로 실행하고 집계 결과를 반환한다.
+ *
+ * scenarioPath가 파일이면 runE2eTest를 1회, 디렉토리이면 *.md를 사전순으로 실행.
+ * 디바이스 재부팅 회피: N-1개 시나리오는 keepBooted=true, 마지막만 사용자 값 사용.
+ */
+export async function runE2eSuite(opts: RunE2eSuiteOptions): Promise<E2eSuiteResult> {
+  const { scenarioPath, ...restOpts } = opts;
+  const userKeepBooted = restOpts.keepBooted ?? false;
+
+  // 시나리오 파일 목록 탐색
+  let scenarioPaths: string[];
+  try {
+    scenarioPaths = discoverScenarioFiles(scenarioPath);
+  } catch (e) {
+    // 탐색 실패(빈 디렉토리 등) → error 집계
+    const errMsg = e instanceof Error ? e.message : String(e);
+    return {
+      outcome: "error",
+      results: [],
+      summary: `0/0 pass (탐색 실패: ${errMsg})`,
+    };
+  }
+
+  const results: Array<{ scenarioPath: string; result: E2eTestResult }> = [];
+  const total = scenarioPaths.length;
+
+  for (let i = 0; i < total; i++) {
+    const filePath = scenarioPaths[i];
+    const isLast = i === total - 1;
+
+    // N-1개는 keepBooted=true로 디바이스 재부팅 방지
+    const keepBooted = isLast ? userKeepBooted : true;
+
+    process.stderr.write(`[karax suite] (${i + 1}/${total}) ${filePath}\n`);
+
+    const result = await runE2eTest({
+      ...restOpts,
+      scenarioPath: filePath,
+      keepBooted,
+    });
+
+    results.push({ scenarioPath: filePath, result });
+  }
+
+  // 집계: error > fail > pass
+  const hasError = results.some((r) => r.result.outcome === "error");
+  const hasFail = results.some((r) => r.result.outcome === "fail");
+  const outcome: E2eSuiteResult["outcome"] = hasError ? "error" : hasFail ? "fail" : "pass";
+
+  const passCount = results.filter((r) => r.result.outcome === "pass").length;
+  const summary = `${passCount}/${total} pass`;
+
+  return { outcome, results, summary };
 }

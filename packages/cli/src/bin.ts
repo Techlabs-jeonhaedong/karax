@@ -533,15 +533,24 @@ program
           ...(opts.keepBooted ? ["--keep-booted"] : []),
         ]);
 
-        // SDK 단일 진입점 원칙 — @karax/sdk의 runE2eTest가 기본 AppMapGenerator를 주입한다
-        const { runE2eTest } = await import("@karax/sdk");
+        // SDK 단일 진입점 원칙 — @karax/sdk의 runE2eTest/runE2eSuite가 기본 AppMapGenerator를 주입한다
+        const sdk = await import("@karax/sdk");
 
-        console.log(`\nE2E 테스트 시작: ${args.path} (플랫폼: ${args.platform}, 에이전트: ${args.agent})\n`);
+        // --scenario가 디렉토리이면 runE2eSuite, 파일이면 runE2eTest
+        const { statSync } = await import("node:fs");
+        const scenarioIsDir =
+          args.scenario !== undefined &&
+          (() => {
+            try {
+              return statSync(args.scenario!).isDirectory();
+            } catch {
+              return false;
+            }
+          })();
 
-        const result = await runE2eTest({
+        const commonOpts = {
           projectPath: args.path,
           platform: args.platform,
-          scenarioPath: args.scenario,
           agent: args.agent,
           apiKey: args.apiKey,
           deviceId: args.device,
@@ -549,28 +558,65 @@ program
           timeoutMs: args.timeout,
           maxSteps: args.maxSteps,
           keepBooted: args.keepBooted,
-        });
+        };
 
-        if (args.json) {
-          console.log(JSON.stringify(result, null, 2));
-        } else {
-          const outcomeIcon = result.outcome === "pass" ? "✓" : result.outcome === "fail" ? "✗" : "!";
-          console.log(`\nE2E 테스트 ${result.outcome === "pass" ? "통과" : result.outcome === "fail" ? "실패" : "오류"}:\n`);
-          console.log(`  결과:       ${outcomeIcon} ${result.outcome}`);
-          console.log(`  요약:       ${result.summary}`);
-          console.log(`  리포트:     ${result.reportJsonPath}`);
-          console.log(`  스크린샷:   ${result.screenshotsDir}`);
-          console.log(`  스텝 수:    ${result.steps.length}\n`);
-        }
+        if (scenarioIsDir && args.scenario) {
+          // 디렉토리 시나리오 → suite 실행
+          console.log(`\nE2E 테스트 스위트 시작: ${args.path} (시나리오 디렉토리: ${args.scenario}, 플랫폼: ${args.platform})\n`);
 
-        // 종료 코드 매핑
-        // pass → 0, fail → 2 (PARTIAL_FAILURE), error → 1 (FAILURE)
-        if (result.outcome === "pass") {
-          process.exit(EXIT_CODES.SUCCESS);
-        } else if (result.outcome === "fail") {
-          process.exit(EXIT_CODES.PARTIAL_FAILURE);
+          const suiteResult = await sdk.runE2eSuite({
+            ...commonOpts,
+            scenarioPath: args.scenario,
+          });
+
+          if (args.json) {
+            console.log(JSON.stringify(suiteResult, null, 2));
+          } else {
+            console.log(`\n스위트 결과:\n`);
+            console.log(`  전체:       ${suiteResult.outcome}`);
+            console.log(`  요약:       ${suiteResult.summary}`);
+            for (const r of suiteResult.results) {
+              const icon = r.result.outcome === "pass" ? "✓" : r.result.outcome === "fail" ? "✗" : "!";
+              console.log(`  ${icon} ${r.scenarioPath} — ${r.result.outcome}`);
+            }
+            console.log("");
+          }
+
+          if (suiteResult.outcome === "pass") {
+            process.exit(EXIT_CODES.SUCCESS);
+          } else if (suiteResult.outcome === "fail") {
+            process.exit(EXIT_CODES.PARTIAL_FAILURE);
+          } else {
+            process.exit(EXIT_CODES.FAILURE);
+          }
         } else {
-          process.exit(EXIT_CODES.FAILURE);
+          // 단일 파일 / 시나리오 없음 → 기존 runE2eTest
+          console.log(`\nE2E 테스트 시작: ${args.path} (플랫폼: ${args.platform}, 에이전트: ${args.agent})\n`);
+
+          const result = await sdk.runE2eTest({
+            ...commonOpts,
+            scenarioPath: args.scenario,
+          });
+
+          if (args.json) {
+            console.log(JSON.stringify(result, null, 2));
+          } else {
+            const outcomeIcon = result.outcome === "pass" ? "✓" : result.outcome === "fail" ? "✗" : "!";
+            console.log(`\nE2E 테스트 ${result.outcome === "pass" ? "통과" : result.outcome === "fail" ? "실패" : "오류"}:\n`);
+            console.log(`  결과:       ${outcomeIcon} ${result.outcome}`);
+            console.log(`  요약:       ${result.summary}`);
+            console.log(`  리포트:     ${result.reportJsonPath}`);
+            console.log(`  스크린샷:   ${result.screenshotsDir}`);
+            console.log(`  스텝 수:    ${result.steps.length}\n`);
+          }
+
+          if (result.outcome === "pass") {
+            process.exit(EXIT_CODES.SUCCESS);
+          } else if (result.outcome === "fail") {
+            process.exit(EXIT_CODES.PARTIAL_FAILURE);
+          } else {
+            process.exit(EXIT_CODES.FAILURE);
+          }
         }
       } catch (e) {
         console.error("오류:", e instanceof Error ? e.message : String(e));
