@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { buildAgentInvocation, assertSafePathArg } from "../agent/args.js";
+import { buildAgentInvocation, isPathSafeForReadRule } from "../agent/args.js";
 
 describe("buildAgentInvocation", () => {
   // ── claude ────────────────────────────────────────────────────────
@@ -193,7 +193,6 @@ describe("buildAgentInvocation", () => {
         screenshotsDir: dir,
       });
       const readPattern = `Read(//${dir}/**)`;
-      // --allowedTools 뒤 argv 요소들 중 하나에 정확히 포함돼야 한다
       expect(result.args).toContain(readPattern);
     });
 
@@ -216,6 +215,81 @@ describe("buildAgentInvocation", () => {
       });
       const count = result.args.filter((a) => a === "--allowedTools").length;
       expect(count).toBe(2);
+    });
+
+    // ── 유니코드/한글 경로 허용 (회귀 방지) ──────────────────────────
+
+    it("한글 경로 — Read 스코프 포함됨 (회귀 방지)", () => {
+      const dir = "/tmp/한글/screenshots";
+      const result = buildAgentInvocation("claude", {
+        prompt: "test",
+        screenshotsDir: dir,
+      });
+      const args = result.args.join(" ");
+      expect(args).toContain(`Read(//${dir}/**)`);
+      // Bash는 항상 유지돼야 한다
+      expect(args).toContain("Bash");
+    });
+
+    it("@ 포함 경로 — Read 스코프 포함됨", () => {
+      const dir = "/Users/user@domain/screenshots";
+      const result = buildAgentInvocation("claude", {
+        prompt: "test",
+        screenshotsDir: dir,
+      });
+      expect(result.args).toContain(`Read(//${dir}/**)`);
+    });
+
+    it("공백 포함 경로 — Read 미포함, Bash는 유지, throw 안 함", () => {
+      const dir = "/Users/user/my screenshots";
+      expect(() => {
+        const result = buildAgentInvocation("claude", {
+          prompt: "test",
+          screenshotsDir: dir,
+        });
+        // throw 안 해야 한다
+        // Bash는 반드시 유지
+        expect(result.args).toContain("Bash");
+        // Read 스코프는 추가되지 않아야 한다
+        const argsStr = result.args.join(" ");
+        expect(argsStr).not.toContain("Read(");
+      }).not.toThrow();
+    });
+
+    it(") 포함 경로 — Read 미포함, throw 안 함", () => {
+      const dir = "/Users/user/Desktop (2)/screenshots";
+      expect(() => {
+        const result = buildAgentInvocation("claude", {
+          prompt: "test",
+          screenshotsDir: dir,
+        });
+        const argsStr = result.args.join(" ");
+        expect(argsStr).not.toContain("Read(");
+        // Bash는 유지
+        expect(result.args).toContain("Bash");
+      }).not.toThrow();
+    });
+
+    it("개행 포함 경로 — Read 미포함, throw 안 함", () => {
+      const dir = "/tmp/karax\nrm -rf /";
+      expect(() => {
+        const result = buildAgentInvocation("claude", {
+          prompt: "test",
+          screenshotsDir: dir,
+        });
+        const argsStr = result.args.join(" ");
+        expect(argsStr).not.toContain("Read(");
+        expect(result.args).toContain("Bash");
+      }).not.toThrow();
+    });
+
+    it("일반 ASCII 경로 — Read 스코프 포함됨 (기존 정상 케이스 회귀)", () => {
+      const dir = "/Users/john/Desktop/worktrees/karax-total/out/2026-01-01/screenshots";
+      const result = buildAgentInvocation("claude", {
+        prompt: "test",
+        screenshotsDir: dir,
+      });
+      expect(result.args).toContain(`Read(//${dir}/**)`);
     });
   });
 
@@ -240,61 +314,102 @@ describe("buildAgentInvocation", () => {
       expect(with_.args).toEqual(without.args);
     });
   });
-
-  // ── assertSafePathArg ────────────────────────────────────────────────
-
-  describe("assertSafePathArg", () => {
-    it("유효한 절대경로는 통과한다", () => {
-      expect(() => assertSafePathArg("/tmp/karax/screenshots")).not.toThrow();
-    });
-
-    it("숫자·대소문자·하이픈·점·슬래시·콜론 포함 경로는 통과한다", () => {
-      expect(() => assertSafePathArg("/Users/john/Desktop/worktrees/karax-total/out/2026-01-01/screenshots")).not.toThrow();
-    });
-
-    it("공백이 포함된 경로는 INVALID_ARGUMENT를 throw한다", () => {
-      expect(() => assertSafePathArg("/tmp/karax screenshots")).toThrow();
-    });
-
-    it("세미콜론이 포함된 경로는 INVALID_ARGUMENT를 throw한다", () => {
-      expect(() => assertSafePathArg("/tmp/karax;rm -rf /")).toThrow();
-    });
-
-    it("백틱이 포함된 경로는 INVALID_ARGUMENT를 throw한다", () => {
-      expect(() => assertSafePathArg("/tmp/`whoami`")).toThrow();
-    });
-
-    it("상대경로(절대경로 아님)는 INVALID_ARGUMENT를 throw한다", () => {
-      expect(() => assertSafePathArg("relative/path/screenshots")).toThrow();
-    });
-
-    it("빈 문자열은 INVALID_ARGUMENT를 throw한다", () => {
-      expect(() => assertSafePathArg("")).toThrow();
-    });
-
-    it("개행 문자가 포함된 경로는 INVALID_ARGUMENT를 throw한다", () => {
-      expect(() => assertSafePathArg("/tmp/karax\nrm -rf /")).toThrow();
-    });
-  });
 });
 
-// ── assertSafePathArg throw 에러 타입 검증 ───────────────────────────────
+// ── isPathSafeForReadRule ────────────────────────────────────────────────
 
-describe("assertSafePathArg E2eError 타입", () => {
-  it("위반 경로에서 E2eError(INVALID_ARGUMENT)를 throw한다", async () => {
-    const { E2eError } = await import("../types.js");
-    expect(() => assertSafePathArg("/tmp/bad path")).toThrowError(E2eError);
+describe("isPathSafeForReadRule", () => {
+  // 허용 케이스
+  it("일반 ASCII 절대경로는 safe를 반환한다", () => {
+    expect(isPathSafeForReadRule("/tmp/karax/screenshots")).toBe(true);
   });
 
-  it("INVALID_ARGUMENT 코드를 갖는다", async () => {
-    const { E2eError } = await import("../types.js");
-    try {
-      assertSafePathArg("/tmp/bad;path");
-    } catch (e) {
-      expect(e).toBeInstanceOf(E2eError);
-      if (e instanceof E2eError) {
-        expect(e.code).toBe("INVALID_ARGUMENT");
-      }
-    }
+  it("숫자·대소문자·하이픈·점·슬래시·콜론 포함 경로는 safe를 반환한다", () => {
+    expect(isPathSafeForReadRule("/Users/john/Desktop/worktrees/karax-total/out/2026-01-01")).toBe(true);
+  });
+
+  it("한글 경로는 safe를 반환한다 (유니코드 허용)", () => {
+    expect(isPathSafeForReadRule("/tmp/한글/screenshots")).toBe(true);
+  });
+
+  it("일본어 포함 경로는 safe를 반환한다 (유니코드 허용)", () => {
+    expect(isPathSafeForReadRule("/Users/user/デスクトップ/screenshots")).toBe(true);
+  });
+
+  it("@ 포함 경로는 safe를 반환한다", () => {
+    expect(isPathSafeForReadRule("/Users/user@domain/screenshots")).toBe(true);
+  });
+
+  it("언더스코어·점 포함 경로는 safe를 반환한다", () => {
+    expect(isPathSafeForReadRule("/tmp/karax_e2e/session.1/out")).toBe(true);
+  });
+
+  // 불허 케이스 — Read 규칙 구문·인자 분리를 깨는 문자들
+  it("공백 포함 경로는 false를 반환한다 (--allowedTools 공백 구분 깨짐)", () => {
+    expect(isPathSafeForReadRule("/tmp/karax screenshots")).toBe(false);
+  });
+
+  it(") 포함 경로는 false를 반환한다 (Read() 구문 조기 종료)", () => {
+    expect(isPathSafeForReadRule("/Users/user/Desktop (2)/screenshots")).toBe(false);
+  });
+
+  it("( 포함 경로는 false를 반환한다", () => {
+    expect(isPathSafeForReadRule("/Users/user/Desktop(work)/screenshots")).toBe(false);
+  });
+
+  it("* 포함 경로는 false를 반환한다 (글로브 충돌)", () => {
+    expect(isPathSafeForReadRule("/tmp/karax*/screenshots")).toBe(false);
+  });
+
+  it(", 포함 경로는 false를 반환한다 (인자 구분자)", () => {
+    expect(isPathSafeForReadRule("/tmp/karax,other/screenshots")).toBe(false);
+  });
+
+  it("세미콜론 포함 경로는 false를 반환한다 (셸 메타문자)", () => {
+    expect(isPathSafeForReadRule("/tmp/karax;rm -rf /")).toBe(false);
+  });
+
+  it("백틱 포함 경로는 false를 반환한다 (셸 메타문자)", () => {
+    expect(isPathSafeForReadRule("/tmp/`whoami`")).toBe(false);
+  });
+
+  it("개행 포함 경로는 false를 반환한다 (제어문자)", () => {
+    expect(isPathSafeForReadRule("/tmp/karax\nrm -rf /")).toBe(false);
+  });
+
+  it("탭 포함 경로는 false를 반환한다 (제어문자)", () => {
+    expect(isPathSafeForReadRule("/tmp/karax\tpath")).toBe(false);
+  });
+
+  it("빈 문자열은 false를 반환한다", () => {
+    expect(isPathSafeForReadRule("")).toBe(false);
+  });
+
+  it("상대경로는 false를 반환한다", () => {
+    expect(isPathSafeForReadRule("relative/path/screenshots")).toBe(false);
+  });
+
+  it("$ 포함 경로는 false를 반환한다 (변수 치환)", () => {
+    expect(isPathSafeForReadRule("/tmp/$HOME/screenshots")).toBe(false);
+  });
+
+  it("& 포함 경로는 false를 반환한다 (셸 메타문자)", () => {
+    expect(isPathSafeForReadRule("/tmp/karax&other")).toBe(false);
+  });
+
+  it("| 포함 경로는 false를 반환한다 (파이프)", () => {
+    expect(isPathSafeForReadRule("/tmp/karax|other")).toBe(false);
+  });
+
+  it("? 포함 경로는 false를 반환한다 (글로브)", () => {
+    expect(isPathSafeForReadRule("/tmp/karax?screenshots")).toBe(false);
+  });
+
+  it("! 포함 경로는 false를 반환한다 (히스토리 치환)", () => {
+    expect(isPathSafeForReadRule("/tmp/karax!screenshots")).toBe(false);
+  });
+
+  it("# 포함 경로는 false를 반환한다 (주석)", () => {
+    expect(isPathSafeForReadRule("/tmp/karax#screenshots")).toBe(false);
   });
 });

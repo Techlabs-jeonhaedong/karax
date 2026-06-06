@@ -12,23 +12,29 @@
  */
 
 import type { AgentKind, AgentInvocation, AgentRunOptions } from "./types.js";
-import { E2eError } from "../types.js";
 
 /**
- * screenshotsDir 절대경로가 안전한지 검증한다.
- * - 절대경로여야 한다 (슬래시로 시작)
- * - 허용 문자: ^[A-Za-z0-9_./:\-]+$ (공백, 세미콜론, 백틱, 개행 등 금지)
+ * screenshotsDir 경로가 Read 규칙에 안전한지 판별한다.
  *
- * 위반 시 E2eError("INVALID_ARGUMENT")를 throw한다.
- * screenshotsDir은 세션 코드가 생성한 신뢰 경로이므로, 위반은 버그 신호 — 안전 폴백 없이 throw.
+ * 허용:
+ * - 유니코드 문자·숫자(\p{L}\p{N} + u 플래그): 한글, 일본어 등 비ASCII 경로 지원
+ * - 기호: _ . / : @ -
+ *
+ * 불허 (Read 규칙 구문·인자 분리를 깨는 문자):
+ * - 공백 (--allowedTools 공백 구분 목록을 깨뜨림)
+ * - 괄호 () — Read() 구문을 조기 종료시킴
+ * - 별표 * — 글로브 충돌
+ * - 콤마 , — 인자 구분자
+ * - 셸 메타문자: ; ` $ & | ? ! # " ' \
+ * - 개행·탭 등 제어문자
+ *
+ * unsafe면 throw 하지 않는다 — 호출 측에서 Read 부여를 생략(폴백)한다.
  */
-export function assertSafePathArg(dir: string): void {
-  if (!dir || !dir.startsWith("/") || !/^[A-Za-z0-9_./:@\-]+$/.test(dir)) {
-    throw new E2eError(
-      "INVALID_ARGUMENT",
-      `screenshotsDir가 유효하지 않습니다: "${dir}". 절대경로이고 안전 문자([A-Za-z0-9_./:-])만 허용됩니다.`
-    );
-  }
+export function isPathSafeForReadRule(dir: string): boolean {
+  if (!dir || !dir.startsWith("/")) return false;
+  // 허용 문자: 유니코드 글자/숫자, 그리고 _ . / : @ -
+  // 그 외 모든 문자(공백, 괄호, 글로브, 셸 메타, 제어문자 등)는 불허
+  return /^[\p{L}\p{N}_.\/:@\-]+$/u.test(dir);
 }
 
 /**
@@ -85,10 +91,22 @@ export function buildAgentInvocation(
       //   - Read(//{절대경로}/**) — 절대경로가 /로 시작해 슬래시 3개가 되어도 정상 매칭
       //   - 스코프 실효: 범위 안 파일 읽힘, 범위 밖 파일 DENIED 확인
       //   - 단, Bash 자체는 경로 스코프 불가 — Read 표면 최소화 목적의 방어선임
+      //
+      // 허용 문자: 유니코드(@, 한글 등 포함), _ . / : @ -
+      // unsafe(공백·괄호·셸 메타 등)면 Read 부여를 생략하고 Bash만 유지 (폴백).
+      //   → 에러 throw 하지 않음: E2E 자체가 계속 동작해야 하며 Read 미부여는 더 제한적이라 보안상 안전.
+      //   → 경로 길이+첫 20자만 stderr에 경고 출력.
       const allowedToolsArgs: string[] = ["--allowedTools", "Bash"];
       if (opts.screenshotsDir !== undefined) {
-        assertSafePathArg(opts.screenshotsDir);
-        allowedToolsArgs.push("--allowedTools", `Read(//${opts.screenshotsDir}/**)`);
+        if (isPathSafeForReadRule(opts.screenshotsDir)) {
+          allowedToolsArgs.push("--allowedTools", `Read(//${opts.screenshotsDir}/**)`);
+        } else {
+          const preview = opts.screenshotsDir.slice(0, 20);
+          process.stderr.write(
+            `[karax/e2e] screenshotsDir에 Read-unsafe 문자가 포함됨 — Read 스코프 생략, Bash만 허용. ` +
+            `(길이=${opts.screenshotsDir.length}, 앞20자="${preview}")\n`
+          );
+        }
       }
 
       return {

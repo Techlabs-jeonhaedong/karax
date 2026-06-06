@@ -115,10 +115,10 @@ runE2eTest(projectPath, platform, scenarioPath?)
 ### Wave 2 — 테스트 품질 (G2·G4)
 
 #### M5. 에이전트 시각 능력 + budget 자동 조정
-- **`agent/types.ts`**: `AgentRunOptions.screenshotsDir?` 추가. **`agent/args.ts`** claude 분기: `--allowedTools "Bash" "Read(//<screenshotsDir>/**)"` (절대경로 `//` 프리픽스 구문). `assertSafePathArg()` 검증(절대경로 + `[A-Za-z0-9_./:-]`만). screenshotsDir 미전달 시 기존 동작(하위호환). **⚠ VERIFY: 실제 claude CLI에서 스코프 Read 구문 동작 확인 — 실패 시 폴백: `Read` 전체 허용 + 프롬프트 범위 강제** (기존 args.ts의 `// VERIFY` 관례 따름).
+- **`agent/types.ts`**: `AgentRunOptions.screenshotsDir?` 추가. **`agent/args.ts`** claude 분기: `--allowedTools "Bash" "Read(//<screenshotsDir>/**)"` (절대경로 `//` 프리픽스 구문). `isPathSafeForReadRule()` 판별 — 허용: 유니코드 문자·숫자(`\p{L}\p{N}` + `u` 플래그), `@ _ . / : -`. 불허: 공백·괄호·글로브·셸 메타·제어문자. unsafe면 **throw 하지 않고 Read 부여 생략(폴백)**, Bash는 유지 — 에러 대신 stderr 1줄 경고(길이+앞20자). screenshotsDir 미전달 시 기존 동작(하위호환).
 - codex/gemini: 플래그 없음 — 프롬프트에 "스크린샷을 직접 볼 수 있으면 보고, 불가하면 `karax ui dump` 텍스트로 판단" 양쪽 호환 지시.
-- **신규 `agent/budget.ts`** (순수 함수): `computeBudget({screenCount, exploratory, userMaxSteps?, userTimeoutMs?})` — exploratory+AppMap 있으면 `maxSteps = clamp(screenCount*3, 20, 60)`, `timeoutMs = clamp(screenCount*60_000, 900_000, 2_400_000)`. 사용자 명시값 항상 우선. `index.ts`에서 AppMap 화면 수로 호출.
-- **테스트**: args에 Read 스코프 포함/미포함/위험문자 거부, budget 경계값·사용자 우선.
+- **신규 `agent/budget.ts`** (순수 함수): `computeBudget({screenCount, exploratory, userMaxSteps?, userTimeoutMs?})` — exploratory+AppMap 있으면 `maxSteps = clamp(screenCount*3, 20, 60)`, `timeoutMs = clamp(screenCount*60_000, 900_000, 2_400_000)`. 사용자 명시값 항상 우선. `index.ts`에서 AppMap 화면 수로 호출. timeoutMs는 에이전트 시도 1회당이며 검증 실패 재시도 포함 최악 2배.
+- **테스트**: args에 Read 스코프 포함/미포함(unsafe 경로는 Read 생략 폴백·throw 안 함·Bash 유지), 한글/유니코드 경로 허용, budget 경계값·사용자 우선.
 
 #### M6. 시나리오 v2 + 일괄 실행
 - **`yaml` 의존 추가**, 신규 **`scenario/schema.ts`** (zod, 알 수 없는 키 무시): frontmatter 확장 — `title`, `mode: scenario|exploratory`(명시 우선, 없으면 기존 추론), `preconditions[]`, `testData{}`(`{{SECRET:X}}` 플레이스홀더는 해석 없이 보존, 리포트 마스킹), `steps[]: {action, expect?}`, `permissions[]`(스키마만 — 와이어링은 M11).

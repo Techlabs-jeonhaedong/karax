@@ -12,7 +12,7 @@ const MAX_STEPS = 60;
 
 /** timeoutMs 하한 (최소 15분) — 단위: ms */
 const MIN_TIMEOUT_MS = 900_000;
-/** timeoutMs 상한 (최대 40분) — 단위: ms */
+/** timeoutMs 상한 (최대 40분) — 단위: ms. timeoutMs는 에이전트 시도 1회당이며 검증 실패 재시도 포함 최악 2배 소요 가능. */
 const MAX_TIMEOUT_MS = 2_400_000;
 
 /** 화면 1개당 할당 시간 (1분) — 단위: ms */
