@@ -20,7 +20,11 @@
   const { spawnSync } = await import("node:child_process");
   const { shouldRespawn, WASM_FLAGS, WASM_MARKER_ENV } = await import("./wasmFlags.js");
 
-  if (shouldRespawn(process.execArgv, process.env)) {
+  // `karax ui` 서브커맨드는 정적 분석(tree-sitter WASM) 불필요 → respawn 건너뜀
+  // 에이전트가 매 탭마다 호출하므로 기동 비용 절감
+  const isUiSubcommand = process.argv[2] === "ui";
+
+  if (!isUiSubcommand && shouldRespawn(process.execArgv, process.env)) {
     const result = spawnSync(
       process.execPath,
       [...WASM_FLAGS, process.argv[1], ...process.argv.slice(2)],
@@ -48,6 +52,12 @@ import {
   parseMcpConfigArgs,
   parseTestArgs,
 } from "./commands.js";
+import {
+  parseUiArgs,
+  runUiDump,
+  runUiLocate,
+  runUiWhichScreen,
+} from "./commands/ui.js";
 import type { DeviceProfileId } from "@karax/sdk";
 
 // repo 루트: packages/cli/dist/bin.js → ../../../ (= repo root)
@@ -568,6 +578,66 @@ program
       }
     }
   );
+
+// ─── ui ───────────────────────────────────────────────────────────
+// 에이전트용 결정론 헬퍼 — dump/locate/which-screen
+// stdout에는 JSON 한 덩어리만 출력. 진단·로그는 stderr.
+
+const uiCmd = program.command("ui").description("에이전트용 런타임 UI 헬퍼 (dump|locate|which-screen)");
+uiCmd
+  .argument("[subcommand]", "서브커맨드: dump | locate | which-screen")
+  .allowUnknownOption(true)
+  .action(async (_sub: string | undefined) => {
+    // commander에서 나머지 argv를 수동으로 파싱
+    const rawArgs = process.argv.slice(3); // ["dump", "--device", "emulator-5554", ...]
+    try {
+      const args = parseUiArgs(rawArgs);
+
+      let result: unknown;
+
+      if (args.subcommand === "dump") {
+        result = await runUiDump({ device: args.device, platform: args.platform });
+      } else if (args.subcommand === "locate") {
+        result = await runUiLocate({
+          device: args.device,
+          platform: args.platform,
+          label: args.label ?? "",
+          appmap: args.appmap,
+          screen: args.screen,
+        });
+      } else {
+        // which-screen
+        result = await runUiWhichScreen({
+          device: args.device,
+          platform: args.platform,
+          appmap: args.appmap,
+        });
+      }
+
+      const json = result as { ok: boolean; found?: boolean };
+
+      // stdout: JSON 한 덩어리
+      console.log(JSON.stringify(result));
+
+      // exit code
+      if (!json.ok) {
+        process.exit(EXIT_CODES.FAILURE);
+      } else if (json.ok && json.found === false) {
+        // locate: 미발견 → exit 2
+        process.exit(EXIT_CODES.PARTIAL_FAILURE);
+      } else {
+        process.exit(EXIT_CODES.SUCCESS);
+      }
+    } catch (e) {
+      const errorResult = {
+        ok: false,
+        error: "INVALID_ARGUMENT",
+        message: e instanceof Error ? e.message : String(e),
+      };
+      console.log(JSON.stringify(errorResult));
+      process.exit(EXIT_CODES.FAILURE);
+    }
+  });
 
 // ─── 알 수 없는 커맨드 처리 ───────────────────────────────────────
 

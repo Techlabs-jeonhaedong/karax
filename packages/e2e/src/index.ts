@@ -30,6 +30,7 @@ import { summarizeAppMap, renderSummaryForPrompt } from "./appmap/promptSummary.
 export type { RunE2eTestOptions, E2eTestResult, Platform };
 export { E2eError, E2E_ERROR_CODES } from "./types.js";
 export type { E2eErrorCode, AgentKind } from "./types.js";
+export { dumpAndroidUI } from "./runtime/dumpAndroid.js";
 
 /**
  * E2E 테스트를 실행하고 결과를 반환한다.

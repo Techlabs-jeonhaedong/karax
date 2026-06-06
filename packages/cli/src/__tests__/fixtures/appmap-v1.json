@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "appmap/1",
+  "appName": "LegacyApp",
+  "framework": "android",
+  "entryScreenId": "MainActivity",
+  "screens": [
+    {
+      "id": "MainActivity",
+      "title": "메인",
+      "discovery": "route",
+      "isEntry": true,
+      "confidence": 0.8,
+      "elements": [
+        { "type": "Text", "label": "메인 화면" },
+        { "type": "Button", "label": "시작" }
+      ],
+      "outgoing": []
+    }
+  ],
+  "edges": [],
+  "diagnostics": [],
+  "overallConfidence": 0.8
+}

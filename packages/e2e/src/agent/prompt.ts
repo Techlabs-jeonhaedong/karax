@@ -14,19 +14,33 @@ export interface BuildPromptOptions {
   scenarioBody?: string;
   /** 정적 분석으로 생성한 AppMap 요약 텍스트. 있으면 APPMAP 격리 블록으로 삽입. */
   appMapSection?: string;
+  /**
+   * M3 sessionAppMap이 저장한 appmap.json 절대경로.
+   * 있으면 치트시트의 locate/which-screen --appmap 예시에 경로를 삽입한다.
+   */
+  appMapJsonPath?: string;
 }
 
-const ANDROID_CHEATSHEET = `
-## Android 제어 치트시트 (adb)
-- 스크린샷: adb -s <deviceId> exec-out screencap -p > <path>.png
-- 탭: adb -s <deviceId> shell input tap <x> <y>
-- 스와이프: adb -s <deviceId> shell input swipe <x1> <y1> <x2> <y2> <duration_ms>
-- 텍스트 입력: adb -s <deviceId> shell input text "<text>"
-- 뒤로가기: adb -s <deviceId> shell input keyevent KEYCODE_BACK
-- 홈: adb -s <deviceId> shell input keyevent KEYCODE_HOME
-- 앱 실행: adb -s <deviceId> shell monkey -p <appId> -c android.intent.category.LAUNCHER 1
-- UI 덤프: adb -s <deviceId> shell uiautomator dump && adb -s <deviceId> pull /sdcard/window_dump.xml
-`.trim();
+function buildAndroidCheatsheet(deviceId: string, appMapJsonPath?: string): string {
+  const appmapArg = appMapJsonPath ? ` --appmap ${appMapJsonPath}` : "";
+
+  return `## Android 제어 치트시트 (adb)
+- 스크린샷: adb -s ${deviceId} exec-out screencap -p > <path>.png
+- 탭: adb -s ${deviceId} shell input tap <x> <y>
+- 스와이프: adb -s ${deviceId} shell input swipe <x1> <y1> <x2> <y2> <duration_ms>
+- 텍스트 입력: adb -s ${deviceId} shell input text "<text>"
+- 뒤로가기: adb -s ${deviceId} shell input keyevent KEYCODE_BACK
+- 홈: adb -s ${deviceId} shell input keyevent KEYCODE_HOME
+- 앱 실행: adb -s ${deviceId} shell monkey -p <appId> -c android.intent.category.LAUNCHER 1
+- UI 덤프: adb -s ${deviceId} shell uiautomator dump && adb -s ${deviceId} pull /sdcard/window_dump.xml
+
+## karax UI 헬퍼 (좌표 계산 금지 — 반드시 이 명령어 사용)
+- 요소 좌표 찾기(권장): karax ui locate --device ${deviceId} --label "<버튼 라벨>"${appmapArg}
+  → JSON의 tap.x/tap.y를 input tap에 사용. 직접 좌표 계산하지 말 것.
+- 현재 화면 식별: karax ui which-screen --device ${deviceId}${appmapArg}
+- 전체 UI 텍스트 덤프: karax ui dump --device ${deviceId}
+- karax 커맨드가 없으면 uiautomator dump를 직접 파싱해 좌표를 추출할 것`.trim();
+}
 
 const IOS_CHEATSHEET = `
 ## iOS 제어 치트시트 (simctl)
@@ -73,7 +87,10 @@ export function buildAgentPrompt(opts: BuildPromptOptions): string {
     scenarioBody,
   } = opts;
 
-  const cheatsheet = platform === "android" ? ANDROID_CHEATSHEET : IOS_CHEATSHEET;
+  const cheatsheet =
+    platform === "android"
+      ? buildAndroidCheatsheet(deviceId, opts.appMapJsonPath)
+      : IOS_CHEATSHEET;
 
   const contract = OUTPUT_CONTRACT.replaceAll("{screenshotsDir}", screenshotsDir);
 

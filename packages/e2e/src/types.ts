@@ -18,6 +18,8 @@ export const E2E_ERROR_CODES = {
   AGENT_OUTPUT_INVALID: "AGENT_OUTPUT_INVALID",
   AGENT_TIMEOUT: "AGENT_TIMEOUT",
   INVALID_ARGUMENT: "INVALID_ARGUMENT",
+  /** uiautomator dump 실패 — 디바이스 없음 또는 dump 자체 오류 */
+  DUMP_FAILED: "DUMP_FAILED",
 } as const;
 
 export type E2eErrorCode = keyof typeof E2E_ERROR_CODES;

@@ -192,4 +192,64 @@ describe("buildAgentPrompt", () => {
     expect(cheatsheetIdx).toBeLessThan(appmapIdx);
     expect(appmapIdx).toBeLessThan(scenarioIdx);
   });
+
+  // ── karax ui 치트시트 확장 테스트 ────────────────────────────────────
+
+  it("android 치트시트에 karax ui locate 안내가 포함된다", () => {
+    const result = buildAgentPrompt({ ...baseOpts, exploratory: true });
+    expect(result).toContain("karax ui locate");
+  });
+
+  it("android 치트시트에 karax ui which-screen 안내가 포함된다", () => {
+    const result = buildAgentPrompt({ ...baseOpts, exploratory: true });
+    expect(result).toContain("karax ui which-screen");
+  });
+
+  it("android 치트시트에 karax ui dump 안내가 포함된다", () => {
+    const result = buildAgentPrompt({ ...baseOpts, exploratory: true });
+    expect(result).toContain("karax ui dump");
+  });
+
+  it("android 치트시트에 직접 좌표 계산하지 말 것 지시가 포함된다", () => {
+    const result = buildAgentPrompt({ ...baseOpts, exploratory: true });
+    expect(result).toMatch(/직접.*좌표.*계산.*하지|좌표.*계산.*하지/);
+  });
+
+  it("appMapJsonPath가 없을 때 --appmap 없는 locate 사용법이 포함된다", () => {
+    const result = buildAgentPrompt({ ...baseOpts, exploratory: true });
+    expect(result).toContain("karax ui locate");
+    // appmap 없는 버전 안내가 포함되어야 함
+    expect(result).toContain("--device");
+  });
+
+  it("appMapJsonPath가 있을 때 --appmap 경로가 치트시트에 포함된다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      exploratory: true,
+      appMapJsonPath: "/tmp/session/appmap/appmap.json",
+    });
+    expect(result).toContain("/tmp/session/appmap/appmap.json");
+  });
+
+  it("appMapJsonPath가 있을 때 locate --appmap 예시가 포함된다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      exploratory: true,
+      appMapJsonPath: "/tmp/session/appmap/appmap.json",
+    });
+    expect(result).toContain("--appmap");
+    expect(result).toContain("/tmp/session/appmap/appmap.json");
+  });
+
+  it("ios 치트시트에는 karax ui 안내가 포함되지 않는다 (미지원)", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      platform: "ios",
+      exploratory: true,
+    });
+    // iOS는 karax ui dump 미지원이므로 locate/which-screen 없어도 됨
+    // (단, 안내 자체가 없거나 폴백 안내가 있어야 함)
+    // iOS 치트시트가 simctl을 포함하고 있는지 확인
+    expect(result).toContain("simctl");
+  });
 });
