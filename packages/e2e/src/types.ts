@@ -115,4 +115,10 @@ export interface E2eStep {
   status: "pass" | "fail" | "skip";
   screenshot?: string;
   note?: string;
+  /** 기대 동작 (시나리오 expected 필드에서 매핑) */
+  expected?: string;
+  /** 실제 동작 */
+  actual?: string;
+  /** 이 스텝이 수행된 화면 id */
+  screenId?: string;
 }

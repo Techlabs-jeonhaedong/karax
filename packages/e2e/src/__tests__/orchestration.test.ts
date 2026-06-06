@@ -682,6 +682,123 @@ describe("runE2eTest", () => {
     expect(result.visitedScreens).toEqual(["home", "settings"]);
   });
 
+  // ── 항목 3: visitedScreens 형식 검증 (AppMap 없을 때 기본 필터) ──
+
+  it("visitedScreens에서 빈 문자열이 제거된다", async () => {
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({
+      outcome: "pass",
+      summary: "통과",
+      steps: [],
+      visitedScreens: ["home", "", "settings", ""],
+    });
+
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    expect(result.visitedScreens).not.toContain("");
+    expect(result.visitedScreens).toContain("home");
+    expect(result.visitedScreens).toContain("settings");
+  });
+
+  it("visitedScreens에서 길이 100 초과 id가 제거된다", async () => {
+    const longId = "a".repeat(101);
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({
+      outcome: "pass",
+      summary: "통과",
+      steps: [],
+      visitedScreens: ["home", longId, "settings"],
+    });
+
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    expect(result.visitedScreens).not.toContain(longId);
+    expect(result.visitedScreens).toContain("home");
+    expect(result.visitedScreens).toContain("settings");
+  });
+
+  it("visitedScreens에서 제어문자 포함 id가 제거된다", async () => {
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({
+      outcome: "pass",
+      summary: "통과",
+      steps: [],
+      visitedScreens: ["home", "bad\x00id", "set\x1fting", "detail\x7f"],
+    });
+
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    expect(result.visitedScreens).not.toContain("bad\x00id");
+    expect(result.visitedScreens).not.toContain("set\x1fting");
+    expect(result.visitedScreens).not.toContain("detail\x7f");
+    expect(result.visitedScreens).toContain("home");
+  });
+
+  it("visitedScreens에서 중복이 제거된다", async () => {
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({
+      outcome: "pass",
+      summary: "통과",
+      steps: [],
+      visitedScreens: ["home", "settings", "home", "detail", "settings"],
+    });
+
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    expect(result.visitedScreens).toBeDefined();
+    const unique = new Set(result.visitedScreens);
+    expect(unique.size).toBe(result.visitedScreens!.length);
+    expect(result.visitedScreens).toContain("home");
+    expect(result.visitedScreens).toContain("settings");
+    expect(result.visitedScreens).toContain("detail");
+  });
+
+  it("AppMap 없을 때도 visitedScreens 기본 형식 검증이 동작한다", async () => {
+    const longId = "b".repeat(101);
+    mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
+    mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);
+    mockRunAgent.mockResolvedValue({
+      outcome: "pass",
+      summary: "통과",
+      steps: [],
+      visitedScreens: ["valid", "", longId, "also-valid", "valid"], // 빈 문자열 + 초장문 + 중복
+    });
+    // appMapGenerator 없음 → AppMap 없는 경로
+
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+    });
+
+    expect(result.visitedScreens).not.toContain("");
+    expect(result.visitedScreens).not.toContain(longId);
+    // 중복 제거
+    const validOccurrences = result.visitedScreens!.filter((id) => id === "valid");
+    expect(validOccurrences).toHaveLength(1);
+    expect(result.visitedScreens).toContain("also-valid");
+  });
+
   it("path traversal 탈출 경로가 포함된 step은 screenshot 필드가 제거된다", async () => {
     mockCreateDeviceManager.mockResolvedValue(makeMockDeviceManager() as ReturnType<typeof createDeviceManager>);
     mockSelectBuilder.mockReturnValue(makeMockBuilder() as ReturnType<typeof selectBuilder>);

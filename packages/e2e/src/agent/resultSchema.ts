@@ -26,7 +26,7 @@ export const FindingSchema = z.object({
   /** 스크린샷 파일명 — sanitizeScreenshotPath 대상 (선택) */
   evidence: z.string().optional(),
   /** 재현 단계 (선택) */
-  reproSteps: z.array(z.string()).optional(),
+  reproSteps: z.array(z.string()).max(50).optional(),
 });
 
 export type Finding = z.infer<typeof FindingSchema>;
@@ -52,11 +52,11 @@ export const AgentStepSchema = z.object({
 export const AgentResultSchema = z.object({
   outcome: z.enum(["pass", "fail"]),
   summary: z.string(),
-  steps: z.array(AgentStepSchema),
+  steps: z.array(AgentStepSchema).max(500),
   /** M7: anomaly 발견 사항 목록 (exploratory 모드) */
-  findings: z.array(FindingSchema).optional(),
+  findings: z.array(FindingSchema).max(500).optional(),
   /** M7: 에이전트가 방문한 화면 id 목록 */
-  visitedScreens: z.array(z.string()).optional(),
+  visitedScreens: z.array(z.string()).max(1000).optional(),
 });
 
 export type AgentResult = z.infer<typeof AgentResultSchema>;

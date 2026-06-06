@@ -342,9 +342,13 @@ describe("buildAgentPrompt", () => {
     expect(result).toContain("visitedScreens");
   });
 
-  it("exploratory 모드에서 광고 회피 지시가 포함된다", () => {
-    const result = buildAgentPrompt({ ...baseOpts, exploratory: true });
-    // 광고 탭 회피 문구
+  it("exploratory 모드에서 appMapSection이 있을 때 광고 회피 지시가 포함된다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      exploratory: true,
+      appMapSection: "화면 목록:\n- home → detail",
+    });
+    // 광고 탭 회피 문구 (AppMap이 있을 때만 포함)
     expect(result).toMatch(/광고|ad.*회피|role.*ad|탭하지/i);
   });
 
@@ -446,5 +450,32 @@ describe("buildAgentPrompt", () => {
     expect(result).toContain("SCENARIO END");
     // 원본 결과 계약이 유지돼야 함
     expect(result).toContain("result.json");
+  });
+
+  // ── 항목 4: 광고 회피 지시 조건부 (appMapSection 있을 때만) ────────
+
+  it("appMapSection이 없을 때 exploratory 모드에서 광고 회피 문구가 없다", () => {
+    // appMapSection 없으면 광고 지시는 dead instruction이므로 포함하지 않는다
+    const result = buildAgentPrompt({ ...baseOpts, exploratory: true });
+    // "광고 영역 회피" 섹션 헤더가 없어야 함
+    expect(result).not.toContain("광고 영역 회피");
+  });
+
+  it("appMapSection이 있을 때 exploratory 모드에서 광고 회피 문구가 포함된다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      exploratory: true,
+      appMapSection: "화면 목록:\n- home → detail",
+    });
+    expect(result).toContain("광고 영역 회피");
+  });
+
+  it("appMapSection 없을 때 시나리오 모드에서도 광고 회피 문구가 없다", () => {
+    const result = buildAgentPrompt({
+      ...baseOpts,
+      exploratory: false,
+      scenarioBody: "로그인 버튼 탭",
+    });
+    expect(result).not.toContain("광고 영역 회피");
   });
 });

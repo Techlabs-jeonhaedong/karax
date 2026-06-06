@@ -305,17 +305,16 @@ ${safeAppMapSection}
     const coverageSection = renderCoverageSection(targetScreenIds);
     const checklist = renderTaxonomyChecklist();
     const findingsContract = renderFindingsContract();
+    // 광고 회피 지시는 AppMap이 있을 때만 포함 — AppMap 없으면 dead instruction
+    const adAvoidSection = opts.appMapSection
+      ? `\n## 광고 영역 회피\n지도에서 role:ad로 표시된 영역은 광고다 — 탭하지 말고, 광고 내용 변화를 finding으로 기록하지 마라.\n광고 배너를 실수로 탭하면 외부 앱이 열릴 수 있으므로 주의할 것.\n`
+      : "";
 
     taskSection = `## 태스크: 탐색적(exploratory) QA 테스트
 이 앱을 실제 사용자처럼 자유롭게 사용하면서, 부자연스러운 점을 모두 찾아 기록하는 QA 테스트다.
 - 앱의 주요 화면을 탐색하며 각 화면 스크린샷을 저장한다
 - 명백한 버그나 UI 문제를 발견하면 findings에 기록한다
-- 최대 ${maxSteps}개 스텝 이내로 수행한다
-
-## 광고 영역 회피
-지도에서 role:ad로 표시된 영역은 광고다 — 탭하지 말고, 광고 내용 변화를 finding으로 기록하지 마라.
-광고 배너를 실수로 탭하면 외부 앱이 열릴 수 있으므로 주의할 것.
-
+- 최대 ${maxSteps}개 스텝 이내로 수행한다${adAvoidSection}
 ${coverageSection}
 
 ${checklist}

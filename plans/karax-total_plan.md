@@ -133,6 +133,7 @@ runE2eTest(projectPath, platform, scenarioPath?)
 - **`prompt.ts` exploratory 대수술**: ① 커버리지 목표(AppMap 화면 전부 방문 시도 + visitedScreens 기록 계약) ② 화면당 taxonomy 체크리스트(레이아웃 깨짐/죽은 버튼/미번역/뒤로가기/빈 이미지·에러 토스트) ③ findings 기록 계약(스크린샷 증거 필수) ④ 광고 영역(role:"ad") 탭 회피 지시.
 - 스텝 스크린샷 준수: 오케스트레이터가 result 수신 후 `status!=="skip"`인데 screenshot 없는 스텝을 `qualityWarnings[]`로 결정론 기록(강제 재시도는 안 함).
 - **테스트**: taxonomy-enum 일치 가드, 프롬프트 키워드/격리 블록/인젝션 불변성(악성 appMapContext에도 역할 지시 불변), v1 result.json 파싱 하위호환.
+- **[의도 승인 기록]** `SCENARIO_OUTPUT_CONTRACT`에 `screenId`/`expected`/`actual` 안내가 `scenarioSteps` 유무와 무관하게 포함됨 — 시나리오 단언(assert) 표현을 위한 의도된 변경. `E2eStep` 타입에도 같은 세 필드를 추가해 타입 소비자(M8 report 렌더 등)가 컴파일 에러 없이 접근할 수 있도록 동기화.
 
 #### M8. 신뢰성 + report v2
 - **신규 `crash/detect.ts`** (순수): `parseLogcatForCrashes(text, appId)` — `FATAL EXCEPTION`/`ANR in`/process death/native signal 정규식, appId 필터, `sanitizeStderr` 재사용해 시크릿 redact. **`device/types.ts`에 `captureLogcat?` optional 메서드** — Android `adb logcat -d` 구현, iOS는 빈 결과 허용.

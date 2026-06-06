@@ -1,10 +1,66 @@
 /**
- * agent/resultSchema.ts + report/schema.ts zod 스키마 테스트
+ * agent/resultSchema.ts + report/schema.ts + types.ts zod 스키마 테스트
  */
 
 import { describe, it, expect } from "vitest";
 import { AgentResultSchema, FindingSchema } from "../agent/resultSchema.js";
 import { E2eReportSchema } from "../report/schema.js";
+import type { E2eStep, E2eTestResult } from "../types.js";
+
+// ── 항목 1: E2eStep 타입에 expected/actual/screenId 포함 확인 ──────
+
+describe("E2eStep 타입 동기화", () => {
+  it("E2eStep에 expected/actual/screenId 선택 필드가 타입에 존재한다 (컴파일 검증)", () => {
+    // 컴파일 에러 없이 아래 코드가 실행되어야 함
+    const step: E2eStep = {
+      index: 1,
+      description: "로그인 버튼 탭",
+      status: "pass",
+      expected: "로그인 성공 화면",
+      actual: "로그인 성공 화면",
+      screenId: "login",
+    };
+    expect(step.expected).toBe("로그인 성공 화면");
+    expect(step.actual).toBe("로그인 성공 화면");
+    expect(step.screenId).toBe("login");
+  });
+
+  it("E2eStep은 expected/actual/screenId 없이도 유효하다 (선택 필드)", () => {
+    const step: E2eStep = {
+      index: 1,
+      description: "탭",
+      status: "pass",
+    };
+    expect(step.expected).toBeUndefined();
+    expect(step.actual).toBeUndefined();
+    expect(step.screenId).toBeUndefined();
+  });
+
+  it("E2eTestResult.steps에서 expected/actual/screenId 필드에 접근할 수 있다", () => {
+    const result: E2eTestResult = {
+      outcome: "pass",
+      sessionDir: "/tmp/session",
+      reportJsonPath: "/tmp/session/report.json",
+      reportMdPath: "/tmp/session/report.md",
+      screenshotsDir: "/tmp/session/screenshots",
+      summary: "통과",
+      steps: [
+        {
+          index: 1,
+          description: "탭",
+          status: "pass",
+          expected: "성공 화면",
+          actual: "성공 화면",
+          screenId: "home",
+        },
+      ],
+    };
+    // 타입 소비자가 접근 가능해야 함
+    expect(result.steps[0].expected).toBe("성공 화면");
+    expect(result.steps[0].actual).toBe("성공 화면");
+    expect(result.steps[0].screenId).toBe("home");
+  });
+});
 
 // ── AgentResultSchema ─────────────────────────────────────────────
 
@@ -227,6 +283,122 @@ describe("AgentResultSchema", () => {
     expect(parsed.steps[0].expected).toBe("로그인 성공 화면");
     expect(parsed.steps[0].actual).toBe("로그인 성공 화면");
     expect(parsed.steps[0].screenId).toBe("login");
+  });
+});
+
+// ── 항목 2: AgentResultSchema 배열 상한 테스트 ────────────────────
+
+describe("AgentResultSchema 배열 상한", () => {
+  it("findings가 500개를 초과하면 거부된다", () => {
+    const data = {
+      outcome: "pass",
+      summary: "요약",
+      steps: [],
+      findings: Array.from({ length: 501 }, (_, i) => ({
+        id: `f${i}`,
+        severity: "minor",
+        category: "other",
+        description: "설명",
+      })),
+    };
+    expect(() => AgentResultSchema.parse(data)).toThrow();
+  });
+
+  it("findings가 500개이면 허용된다", () => {
+    const data = {
+      outcome: "pass",
+      summary: "요약",
+      steps: [],
+      findings: Array.from({ length: 500 }, (_, i) => ({
+        id: `f${i}`,
+        severity: "minor",
+        category: "other",
+        description: "설명",
+      })),
+    };
+    expect(() => AgentResultSchema.parse(data)).not.toThrow();
+  });
+
+  it("visitedScreens가 1000개를 초과하면 거부된다", () => {
+    const data = {
+      outcome: "pass",
+      summary: "요약",
+      steps: [],
+      visitedScreens: Array.from({ length: 1001 }, (_, i) => `screen-${i}`),
+    };
+    expect(() => AgentResultSchema.parse(data)).toThrow();
+  });
+
+  it("visitedScreens가 1000개이면 허용된다", () => {
+    const data = {
+      outcome: "pass",
+      summary: "요약",
+      steps: [],
+      visitedScreens: Array.from({ length: 1000 }, (_, i) => `screen-${i}`),
+    };
+    expect(() => AgentResultSchema.parse(data)).not.toThrow();
+  });
+
+  it("steps가 500개를 초과하면 거부된다", () => {
+    const data = {
+      outcome: "pass",
+      summary: "요약",
+      steps: Array.from({ length: 501 }, (_, i) => ({
+        index: i,
+        description: "스텝",
+        status: "pass",
+      })),
+    };
+    expect(() => AgentResultSchema.parse(data)).toThrow();
+  });
+
+  it("steps가 500개이면 허용된다", () => {
+    const data = {
+      outcome: "pass",
+      summary: "요약",
+      steps: Array.from({ length: 500 }, (_, i) => ({
+        index: i,
+        description: "스텝",
+        status: "pass",
+      })),
+    };
+    expect(() => AgentResultSchema.parse(data)).not.toThrow();
+  });
+
+  it("reproSteps가 50개를 초과하면 거부된다", () => {
+    const data = {
+      outcome: "pass",
+      summary: "요약",
+      steps: [],
+      findings: [
+        {
+          id: "f1",
+          severity: "major",
+          category: "other",
+          description: "설명",
+          reproSteps: Array.from({ length: 51 }, (_, i) => `단계 ${i}`),
+        },
+      ],
+    };
+    expect(() => AgentResultSchema.parse(data)).toThrow();
+  });
+
+  it("reproSteps가 50개이면 허용된다", () => {
+    const data = {
+      outcome: "pass",
+      summary: "요약",
+      steps: [],
+      findings: [
+        {
+          id: "f1",
+          severity: "major",
+          category: "other",
+          description: "설명",
+          reproSteps: Array.from({ length: 50 }, (_, i) => `단계 ${i}`),
+        },
+      ],
+    };
+    expect(() => AgentResultSchema.parse(data)).not.toThrow();
   });
 });
 

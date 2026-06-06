@@ -200,14 +200,22 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       return finding;
     });
 
-    // M7: visitedScreens 정제 — AppMap 있으면 실제 screen id 교집합만 유지 (환각 방어)
+    // M7: visitedScreens 정제 — 기본 형식 검증(빈 문자열·초장문·제어문자·중복) + AppMap 교집합 (환각 방어)
     let visitedScreens: string[] | undefined;
     if (agentResult.visitedScreens) {
+      // 1차: 기본 형식 필터 (AppMap 유무 무관)
+      const CTRL_RE = /[\x00-\x1f\x7f]/;
+      const sanitized = [...new Set(
+        agentResult.visitedScreens.filter(
+          (id) => id.length > 0 && id.length <= 100 && !CTRL_RE.test(id)
+        )
+      )];
       if (sessionAppMap) {
+        // 2차: AppMap 교집합
         const validScreenIds = new Set(sessionAppMap.appMap.screens.map((s) => s.id));
-        visitedScreens = agentResult.visitedScreens.filter((id) => validScreenIds.has(id));
+        visitedScreens = sanitized.filter((id) => validScreenIds.has(id));
       } else {
-        visitedScreens = agentResult.visitedScreens;
+        visitedScreens = sanitized;
       }
     }
 
