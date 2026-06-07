@@ -41,6 +41,9 @@ import {
 import { startAndroidRecording, startIosRecording } from "./recorder.js";
 import type { Recorder } from "./recorder.js";
 import { isDebug, debugLog, createDebugArtifacts } from "./debug.js";
+import { emitProgress } from "./progress.js";
+import type { E2eProgressPhase } from "./progress.js";
+export type { E2eProgressEvent, E2eProgressPhase, E2eProgressStatus, E2eProgressCallback } from "./progress.js";
 
 export type { RunE2eTestOptions, E2eTestResult, Platform };
 export { E2eError, E2E_ERROR_CODES } from "./types.js";
@@ -82,6 +85,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     noBuild = false,
     recordVideo = false,
     buildCommand,
+    onProgress,
   } = opts;
 
   const debug = isDebug(opts.debug);
@@ -124,6 +128,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
   }
 
   // 시나리오 파싱
+  await emitProgress(onProgress, { phase: "scenario", status: "start", timestamp: Date.now() });
   let scenario: { body: string; exploratory: boolean; appId?: string; platform?: Platform; steps?: import("./scenario/schema.js").ScenarioStep[]; permissions?: string[] } = { body: "", exploratory: true };
   if (scenarioPath) {
     try {
@@ -139,28 +144,44 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       const content = fs.readFileSync(scenarioPath, "utf-8");
       scenario = parseScenario(content);
     } catch (e) {
+      await emitProgress(onProgress, { phase: "scenario", status: "error", timestamp: Date.now(), detail: e instanceof Error ? e.message : String(e) });
       const errResult = makeErrorResult(session, startTime, platform, agent, scenarioPath, e);
       return errResult;
     }
   }
+  await emitProgress(onProgress, { phase: "scenario", status: "done", timestamp: Date.now() });
 
   let deviceManager: Awaited<ReturnType<typeof createDeviceManager>> | null = null;
   let boostedByUs = false;
   let recorder: Recorder | null = null;
+  // 마지막으로 시작된 phase를 추적 — catch에서 정확한 phase 라벨 사용
+  let currentPhase: E2eProgressPhase = "detect";
+  // throw 전에 직접 error 이벤트를 발행한 경우 catch에서 중복 발행 방지
+  let errorEventEmitted = false;
 
   try {
     // 프레임워크 감지 (실패해도 일단 진행, builder가 에러 처리)
+    currentPhase = "detect";
+    await emitProgress(onProgress, { phase: "detect", status: "start", timestamp: Date.now() });
     const framework = detectFrameworkFromPath(projectPath);
+    await emitProgress(onProgress, { phase: "detect", status: "done", timestamp: Date.now(), detail: framework });
 
     // 디바이스 매니저 생성
+    currentPhase = "device";
+    await emitProgress(onProgress, { phase: "device", status: "start", timestamp: Date.now(), detail: "디바이스 부팅 확인 중" });
     deviceManager = await createDeviceManager(platform);
 
     // 디바이스 부팅 확인
     const deviceInfo = await deviceManager.ensureBooted(deviceId);
     boostedByUs = true;
+    await emitProgress(onProgress, { phase: "device", status: "done", timestamp: Date.now(), detail: deviceInfo.id });
 
     // ── M11: 빌드 게이트 ──────────────────────────────────────────────
     const builder = selectBuilder(framework, platform);
+
+    // AppMap 생성 (병렬, progress 이벤트 포함)
+    currentPhase = "appmap";
+    await emitProgress(onProgress, { phase: "appmap", status: "start", timestamp: Date.now(), detail: "AppMap 생성 중" });
     const appMapPromise = opts.appMapGenerator
       ? generateAppMapForSession({
           projectPath,
@@ -178,6 +199,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     // noBuild=true이면 buildCommand는 무시 (에러 아님)
     const effectiveBuildCmd = noBuild ? undefined : buildCommand;
 
+    currentPhase = "build";
     if (reuseBuild || noBuild) {
       fp = computeSourceFingerprint(projectPath, framework, { buildCommand: effectiveBuildCmd });
       const cached = readBuildCache(projectPath, platform);
@@ -192,18 +214,20 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
         process.stderr.write(
           `[karax/e2e] 빌드 스킵 (캐시 히트): ${cached!.artifactPath}\n`
         );
+        await emitProgress(onProgress, { phase: "build", status: "start", timestamp: Date.now(), detail: "빌드 스킵 (캐시 히트)" });
         buildResultPromise = Promise.resolve({
           artifactPath: cached!.artifactPath,
           appId: cached!.appId,
         });
       } else if (noBuild) {
-        // noBuild 모드에서 재사용 불가 → ARTIFACT_NOT_FOUND
-        throw new E2eError(
-          "ARTIFACT_NOT_FOUND",
-          `noBuild=true인데 유효한 캐시 artifact가 없습니다. 먼저 빌드하거나 reuseBuild=true를 사용하세요.`
-        );
+        // noBuild 모드에서 재사용 불가 → build:error 발행 후 ARTIFACT_NOT_FOUND
+        const noBuildMsg = "noBuild=true인데 유효한 캐시 artifact가 없습니다. 먼저 빌드하거나 reuseBuild=true를 사용하세요.";
+        await emitProgress(onProgress, { phase: "build", status: "error", timestamp: Date.now(), detail: noBuildMsg });
+        errorEventEmitted = true;
+        throw new E2eError("ARTIFACT_NOT_FOUND", noBuildMsg);
       } else {
         // reuseBuild이지만 불일치 → 자동 재빌드
+        await emitProgress(onProgress, { phase: "build", status: "start", timestamp: Date.now(), detail: "앱 빌드 중 (캐시 불일치, 재빌드)" });
         buildResultPromise = builder.build(projectPath, {
           debug,
           debugDir: session.debugDir,
@@ -212,6 +236,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       }
     } else {
       // 기본 경로: 항상 빌드
+      await emitProgress(onProgress, { phase: "build", status: "start", timestamp: Date.now(), detail: "앱 빌드 중" });
       buildResultPromise = builder.build(projectPath, {
         debug,
         debugDir: session.debugDir,
@@ -223,6 +248,9 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       buildResultPromise,
       appMapPromise,
     ]);
+    // artifactPath는 절대 경로일 수 있으므로 basename만 노출
+    await emitProgress(onProgress, { phase: "build", status: "done", timestamp: Date.now(), detail: path.basename(buildResult.artifactPath) });
+    await emitProgress(onProgress, { phase: "appmap", status: "done", timestamp: Date.now(), detail: sessionAppMap ? `화면 ${sessionAppMap.appMap.screens.length}개` : "AppMap 없음" });
 
     // M11: 빌드 성공 후 캐시 기록 (noBuild=true이면 이 분기 자체에 도달 불가 — 위에서 throw)
     if (!noBuild) {
@@ -255,11 +283,14 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     const shouldGrant = userExplicitGrant || autoGrant;
 
     // 설치 (M11: -g는 사용자가 명시적으로 grantPermissions=true일 때만)
+    currentPhase = "install";
+    await emitProgress(onProgress, { phase: "install", status: "start", timestamp: Date.now(), detail: "앱 설치 중" });
     await deviceManager.install(
       deviceInfo.id,
       buildResult.artifactPath,
       { grantAllPermissions: userExplicitGrant && platform === "android" }
     );
+    await emitProgress(onProgress, { phase: "install", status: "done", timestamp: Date.now() });
 
     // M11: 런타임 pm grant (Android) / simctl privacy (iOS) — 명시·자동 모두 개별 grant 수행
     const grantFailedPermissions: string[] = [];
@@ -276,8 +307,11 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     }
 
     // 실행
+    currentPhase = "launch";
     const resolvedAppId = scenario.appId ?? buildResult.appId;
+    await emitProgress(onProgress, { phase: "launch", status: "start", timestamp: Date.now(), detail: `앱 실행 중: ${resolvedAppId}` });
     await deviceManager.launch(deviceInfo.id, resolvedAppId);
+    await emitProgress(onProgress, { phase: "launch", status: "done", timestamp: Date.now(), detail: resolvedAppId });
 
     // M11: 비디오 녹화 시작 (launch 직후)
     if (recordVideo) {
@@ -352,11 +386,14 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     let agentResult: Awaited<ReturnType<typeof runAgent>>;
     let isPartialRecovery = false;
 
+    currentPhase = "agent";
+    await emitProgress(onProgress, { phase: "agent", status: "start", timestamp: Date.now(), detail: `LLM 에이전트 실행 중 (${agent})` });
     try {
       agentResult = await runAgent(invocation, session.screenshotsDir, {
         timeoutMs: budget.timeoutMs,
         debugDir: session.debugDir,
       });
+      await emitProgress(onProgress, { phase: "agent", status: "done", timestamp: Date.now(), detail: agentResult.outcome });
     } catch (agentErr) {
       // AGENT_TIMEOUT / AGENT_OUTPUT_INVALID → partial 복구 시도
       const isRecoverableError =
@@ -368,15 +405,20 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
         if (recovered !== null) {
           agentResult = recovered;
           isPartialRecovery = true;
+          await emitProgress(onProgress, { phase: "agent", status: "done", timestamp: Date.now(), detail: "partial 복구" });
         } else {
+          await emitProgress(onProgress, { phase: "agent", status: "error", timestamp: Date.now(), detail: agentErr instanceof Error ? agentErr.message : String(agentErr) });
           throw agentErr; // 복구 불가 → 기존 에러 경로
         }
       } else {
+        await emitProgress(onProgress, { phase: "agent", status: "error", timestamp: Date.now(), detail: agentErr instanceof Error ? agentErr.message : String(agentErr) });
         throw agentErr;
       }
     }
 
     // M8: 에이전트 종료 후 logcat 캡처 + 크래시 감지 (best-effort)
+    currentPhase = "crash-scan";
+    await emitProgress(onProgress, { phase: "crash-scan", status: "start", timestamp: Date.now(), detail: "크래시 로그 분석 중" });
     let crashes: CrashEvent[] | undefined;
     if (deviceManager.captureLogcat) {
       const logcatText = await deviceManager.captureLogcat(deviceInfo.id).catch(() => undefined);
@@ -387,6 +429,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
         }
       }
     }
+    await emitProgress(onProgress, { phase: "crash-scan", status: "done", timestamp: Date.now(), detail: crashes ? `크래시 ${crashes.length}건` : "이상 없음" });
 
     // M11: 녹화 중지 (에이전트 완료 후, 비차단)
     let videoFiles: string[] | undefined;
@@ -538,7 +581,10 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       ...(videosForReport && videosForReport.length > 0 ? { videos: videosForReport } : {}),
     };
 
+    currentPhase = "report";
+    await emitProgress(onProgress, { phase: "report", status: "start", timestamp: Date.now(), detail: "리포트 작성 중" });
     const { reportJsonPath, reportMdPath } = writeReport(session.dir, report);
+    await emitProgress(onProgress, { phase: "report", status: "done", timestamp: Date.now(), detail: reportJsonPath });
 
     // 선택적 shutdown
     if (!keepBooted && deviceManager.shutdown) {
@@ -570,7 +616,14 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       ...(videoFiles && videoFiles.length > 0 ? { videos: videoFiles } : {}),
     };
   } catch (e) {
-    // 인프라 에러 → outcome: "error"로 리포트 작성
+    // 인프라 에러 → progress error 이벤트 발행 후 outcome: "error"로 리포트 작성
+    // currentPhase를 사용해 실제 실패 단계를 정확히 보고 (report 고정 X)
+    const errorMsg = e instanceof Error ? e.message : String(e);
+    // 이미 throw 전에 error 이벤트를 발행한 경우 중복 발행 방지
+    if (!errorEventEmitted) {
+      await emitProgress(onProgress, { phase: currentPhase, status: "error", timestamp: Date.now(), detail: errorMsg });
+    }
+
     const errResult = makeErrorResult(session, startTime, platform, agent, scenarioPath, e);
 
     // debug 시 error.json 기록 (report.json 스키마 불변)
@@ -710,7 +763,7 @@ function makeErrorResult(
  * 디바이스 재부팅 회피: N-1개 시나리오는 keepBooted=true, 마지막만 사용자 값 사용.
  */
 export async function runE2eSuite(opts: RunE2eSuiteOptions): Promise<E2eSuiteResult> {
-  const { scenarioPath, ...restOpts } = opts;
+  const { scenarioPath, onProgress: userOnProgress, ...restOpts } = opts;
   const userKeepBooted = restOpts.keepBooted ?? false;
 
   // 시나리오 파일 목록 탐색
@@ -739,10 +792,17 @@ export async function runE2eSuite(opts: RunE2eSuiteOptions): Promise<E2eSuiteRes
 
     process.stderr.write(`[karax suite] (${i + 1}/${total}) ${filePath}\n`);
 
+    // suite 진행 이벤트: stepIndex/totalSteps 주입하여 onProgress 래핑
+    const suiteOnProgress = userOnProgress
+      ? (event: import("./progress.js").E2eProgressEvent) =>
+          userOnProgress({ ...event, stepIndex: i, totalSteps: total })
+      : undefined;
+
     const result = await runE2eTest({
       ...restOpts,
       scenarioPath: filePath,
       keepBooted,
+      onProgress: suiteOnProgress,
     });
 
     results.push({ scenarioPath: filePath, result });

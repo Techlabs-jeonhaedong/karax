@@ -650,6 +650,59 @@ program
             }
           })();
 
+        // progress 이벤트 → stderr 출력 (--json 모드와 stdout 충돌 방지)
+        const stepStartTimes = new Map<string, number>();
+        const PHASE_LABELS: Record<string, string> = {
+          scenario: "시나리오 파싱",
+          detect: "프레임워크 감지",
+          device: "디바이스 부팅",
+          appmap: "AppMap 생성",
+          build: "앱 빌드",
+          install: "앱 설치",
+          launch: "앱 실행",
+          agent: "에이전트 실행",
+          "crash-scan": "크래시 분석",
+          report: "리포트 작성",
+        };
+        const PHASE_TOTAL = 10;
+        let phaseIndex = 0;
+        const seenPhases = new Set<string>();
+        // suite에서 stepIndex별 카운터 리셋을 위해 마지막으로 본 stepIndex 추적
+        let lastStepIndex: number | undefined = undefined;
+
+        const onProgress = (event: import("@karax/sdk").E2eProgressEvent) => {
+          const label = PHASE_LABELS[event.phase] ?? event.phase;
+          const key = `${event.stepIndex ?? ""}-${event.phase}`;
+
+          // suite 모드: stepIndex가 바뀌면 phaseIndex/seenPhases 리셋
+          if (event.stepIndex !== undefined && event.stepIndex !== lastStepIndex) {
+            lastStepIndex = event.stepIndex;
+            phaseIndex = 0;
+            seenPhases.clear();
+          }
+
+          if (event.status === "start") {
+            if (!seenPhases.has(event.phase)) {
+              phaseIndex++;
+              seenPhases.add(event.phase);
+            }
+            stepStartTimes.set(key, Date.now());
+            const suitePrefix = event.stepIndex !== undefined && event.totalSteps !== undefined
+              ? `[시나리오 ${event.stepIndex + 1}/${event.totalSteps}] `
+              : "";
+            const detail = event.detail ? ` — ${event.detail}` : "";
+            process.stderr.write(`${suitePrefix}[${phaseIndex}/${PHASE_TOTAL}] ${label} 시작${detail}\n`);
+          } else if (event.status === "done") {
+            const elapsed = stepStartTimes.has(key) ? ((Date.now() - stepStartTimes.get(key)!) / 1000).toFixed(1) : null;
+            const elapsedStr = elapsed !== null ? ` (${elapsed}s)` : "";
+            const detail = event.detail ? ` — ${event.detail}` : "";
+            process.stderr.write(`✓ ${label} 완료${elapsedStr}${detail}\n`);
+          } else if (event.status === "error") {
+            const detail = event.detail ? `: ${event.detail}` : "";
+            process.stderr.write(`✗ ${label} 오류${detail}\n`);
+          }
+        };
+
         const commonOpts = {
           projectPath: args.path,
           platform: args.platform,
@@ -670,6 +723,8 @@ program
           debug,
           // 사용자 정의 빌드 커맨드
           buildCommand: args.buildCommand,
+          // progress 콜백
+          onProgress,
         };
 
         if (scenarioIsDir && args.scenario) {

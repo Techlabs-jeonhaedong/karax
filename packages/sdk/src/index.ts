@@ -43,6 +43,7 @@ export const SDK_VERSION = "0.0.1" as const;
 export type { RunE2eTestOptions, E2eTestResult, Platform as E2ePlatform, AgentKind, E2eErrorCode } from "@karax/e2e";
 export type { E2eError } from "@karax/e2e";
 export type { RunE2eSuiteOptions, E2eSuiteResult } from "@karax/e2e";
+export type { E2eProgressEvent, E2eProgressPhase, E2eProgressStatus, E2eProgressCallback } from "@karax/e2e";
 
 /** appMapGenerator DI 어댑터 — sdk의 generateAppMap을 e2e에 주입한다 */
 async function makeDefaultAppMapGenerator(): Promise<
