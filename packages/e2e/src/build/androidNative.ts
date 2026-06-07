@@ -51,11 +51,22 @@ export class AndroidNativeBuilder implements AppBuilder {
     let stderr = "";
     let exitCode = 0;
     try {
-      const result = await execa(
-        gradlew,
-        [`:${appModule}:assembleDebug`, "--no-daemon"],
-        { cwd: projectPath, timeout: BUILD_TIMEOUT, env }
-      );
+      let result;
+      if (ctx?.buildCommand) {
+        // 사용자 정의 빌드 커맨드: shell=true로 실행
+        result = await execa(ctx.buildCommand, [], {
+          shell: true,
+          cwd: projectPath,
+          timeout: BUILD_TIMEOUT,
+          env,
+        });
+      } else {
+        result = await execa(
+          gradlew,
+          [`:${appModule}:assembleDebug`, "--no-daemon"],
+          { cwd: projectPath, timeout: BUILD_TIMEOUT, env }
+        );
+      }
       stdout = result.stdout ?? "";
       stderr = result.stderr ?? "";
       exitCode = result.exitCode ?? 0;

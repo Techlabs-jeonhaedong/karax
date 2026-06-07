@@ -133,6 +133,7 @@ karax test <path>                        LLM-agent E2E test (real device build &
   --grant-permissions                  Auto-grant the scenario's permissions[]
   --record-video                       Record the session as video
   --no-fail-on-crash                   Don't downgrade outcome to fail on crash detection
+  --build-command <cmd>                Run this shell command instead of the default build command
 karax ui dump --device <id>              Agent UI helper — dump current screen elements
 karax ui locate --device <id> --label <text>   Resolve element coordinates by text/role
 karax ui which-screen --device <id>      Match current screen to an AppMap ID
@@ -176,6 +177,9 @@ karax test ./my-app --platform android --reuse-build --record-video --out ./repo
 
 # Exploratory test (no scenario) — produces a findings report
 karax test ./my-app --platform ios --agent claude --out ./reports
+
+# Custom build command (e.g. FVM flavor build)
+karax test ./my-app --platform android --build-command "fvm flutter build apk --debug --flavor dev"
 ```
 
 ---
@@ -247,7 +251,9 @@ const result = await runE2eTest({
 });
 ```
 
-> The `run_e2e_test` MCP tool includes the build & boot, so it **can take several minutes**.
+> The `run_e2e_test` MCP tool includes the build & boot, so it **can take several minutes**. Pass `buildCommand` to override the default build command (e.g. `"fvm flutter build apk --debug --flavor dev"`).
+>
+> **iOS + `--build-command`**: karax injects `KARAX_DERIVED_DATA_PATH` (a temp dir) into the build environment. Include `-derivedDataPath "$KARAX_DERIVED_DATA_PATH"` in your command so karax can locate the `.app` artifact. Without it, karax falls back to `build/ios/iphonesimulator` and `ios/build/Build/Products`, but using the env var is more reliable.
 
 ### `karax ui` — deterministic helpers for agents
 

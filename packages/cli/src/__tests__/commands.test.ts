@@ -282,6 +282,51 @@ describe("parseTestArgs", () => {
     expect(result.keepBooted).toBe(true);
     expect(result.json).toBe(true);
   });
+
+  // ── --build-command ────────────────────────────────────────────────
+
+  it("기본값: buildCommand=undefined (--build-command 미지정 시)", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.buildCommand).toBeUndefined();
+  });
+
+  it("--build-command 지정 시 buildCommand에 값이 담긴다", () => {
+    const result = parseTestArgs([
+      "/proj", "--platform", "android",
+      "--build-command", "fvm flutter build apk --debug --flavor dev",
+    ]);
+    expect(result.buildCommand).toBe("fvm flutter build apk --debug --flavor dev");
+  });
+
+  it("--build-command와 --reuse-build 동시 지정", () => {
+    const result = parseTestArgs([
+      "/proj", "--platform", "android",
+      "--reuse-build",
+      "--build-command", "fvm flutter build apk --debug --flavor dev",
+    ]);
+    expect(result.reuseBuild).toBe(true);
+    expect(result.buildCommand).toBe("fvm flutter build apk --debug --flavor dev");
+  });
+
+  it("--build-command 4096자 초과 시 에러를 던진다 (INVALID_ARGUMENT)", () => {
+    const longCmd = "a".repeat(4097);
+    expect(() => parseTestArgs(["/proj", "--platform", "android", "--build-command", longCmd])).toThrow(
+      /4096|INVALID_ARGUMENT/
+    );
+  });
+
+  it("--build-command 정확히 4096자이면 허용된다", () => {
+    const maxCmd = "a".repeat(4096);
+    const result = parseTestArgs(["/proj", "--platform", "android", "--build-command", maxCmd]);
+    expect(result.buildCommand?.length).toBe(4096);
+  });
+
+  it("--build-command 빈 문자열이면 undefined로 처리된다 (commander 동작)", () => {
+    // commander는 빈 문자열 인수를 ""로 전달하므로 길이 0은 에러 없이 통과
+    // (MCP 측에서 .min(1) 검증, CLI는 길이 상한만 체크)
+    const result = parseTestArgs(["/proj", "--platform", "android", "--build-command", ""]);
+    expect(result.buildCommand).toBe("");
+  });
 });
 
 // ─── map ───────────────────────────────────────────────────────────

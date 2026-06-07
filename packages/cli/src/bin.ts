@@ -585,6 +585,10 @@ program
   .option("--grant-permissions", "시나리오의 permissions[]를 자동으로 디바이스에 grant한다", false)
   .option("--record-video", "앱 실행 중 화면을 비디오로 녹화한다", false)
   .option("--debug", "디버그 모드 활성화", false)
+  .option(
+    "--build-command <cmd>",
+    '기본 빌드 커맨드 대신 실행할 사용자 정의 빌드 커맨드 (예: "fvm flutter build apk --debug --flavor dev")'
+  )
   .action(
     async (
       pathArg: string,
@@ -605,6 +609,7 @@ program
         grantPermissions: boolean;
         recordVideo: boolean;
         debug: boolean;
+        buildCommand?: string;
       }
     ) => {
       const debug = resolveDebug(opts.debug || undefined, process.env);
@@ -627,6 +632,7 @@ program
           ...(opts.grantPermissions ? ["--grant-permissions"] : []),
           ...(opts.recordVideo ? ["--record-video"] : []),
           ...(debug ? ["--debug"] : []),
+          ...(opts.buildCommand ? ["--build-command", opts.buildCommand] : []),
         ]);
 
         // SDK 단일 진입점 원칙 — @karax/sdk의 runE2eTest/runE2eSuite가 기본 AppMapGenerator를 주입한다
@@ -662,6 +668,8 @@ program
           recordVideo: args.recordVideo,
           // Phase C: debug 전파
           debug,
+          // 사용자 정의 빌드 커맨드
+          buildCommand: args.buildCommand,
         };
 
         if (scenarioIsDir && args.scenario) {

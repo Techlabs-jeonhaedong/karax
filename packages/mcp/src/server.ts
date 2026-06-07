@@ -583,7 +583,8 @@ export function createMcpServer(): McpServer {
     "run_e2e_test",
     "Android 에뮬레이터 / iOS 시뮬레이터에서 LLM 에이전트로 E2E 테스트를 실행한다. " +
     "에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요될 수 있습니다. " +
-    "scenarioPath에 디렉토리를 전달하면 *.md 파일을 일괄 실행(suite)한다.",
+    "scenarioPath에 디렉토리를 전달하면 *.md 파일을 일괄 실행(suite)한다. " +
+    "보안 주의: buildCommand는 호스트 머신에서 셸로 그대로 실행됩니다. 신뢰할 수 있는 사용자 입력만 전달하세요.",
     {
       projectPath: z.string().min(1),
       platform: z.enum(["android", "ios"]),
@@ -605,8 +606,13 @@ export function createMcpServer(): McpServer {
       grantPermissions: z.boolean().optional(),
       /** M11: 비디오 녹화 */
       recordVideo: z.boolean().optional().default(false),
+      /**
+       * 기본 빌드 커맨드 대신 실행할 사용자 정의 빌드 커맨드.
+       * 경고: buildCommand는 호스트 머신에서 셸로 그대로 실행됩니다. 신뢰할 수 있는 사용자 입력만 전달하세요.
+       */
+      buildCommand: z.string().min(1).max(4096).optional(),
     },
-    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted, failOnCrash, reuseBuild, noBuild, grantPermissions, recordVideo }) => {
+    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted, failOnCrash, reuseBuild, noBuild, grantPermissions, recordVideo, buildCommand }) => {
       try {
         validateProjectPath(projectPath);
 
@@ -641,6 +647,8 @@ export function createMcpServer(): McpServer {
           recordVideo,
           // Phase C: KARAX_DEBUG 환경변수 기반 debug 전파
           debug: process.env["KARAX_DEBUG"] === "1",
+          // 사용자 정의 빌드 커맨드
+          ...(buildCommand !== undefined ? { buildCommand } : {}),
         };
 
         if (scenarioIsDir && scenarioPath) {

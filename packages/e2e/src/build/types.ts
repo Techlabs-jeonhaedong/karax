@@ -18,6 +18,13 @@ export interface BuildContext {
   debug?: boolean;
   /** 디버그 아티팩트 저장 디렉토리. debug=true일 때만 유효. */
   debugDir?: string;
+  /**
+   * 사용자 정의 빌드 커맨드.
+   * 지정 시 빌더 기본 커맨드 대신 shell=true로 이 커맨드를 실행한다.
+   * 예: "fvm flutter build apk --debug --flavor dev"
+   * noBuild=true와 함께 오면 무시된다 (에러 아님).
+   */
+  buildCommand?: string;
 }
 
 export interface AppBuilder {
