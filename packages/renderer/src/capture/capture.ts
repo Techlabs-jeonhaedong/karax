@@ -1,6 +1,7 @@
-import { mkdirSync } from "fs";
-import { resolve } from "path";
+import { mkdirSync, writeFileSync } from "fs";
+import { resolve, join, basename } from "path";
 import type { IRDocument, IRNode } from "@karax/core";
+import { redactSecrets } from "@karax/core";
 import { getDeviceProfile } from "../devices/profiles.js";
 import { irToHtml, irToHtmlWithIdx } from "../html/irToHtml.js";
 
@@ -26,6 +27,12 @@ export interface RenderOptions {
    * 출력: <이름>__overlay.png (원본 PNG와 별도)
    */
   overlay?: "confidence";
+  /**
+   * 디버그 모드. true이면 page console 메시지를 수집하고,
+   * setContent/screenshot 실패 시 outDir/debug/에 HTML과 콘솔 로그를 덤프 후 rethrow.
+   * headless 유지, browser.close() finally 불변.
+   */
+  debug?: boolean;
 }
 
 export interface RenderResult {
@@ -186,6 +193,22 @@ async function applyConfidenceOverlay(
   }, nodeInfos);
 }
 
+// ── screenId 정규화 ──────────────────────────────────────────────
+
+/**
+ * screenId를 파일명으로 안전하게 정규화한다.
+ * - path.basename으로 경로 구분자 제거
+ * - 허용 문자 이외([^A-Za-z0-9._-])는 _로 치환 (..·경로구분자·널문자 제거 포함)
+ * - 빈 문자열이 되면 "unknown"으로 대체
+ *
+ * @public 테스트에서 직접 검증 가능하도록 export한다.
+ */
+export function sanitizeScreenId(screenId: string): string {
+  const base = basename(screenId);
+  const sanitized = base.replace(/[^A-Za-z0-9._-]/g, "_");
+  return sanitized.length > 0 ? sanitized : "unknown";
+}
+
 // ── renderScreenshot ──────────────────────────────────────────────
 
 export async function renderScreenshot(
@@ -195,6 +218,7 @@ export async function renderScreenshot(
   const deviceId = options.device ?? ir.screen.device ?? "iphone-15";
   const profile = getDeviceProfile(deviceId);
   const html = irToHtml(ir, profile);
+  const debugMode = options.debug === true;
 
   const { chromium } = await import("playwright");
 
@@ -212,21 +236,64 @@ export async function renderScreenshot(
 
     const page = await context.newPage();
 
-    await page.setContent(html, { waitUntil: "networkidle" });
+    // debug 시 page console 메시지 수집
+    const consoleLogs: string[] = [];
+    if (debugMode) {
+      page.on("console", (msg) => {
+        consoleLogs.push(`[${msg.type()}] ${msg.text()}`);
+      });
+    }
 
-    const pngFilename = `${ir.screen.id}_${deviceId}.png`;
+    // screenId를 파일명으로 안전하게 정규화 (경로 주입 방어)
+    const safeScreenId = sanitizeScreenId(ir.screen.id);
+    const debugDir = join(options.outDir, "debug");
+
+    try {
+      await page.setContent(html, { waitUntil: "networkidle" });
+    } catch (err) {
+      // setContent 실패 시 debug 덤프 후 rethrow
+      if (debugMode) {
+        try {
+          mkdirSync(debugDir, { recursive: true });
+          // redact 적용 후 덤프
+          writeFileSync(join(debugDir, `render-${safeScreenId}.html`), redactSecrets(html), "utf-8");
+          writeFileSync(join(debugDir, `render-${safeScreenId}.console.log`), redactSecrets(consoleLogs.join("\n")), "utf-8");
+        } catch {
+          // 덤프 실패는 무시하고 원본 에러를 rethrow
+        }
+      }
+      throw err;
+    }
+
+    const pngFilename = `${safeScreenId}_${deviceId}.png`;
     const pngPath = resolve(options.outDir, pngFilename);
 
-    await page.screenshot({
-      path: pngPath,
-      fullPage: false,
-      clip: {
-        x: 0,
-        y: 0,
-        width: profile.width,
-        height: profile.height,
-      },
-    });
+    try {
+      await page.screenshot({
+        path: pngPath,
+        fullPage: false,
+        clip: {
+          x: 0,
+          y: 0,
+          width: profile.width,
+          height: profile.height,
+        },
+      });
+    } catch (err) {
+      // screenshot 실패 시 debug 덤프 후 rethrow
+      if (debugMode) {
+        try {
+          mkdirSync(debugDir, { recursive: true });
+          const pageContent = await page.content().catch(() => html);
+          // redact 적용 후 덤프
+          writeFileSync(join(debugDir, `render-${safeScreenId}.html`), redactSecrets(pageContent), "utf-8");
+          writeFileSync(join(debugDir, `render-${safeScreenId}.console.log`), redactSecrets(consoleLogs.join("\n")), "utf-8");
+        } catch {
+          // 덤프 실패는 무시하고 원본 에러를 rethrow
+        }
+      }
+      throw err;
+    }
 
     await context.close();
 

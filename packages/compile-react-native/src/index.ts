@@ -40,7 +40,7 @@ export const rnWebCompileBackend: CompileBackend = {
     opts: CaptureOptions
   ): Promise<CaptureResult> {
     const { projectPath } = ctx;
-    const { outDir, device = "pixel-8", mockSeed = 42 } = opts;
+    const { outDir, device = "pixel-8", mockSeed = 42, keepWorkDir = false } = opts;
 
     // 하니스 entry.jsx 생성
     let harness: { workDir: string; entryPath: string };
@@ -53,19 +53,35 @@ export const rnWebCompileBackend: CompileBackend = {
       });
     } catch (e) {
       // generateHarness가 workDir을 생성한 뒤 throw할 수 있으므로 정리
-      // workDir은 hash 기반 결정론적 경로이므로 직접 계산해 제거한다
-      const { createHash } = await import("crypto");
-      const hash = createHash("sha256")
-        .update(`${projectPath}:${screen.id}:${device}:${mockSeed}`)
-        .digest("hex")
-        .slice(0, 12);
-      const { join } = await import("path");
-      const { tmpdir } = await import("os");
-      const leakedDir = join(tmpdir(), `karax-rn-${hash}`);
-      try {
-        fs.rmSync(leakedDir, { recursive: true, force: true });
-      } catch {
-        // 존재하지 않으면 무시
+      // debug(keepWorkDir=true) 시 workDir을 보존한다.
+      if (!keepWorkDir) {
+        const { createHash } = await import("crypto");
+        const hash = createHash("sha256")
+          .update(`${projectPath}:${screen.id}:${device}:${mockSeed}`)
+          .digest("hex")
+          .slice(0, 12);
+        const { join } = await import("path");
+        const { tmpdir } = await import("os");
+        const leakedDir = join(tmpdir(), `karax-rn-${hash}`);
+        try {
+          fs.rmSync(leakedDir, { recursive: true, force: true });
+        } catch {
+          // 존재하지 않으면 무시
+        }
+      } else {
+        // debug 시 보존 경로를 onDebug로 안내
+        const { createHash } = await import("crypto");
+        const hash = createHash("sha256")
+          .update(`${projectPath}:${screen.id}:${device}:${mockSeed}`)
+          .digest("hex")
+          .slice(0, 12);
+        const { join } = await import("path");
+        const { tmpdir } = await import("os");
+        const leakedDir = join(tmpdir(), `karax-rn-${hash}`);
+        opts.onDebug?.({
+          tag: "compile-rn",
+          message: `generateHarness 실패 — workDir 보존됨: ${leakedDir}`,
+        });
       }
 
       const msg = e instanceof Error ? e.message : String(e);
@@ -108,10 +124,18 @@ export const rnWebCompileBackend: CompileBackend = {
       };
     } finally {
       // workDir 정리 (원본 무수정 원칙 — 임시 디렉토리만 정리)
-      try {
-        fs.rmSync(harness.workDir, { recursive: true, force: true });
-      } catch {
-        // 정리 실패 무시
+      // debug(keepWorkDir=true) 시 보존한다.
+      if (!keepWorkDir) {
+        try {
+          fs.rmSync(harness.workDir, { recursive: true, force: true });
+        } catch {
+          // 정리 실패 무시
+        }
+      } else {
+        opts.onDebug?.({
+          tag: "compile-rn",
+          message: `workDir 보존됨 (debug 모드): ${harness.workDir}`,
+        });
       }
     }
   },

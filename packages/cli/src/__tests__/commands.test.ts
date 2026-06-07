@@ -410,3 +410,77 @@ describe("EXIT_CODES", () => {
   it("부분 실패는 2", () => expect(EXIT_CODES.PARTIAL_FAILURE).toBe(2));
   it("실패는 1", () => expect(EXIT_CODES.FAILURE).toBe(1));
 });
+
+// ─── --debug 옵션 (Phase C-2) ────────────────────────────────────────
+
+describe("parseDetectArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseDetectArgs(["/some/project"]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseDetectArgs(["/some/project", "--debug"]);
+    expect(result.debug).toBe(true);
+  });
+});
+
+describe("parseDoctorArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseDoctorArgs([]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseDoctorArgs(["--debug"]);
+    expect(result.debug).toBe(true);
+  });
+});
+
+describe("parseListArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseListArgs(["/p"]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseListArgs(["/p", "--debug"]);
+    expect(result.debug).toBe(true);
+  });
+});
+
+describe("parseCaptureArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseCaptureArgs(["/p"]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseCaptureArgs(["/p", "--debug"]);
+    expect(result.debug).toBe(true);
+  });
+});
+
+describe("parseMapArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseMapArgs(["/p"]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseMapArgs(["/p", "--debug"]);
+    expect(result.debug).toBe(true);
+  });
+});
+
+describe("parseTestArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--debug"]);
+    expect(result.debug).toBe(true);
+  });
+});

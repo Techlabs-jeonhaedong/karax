@@ -80,7 +80,7 @@ export const flutterCompileBackend: CompileBackend = {
     opts: CaptureOptions
   ): Promise<CaptureResult> {
     const { projectPath } = ctx;
-    const { outDir, device = "iphone-15", mockSeed = 0 } = opts;
+    const { outDir, device = "iphone-15", mockSeed = 0, keepWorkDir = false } = opts;
 
     // flutter 경로 감지 (FVM 우선 시도)
     const flutterPath = await detectFlutterPath({}, projectPath);
@@ -101,7 +101,7 @@ export const flutterCompileBackend: CompileBackend = {
         outDir: path.resolve(outDir),
         flutterPath: flutterPath ?? "flutter",
         timeoutMs: 180_000,
-        keepWorkDir: false,
+        keepWorkDir,
       });
 
       return {

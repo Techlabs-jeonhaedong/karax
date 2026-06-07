@@ -32,13 +32,16 @@ function makeProgram(name: string): Command {
 
 export interface DetectArgs {
   path: string;
+  debug: boolean;
 }
 
 export function parseDetectArgs(argv: string[]): DetectArgs {
   const prog = makeProgram("detect");
   prog.argument("<path>", "프로젝트 경로");
+  prog.option("--debug", "디버그 모드 활성화 (상세 오류·[karax/debug] stderr 출력)", false);
   prog.parse(["node", "detect", ...argv]);
-  return { path: prog.args[0] };
+  const opts = prog.opts<{ debug: boolean }>();
+  return { path: prog.args[0], debug: opts.debug };
 }
 
 // ── doctor ────────────────────────────────────────────────────────
@@ -46,17 +49,21 @@ export function parseDetectArgs(argv: string[]): DetectArgs {
 export interface DoctorArgs {
   path?: string;
   fix: boolean;
+  debug: boolean;
 }
 
 export function parseDoctorArgs(argv: string[]): DoctorArgs {
   const prog = makeProgram("doctor");
   prog.argument("[path]", "프로젝트 경로 (옵셔널)");
   prog.option("--fix", "설치 가능한 의존성을 자동 설치", false);
+  prog.option("--debug", "디버그 모드 활성화", false);
   prog.parse(["node", "doctor", ...argv]);
 
+  const opts = prog.opts<{ fix: boolean; debug: boolean }>();
   return {
     path: prog.args[0],
-    fix: prog.opts<{ fix: boolean }>().fix,
+    fix: opts.fix,
+    debug: opts.debug,
   };
 }
 
@@ -66,6 +73,7 @@ export interface ListArgs {
   path: string;
   includeCandidates: boolean;
   json: boolean;
+  debug: boolean;
 }
 
 export function parseListArgs(argv: string[]): ListArgs {
@@ -74,9 +82,10 @@ export function parseListArgs(argv: string[]): ListArgs {
   prog.option("--include-candidates", "라우트 미연결 후보 화면 포함 (기본 on)");
   prog.option("--no-candidates", "후보 화면 제외");
   prog.option("--json", "JSON 형식으로 출력", false);
+  prog.option("--debug", "디버그 모드 활성화", false);
   prog.parse(["node", "list", ...argv]);
 
-  const opts = prog.opts<{ candidates?: boolean; includeCandidates?: boolean; json: boolean }>();
+  const opts = prog.opts<{ candidates?: boolean; includeCandidates?: boolean; json: boolean; debug: boolean }>();
   // --no-candidates → opts.candidates = false
   // --include-candidates → opts.includeCandidates = true
   // 아무것도 없으면 → 기본 true
@@ -91,6 +100,7 @@ export function parseListArgs(argv: string[]): ListArgs {
     path: prog.args[0],
     includeCandidates,
     json: opts.json,
+    debug: opts.debug,
   };
 }
 
@@ -108,6 +118,7 @@ export interface CaptureArgs {
   variants: boolean;
   /** confidence 오버레이 PNG 추가 생성 */
   overlay: boolean;
+  debug: boolean;
 }
 
 const VALID_MODES: CaptureMode[] = ["auto", "compile", "static"];
@@ -123,6 +134,7 @@ export function parseCaptureArgs(argv: string[]): CaptureArgs {
   prog.option("--json", "JSON 형식으로 출력", false);
   prog.option("--variants", "Branch 분기별 variant PNG 추가 생성 (Tier 2 전용)", false);
   prog.option("--overlay", "confidence < 0.5 노드 하이라이트 오버레이 PNG 생성", false);
+  prog.option("--debug", "디버그 모드 활성화", false);
   prog.parse(["node", "capture", ...argv]);
 
   const opts = prog.opts<{
@@ -134,6 +146,7 @@ export function parseCaptureArgs(argv: string[]): CaptureArgs {
     json: boolean;
     variants: boolean;
     overlay: boolean;
+    debug: boolean;
   }>();
 
   if (!VALID_MODES.includes(opts.mode as CaptureMode)) {
@@ -154,6 +167,7 @@ export function parseCaptureArgs(argv: string[]): CaptureArgs {
     json: opts.json,
     variants: opts.variants,
     overlay: opts.overlay,
+    debug: opts.debug,
   };
 }
 
@@ -173,6 +187,7 @@ export interface MapArgs {
   framework?: ValidFrameworkId;
   /** 파일 저장 없이 렌더된 마크다운을 stdout으로 출력 */
   stdout: boolean;
+  debug: boolean;
 }
 
 export function parseMapArgs(argv: string[]): MapArgs {
@@ -187,6 +202,7 @@ export function parseMapArgs(argv: string[]): MapArgs {
     `프레임워크 강제 지정: ${VALID_FRAMEWORK_IDS.join("|")}`
   );
   prog.option("--stdout", "파일 저장 없이 마크다운을 stdout으로 출력", false);
+  prog.option("--debug", "디버그 모드 활성화", false);
   prog.parse(["node", "map", ...argv]);
 
   const opts = prog.opts<{
@@ -196,6 +212,7 @@ export function parseMapArgs(argv: string[]): MapArgs {
     layout: boolean;
     framework?: string;
     stdout: boolean;
+    debug: boolean;
   }>();
 
   // --stdout과 --out 동시 지정 금지
@@ -230,6 +247,7 @@ export function parseMapArgs(argv: string[]): MapArgs {
     layout: opts.layout,
     framework,
     stdout: opts.stdout,
+    debug: opts.debug,
   };
 }
 
@@ -270,6 +288,8 @@ export interface TestArgs {
   grantPermissions: boolean;
   /** M11: 비디오 녹화 */
   recordVideo: boolean;
+  /** Phase C: 디버그 모드 */
+  debug: boolean;
 }
 
 const VALID_PLATFORMS: TestPlatform[] = ["android", "ios"];
@@ -294,6 +314,7 @@ export function parseTestArgs(argv: string[]): TestArgs {
   prog.option("--no-build", "빌드를 수행하지 않고 캐시 artifact만 사용한다 (없으면 에러)");
   prog.option("--grant-permissions", "시나리오의 permissions[]를 자동으로 디바이스에 grant한다", false);
   prog.option("--record-video", "앱 실행 중 화면을 비디오로 녹화한다", false);
+  prog.option("--debug", "디버그 모드 활성화", false);
   prog.parse(["node", "test", ...argv]);
 
   const opts = prog.opts<{
@@ -312,6 +333,7 @@ export function parseTestArgs(argv: string[]): TestArgs {
     build: boolean; // --no-build → opts.build = false
     grantPermissions: boolean;
     recordVideo: boolean;
+    debug: boolean;
   }>();
 
   if (!VALID_PLATFORMS.includes(opts.platform as TestPlatform)) {
@@ -343,5 +365,6 @@ export function parseTestArgs(argv: string[]): TestArgs {
     noBuild: opts.build === false, // --no-build → opts.build = false
     grantPermissions: opts.grantPermissions ?? false,
     recordVideo: opts.recordVideo ?? false,
+    debug: opts.debug ?? false,
   };
 }

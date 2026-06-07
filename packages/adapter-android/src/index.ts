@@ -119,7 +119,7 @@ export const androidAdapter: FrameworkAdapter = {
   },
 
   async discoverScreens(ctx: AdapterContext): Promise<ScreenSummary[]> {
-    const { projectPath, includeCandidates = true } = ctx;
+    const { projectPath, includeCandidates = true, onDebug } = ctx;
 
     const screens: ScreenSummary[] = [];
 
@@ -129,8 +129,13 @@ export const androidAdapter: FrameworkAdapter = {
     try {
       symbolTable = await buildSymbolTable(projectPath);
       hasCompose = symbolTable.composables.size > 0;
-    } catch {
+    } catch (e) {
       // Kotlin 파일이 없는 프로젝트 (순수 Java/XML)
+      onDebug?.({
+        tag: "android-compose-symbol-failed",
+        message: "Kotlin 심볼 테이블 구축 실패 — 순수 Java/XML 프로젝트로 간주하고 계속 진행합니다.",
+        detail: e instanceof Error ? e.stack : String(e),
+      });
     }
 
     if (hasCompose && symbolTable) {
@@ -197,15 +202,20 @@ export const androidAdapter: FrameworkAdapter = {
   },
 
   async buildScreenIR(ctx: AdapterContext, screenId: string): Promise<IRDocument> {
-    const { projectPath } = ctx;
+    const { projectPath, onDebug } = ctx;
 
     // XML layout screenId 판단: activity_*, layout_*, fragment_* 패턴 또는
     // Compose 심볼 테이블에 없으면 XML 경로 시도
     let symbolTable;
     try {
       symbolTable = await buildSymbolTable(projectPath);
-    } catch {
+    } catch (e) {
       // Kotlin 없으면 XML 경로
+      onDebug?.({
+        tag: "android-build-ir-symbol-failed",
+        message: `buildScreenIR(${screenId}): Kotlin 심볼 테이블 구축 실패 — XML 경로로 시도합니다.`,
+        detail: e instanceof Error ? e.stack : String(e),
+      });
     }
 
     const isInCompose = symbolTable?.composables.has(screenId) ?? false;

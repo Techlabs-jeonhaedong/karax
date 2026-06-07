@@ -79,3 +79,29 @@ describe("createSessionDir — 세션 ID 형식", () => {
     expect(() => createSessionDir(tmpDir)).toThrow();
   });
 });
+
+// ── debug 모드 디렉토리 생성 (B-2) ──────────────────────────────────
+
+describe("createSessionDir — debug 모드 debugDir", () => {
+  it("debug=true이면 sessionDir/debug/ 가 생성되고 debugDir이 반환된다", async () => {
+    const { createSessionDir } = await import("../session.js");
+    const session = createSessionDir(tmpDir, { debug: true });
+    expect(session.debugDir).toBeDefined();
+    expect(fs.existsSync(session.debugDir!)).toBe(true);
+    expect(session.debugDir).toBe(path.join(session.dir, "debug"));
+  });
+
+  it("debug=false이면 debug/ 디렉토리가 생성되지 않고 debugDir이 undefined이다", async () => {
+    const { createSessionDir } = await import("../session.js");
+    const session = createSessionDir(tmpDir, { debug: false });
+    expect(session.debugDir).toBeUndefined();
+    expect(fs.existsSync(path.join(session.dir, "debug"))).toBe(false);
+  });
+
+  it("debug 옵션 생략 시 debugDir이 undefined이다 (기존 동작 불변)", async () => {
+    const { createSessionDir } = await import("../session.js");
+    const session = createSessionDir(tmpDir);
+    expect(session.debugDir).toBeUndefined();
+    expect(fs.existsSync(path.join(session.dir, "debug"))).toBe(false);
+  });
+});

@@ -9,6 +9,8 @@ import { E2eError } from "../types.js";
 import { AgentResultSchema, type AgentResult } from "./resultSchema.js";
 import { buildAgentInvocation } from "./args.js";
 import { sanitizeStderr } from "./sanitize.js";
+import { redactInvocation } from "@karax/core";
+import { createDebugArtifacts } from "../debug.js";
 import type { AgentInvocation } from "./types.js";
 
 const DEFAULT_TIMEOUT = 900_000;
@@ -17,6 +19,12 @@ export interface RunAgentOptions {
   timeoutMs?: number;
   /** 재시도 시 prompt에 검증 오류를 첨부 (없으면 동일 prompt로 재시도) */
   retryPromptSuffix?: string;
+  /**
+   * 디버그 아티팩트 저장 디렉토리.
+   * 지정 시 invocation.json / raw-stdout.txt / raw-stderr.txt 를 기록한다.
+   * 미지정 시 no-op.
+   */
+  debugDir?: string;
 }
 
 /**
@@ -30,9 +38,18 @@ export async function runAgent(
 ): Promise<AgentResult> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT;
   const resultJsonPath = path.join(screenshotsDir, "result.json");
+  const artifacts = createDebugArtifacts(opts.debugDir);
+
+  // debug: invocation.json 기록 (API 키 redact)
+  await artifacts.writeJson("agent/invocation.json", redactInvocation(invocation));
 
   // 1차 시도
-  await execAgent(invocation, timeoutMs);
+  const { stdout: firstStdout, stderr: firstStderr } = await execAgent(invocation, timeoutMs);
+
+  // debug: raw stdout/stderr 기록
+  await artifacts.write("agent/raw-stdout.txt", firstStdout);
+  await artifacts.write("agent/raw-stderr.txt", firstStderr);
+
   const firstResult = readAndValidateResult(resultJsonPath);
   if (firstResult.data) return firstResult.data;
 
@@ -41,7 +58,12 @@ export async function runAgent(
     opts.retryPromptSuffix ??
     buildValidationErrorSuffix(firstResult.zodIssues);
   const retryInvocation = buildRetryInvocation(invocation, retrySuffix);
-  await execAgent(retryInvocation, timeoutMs);
+  const { stdout: retryStdout, stderr: retryStderr } = await execAgent(retryInvocation, timeoutMs);
+
+  // debug: 2차 시도 raw 기록 (덮어쓰기)
+  await artifacts.write("agent/raw-stdout.txt", firstStdout + "\n--- retry ---\n" + retryStdout);
+  await artifacts.write("agent/raw-stderr.txt", firstStderr + "\n--- retry ---\n" + retryStderr);
+
   const secondResult = readAndValidateResult(resultJsonPath);
   if (secondResult.data) return secondResult.data;
 
@@ -54,14 +76,18 @@ export async function runAgent(
 async function execAgent(
   invocation: AgentInvocation,
   timeoutMs: number
-): Promise<void> {
+): Promise<{ stdout: string; stderr: string }> {
   try {
-    await execa(invocation.bin, invocation.args, {
+    const result = await execa(invocation.bin, invocation.args, {
       env: invocation.env,
       timeout: timeoutMs,
     });
+    return {
+      stdout: result.stdout ?? "",
+      stderr: result.stderr ?? "",
+    };
   } catch (e) {
-    const err = e as NodeJS.ErrnoException & { timedOut?: boolean; stderr?: string };
+    const err = e as NodeJS.ErrnoException & { timedOut?: boolean; stderr?: string; stdout?: string };
 
     if (err.timedOut || (err.message && (err.message.includes("timed out") || err.message.includes("ETIMEDOUT")))) {
       throw new E2eError(
@@ -88,6 +114,10 @@ async function execAgent(
     }
 
     // 비정상 종료코드는 result.json 검증으로 처리 (에이전트가 fail 결과를 파일에 썼을 수 있음)
+    return {
+      stdout: err.stdout ?? "",
+      stderr: err.stderr ?? "",
+    };
   }
 }
 

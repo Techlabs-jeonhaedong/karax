@@ -50,6 +50,24 @@ function wrapError(e: unknown): string {
 }
 
 /**
+ * KARAX_DEBUG=1일 때 에러 상세를 stderr로 추가 기록한다.
+ * errorContent의 message는 기존 그대로 유지 (JSON-RPC 채널 불변).
+ */
+function debugLogError(e: unknown, toolName: string): void {
+  if (process.env["KARAX_DEBUG"] !== "1") return;
+  const lines: string[] = [`[karax/debug] [mcp:${toolName}]`];
+  if (e instanceof Error) {
+    if (e.stack) lines.push(`  stack: ${e.stack}`);
+    const asE2e = e as { code?: unknown; details?: unknown };
+    if (asE2e.code !== undefined) lines.push(`  code: ${String(asE2e.code)}`);
+    if (asE2e.details !== undefined) lines.push(`  details: ${String(asE2e.details)}`);
+  } else {
+    lines.push(`  raw: ${String(e)}`);
+  }
+  process.stderr.write(lines.join("\n") + "\n");
+}
+
+/**
  * Emscripten WASM Aborted 에러를 감지한다.
  * web-tree-sitter가 힙 고갈 시 "Aborted(OOM...)" 메시지를 던지거나
  * WebAssembly.RuntimeError("unreachable")를 발생시킨다.
@@ -91,6 +109,8 @@ function isWasmAbortedError(e: unknown): boolean {
  * 재초기화 성공/실패를 구분해 정직하게 보고한다.
  */
 async function handleWasmError(e: unknown, toolName: string): Promise<string> {
+  // debug 시 stderr에 추가 기록 (errorContent message는 불변)
+  debugLogError(e, toolName);
   const base = wrapError(e);
   if (isWasmAbortedError(e)) {
     let resetResult: "success" | "failure" = "success";
@@ -192,6 +212,7 @@ export function createMcpServer(): McpServer {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         };
       } catch (e) {
+        debugLogError(e, "detect_framework");
         return errorContent(wrapError(e));
       }
     }
@@ -218,6 +239,7 @@ export function createMcpServer(): McpServer {
           content: [{ type: "text", text: JSON.stringify(report, null, 2) }],
         };
       } catch (e) {
+        debugLogError(e, "doctor");
         return errorContent(wrapError(e));
       }
     }
@@ -460,6 +482,7 @@ export function createMcpServer(): McpServer {
           content: [{ type: "text", text: JSON.stringify(report, null, 2) }],
         };
       } catch (e) {
+        debugLogError(e, "get_analysis_report");
         return errorContent(wrapError(e));
       }
     }
@@ -616,6 +639,8 @@ export function createMcpServer(): McpServer {
           noBuild,
           ...(grantPermissions !== undefined ? { grantPermissions } : {}),
           recordVideo,
+          // Phase C: KARAX_DEBUG 환경변수 기반 debug 전파
+          debug: process.env["KARAX_DEBUG"] === "1",
         };
 
         if (scenarioIsDir && scenarioPath) {

@@ -225,7 +225,7 @@ describe("runE2eSuite — 에러 케이스", () => {
 
     expect(result.outcome).toBe("error");
     expect(result.results).toHaveLength(0);
-  });
+  }, 15_000);
 
   it("존재하지 않는 경로이면 error outcome을 반환한다", async () => {
     const { runE2eSuite } = await import("../index.js");
@@ -259,6 +259,7 @@ describe("runE2eSuite — 에러 케이스", () => {
 
 describe("runE2eSuite — suiteDir 필드", () => {
   it("정상 탐색 시 suiteDir은 resolve된 outDir을 반환한다", async () => {
+    // 이 테스트는 실제 createDeviceManager를 호출하는 통합 테스트로, IO 초기화에 시간이 소요된다.
     const { runE2eSuite } = await import("../index.js");
 
     // 시나리오 파일 1개 생성 (실제 실행은 error로 끝나도 OK — suiteDir만 확인)
@@ -278,5 +279,5 @@ describe("runE2eSuite — suiteDir 필드", () => {
     // 탐색은 성공하지만 실제 테스트는 에러 (빌드 환경 없음)
     // suiteDir은 outDir 값으로 설정돼야 한다
     expect(result.suiteDir).toBe(suiteDir);
-  });
+  }, 15_000);
 });

@@ -132,6 +132,7 @@ export interface UiArgs {
   label?: string;
   appmap?: string;
   screen?: string;
+  debug: boolean;
 }
 
 function makeUiProgram(name: string): Command {
@@ -149,6 +150,7 @@ export function parseUiArgs(argv: string[]): UiArgs {
   prog.option("--label <label>", "검색할 라벨 (locate 전용)");
   prog.option("--appmap <path>", "AppMap JSON 경로 (locate/which-screen 전용)");
   prog.option("--screen <id>", "AppMap 화면 ID (locate 전용)");
+  prog.option("--debug", "디버그 모드 활성화", false);
 
   prog.parse(["node", "ui", ...argv]);
 
@@ -169,6 +171,7 @@ export function parseUiArgs(argv: string[]): UiArgs {
     label?: string;
     appmap?: string;
     screen?: string;
+    debug: boolean;
   }>();
 
   if (!(VALID_PLATFORMS as readonly string[]).includes(opts.platform)) {
@@ -185,6 +188,7 @@ export function parseUiArgs(argv: string[]): UiArgs {
     label: opts.label,
     appmap: opts.appmap,
     screen: opts.screen,
+    debug: opts.debug,
   };
 }
 

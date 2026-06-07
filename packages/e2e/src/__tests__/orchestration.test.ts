@@ -67,15 +67,25 @@ const mockComputeBudget = vi.mocked(computeBudget);
 const mockIsIdbAvailable = vi.mocked(isIdbAvailable);
 
 let tmpDir: string;
+let karaxDebugBackup: string | undefined;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // KARAX_DEBUG 환경변수 백업·제거 — 환경에 KARAX_DEBUG=1이 있어도 테스트가 결정론적이어야 함
+  karaxDebugBackup = process.env["KARAX_DEBUG"];
+  delete process.env["KARAX_DEBUG"];
   // 기본값: AppMap 생성 실패(null 반환) — 각 테스트에서 필요 시 override
   mockGenerateAppMapForSession.mockRejectedValue(new Error("AppMap 미설정"));
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-e2e-orch-test-"));
 });
 
 afterEach(() => {
+  // KARAX_DEBUG 복원
+  if (karaxDebugBackup !== undefined) {
+    process.env["KARAX_DEBUG"] = karaxDebugBackup;
+  } else {
+    delete process.env["KARAX_DEBUG"];
+  }
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 

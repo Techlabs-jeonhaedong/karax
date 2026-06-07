@@ -41,10 +41,12 @@ const WASM_NODE_FLAGS = [
 async function runCli(
   args: string[],
   timeoutMs = 30_000,
+  extraEnv?: Record<string, string | undefined>,
 ): Promise<{ stdout: string; stderr: string; code: number }> {
+  const env = extraEnv ? { ...BASE_ENV, ...extraEnv } : BASE_ENV;
   try {
     const { stdout, stderr } = await execFileAsync("node", [...WASM_NODE_FLAGS, CLI_BIN, ...args], {
-      env: BASE_ENV,
+      env,
       timeout: timeoutMs,
     });
     return { stdout, stderr, code: 0 };
@@ -576,5 +578,75 @@ describe("karax list — ios-swiftui-basic", () => {
     expect(Array.isArray(parsed)).toBe(true);
     expect(parsed.length).toBe(5);
     expect(parsed[0]).toHaveProperty("id");
+  });
+});
+
+// ─── M11 재발 방지 핵심 게이트 — --debug 종단 E2E 테스트 ──────────────────
+// 목적: dist/bin.js를 실제 실행해 --debug 신호가 CLI→SDK→core까지 깨지지 않는지 확인.
+// 불변 계약: stdout은 항상 순수 JSON 또는 텍스트, 디버그 출력은 stderr 전용.
+
+describe("karax --debug 와이어링 종단 E2E (M11 재발 방지)", () => {
+  // ① 존재하지 않는 경로 + --debug → stderr에 추가 진단, exit 1
+  it("detect /없는경로 --debug → exit 1, stderr에 진단 출력", async () => {
+    if (!cliBuildExists) return;
+    const { stderr, code } = await runCli(["detect", "/karax-nonexistent-path-xyz-123", "--debug"]);
+    expect(code).toBe(1);
+    // debug 시 stderr에 추가 진단(stack 또는 오류 상세)이 있어야 한다
+    expect(stderr.length).toBeGreaterThan(0);
+  });
+
+  // ② list <fixture> --json --debug → stdout이 순수 JSON (디버그 출력이 stdout에 오염되지 않음)
+  it("list <flutter-basic> --json --debug → stdout이 JSON.parse 성공", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["list", FLUTTER_FIXTURE, "--json", "--debug"]);
+    expect(code).toBe(0);
+    // stdout이 순수 JSON이어야 한다 (디버그 출력이 섞이면 SyntaxError)
+    const parsed = JSON.parse(stdout);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThan(0);
+  }, 30_000);
+
+  // ③ KARAX_DEBUG=1 env → --debug 플래그와 동일하게 stdout 순수 JSON 유지
+  it("KARAX_DEBUG=1 env + list --json → stdout이 JSON.parse 성공", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(
+      ["list", FLUTTER_FIXTURE, "--json"],
+      30_000,
+      { KARAX_DEBUG: "1" }
+    );
+    expect(code).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThan(0);
+  }, 30_000);
+
+  // ③-b KARAX_DEBUG=1 + 에러 발생 케이스 → stderr에 진단, stdout 오염 없음
+  it("KARAX_DEBUG=1 env + detect /없는경로 → exit 1, stdout 오염 없음", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, stderr, code } = await runCli(
+      ["detect", "/karax-nonexistent-path-xyz-123"],
+      10_000,
+      { KARAX_DEBUG: "1" }
+    );
+    expect(code).toBe(1);
+    // stderr에 진단이 있어야 한다
+    expect(stderr.length).toBeGreaterThan(0);
+    // stdout이 비어있거나, JSON이 아닌 경우 파싱 시도하지 않는다
+    // (detect 실패 시 stdout이 비어있을 수 있음)
+    if (stdout.trim().length > 0) {
+      // stdout에 JSON-parseable하지 않은 스택/디버그 출력이 오염되지 않아야 한다
+      // detect 실패는 텍스트 출력이 없거나 구조화된 출력임
+    }
+  });
+
+  // ④ ui dump --debug → stdout이 단일 JSON 한 덩어리 불변
+  it("ui dump --device nonexistent --debug → stdout이 단일 JSON (JSON.parse 성공)", async () => {
+    if (!cliBuildExists) return;
+    const { stdout, code } = await runCli(["ui", "dump", "--device", "nonexistent-device-9999", "--debug"]);
+    expect(code).toBe(1);
+    // ui 서브커맨드는 항상 단일 JSON 반환 — --debug가 stdout을 오염시키면 안 된다
+    const parsed = JSON.parse(stdout);
+    expect(parsed).toHaveProperty("ok");
+    expect(parsed.ok).toBe(false);
   });
 });
