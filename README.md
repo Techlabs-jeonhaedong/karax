@@ -1,112 +1,94 @@
 # karax
 
-**모바일 앱 테스트 자동화 도구.** 사용자가 시나리오를 주면 Android 에뮬레이터/iOS 시뮬레이터에서 완전 자동으로 E2E 테스트를 수행하고 보고서를 작성한다. 시나리오가 없으면 앱을 자유 탐색하며 부자연스러운 점을 findings로 보고한다.
+**English** | [한국어](README.ko.md)
 
-- **zero-config**: 분석 대상 프로젝트 소스에 아무 조치 없이 동작
-- **원본 무수정**: 분석 대상 프로젝트 소스를 절대 수정하지 않음
-- **의존성 자동 설치**: Chromium 등 필수 런타임 자동 설치
-- **한계를 숨기지 않음**: 모든 결과에 confidence score + diagnostics 코드 동봉
+**Mobile app test automation tool.** Give it a scenario and it runs fully automated E2E tests on an Android emulator / iOS simulator and writes a report. Without a scenario, it freely explores your app and reports anomalies as findings.
 
-지원 프레임워크: **Flutter / React Native / Android(Compose·XML) / iOS(SwiftUI·UIKit)**
-제공 형태: **SDK + MCP 서버 + CLI**
+- **Zero-config**: works without touching the target project
+- **Read-only**: never modifies the target project's source
+- **Auto-installs dependencies**: Chromium and other required runtimes are installed automatically
+- **Honest about limitations**: every result ships with a confidence score + diagnostics codes
 
-### 빠르고 정확한 테스트를 위한 기반 기능
+Supported frameworks: **Flutter / React Native / Android (Compose·XML) / iOS (SwiftUI·UIKit)**
+Distribution: **SDK + MCP server + CLI**
 
-스크린샷 추출과 AppMap 생성은 테스트 자동화의 하부 기능이다. AppMap(화면 간 이동 관계 지도)을 세션 시작 시 자동으로 생성해 에이전트 프롬프트에 주입하면, LLM 에이전트가 버튼 위치를 찾느라 시간을 쓰지 않고 광고처럼 매번 변하는 UI도 정확히 식별할 수 있다.
-
----
-
-## 핵심 능력
-
-| 능력 | CLI | MCP tool | SDK |
-|---|---|---|---|
-| 프레임워크 감지 | `detect` | `detect_framework` | `detectFramework` |
-| 환경 진단 + 자동 설치 | `doctor` | `doctor` | `doctor` / `doctorFix` |
-| 화면 발견 (정적 분석) | `list` | `list_screens` | `listScreens` |
-| 화면 캡처 (2-티어) | `capture` | `capture_screen` / `capture_all` | `captureScreen` / `captureAll` |
-| UI IR 추출 | — | `get_screen_ir` | `buildScreenIR` |
-| 전체 분석 리포트 | — | `get_analysis_report` | — |
-| **앱 지도 (App Map)** | `map` | `generate_app_map` | `generateAppMap` |
-| **E2E 테스트 (LLM 에이전트)** | `test` | `run_e2e_test` | `runE2eTest` |
+Screenshot extraction and App Map generation are foundational features for test automation. An App Map (a map of screen-to-screen navigation) is generated automatically at session start and injected into the agent prompt, so the LLM agent doesn't waste time hunting for buttons and can reliably identify ever-changing UI like ads.
 
 ---
 
-## 2-티어 캡처 전략
+## Quick Start
 
-| 티어 | 조건 | 방식 | 충실도 |
-|---|---|---|---|
-| **Tier 1: Partial Compile** | 해당 프레임워크 툴체인 감지됨 | 화면 단위 하니스 컴파일 후 실제 렌더러로 캡처 | 높음 |
-| **Tier 2: Static IR** | 툴체인 없음 / Tier 1 실패 | 정적 분석 → UI IR → HTML/CSS → Chromium 캡처 | 구조적 근사 + confidence score |
+```bash
+# 1. Clone and warm up (install + build + Chromium)
+git clone <repo-url> karax && cd karax
+pnpm bootstrap
 
-기본 모드(`auto`)는 Tier 1을 시도하고 화면 단위 실패 시 Tier 2로 자동 fallback한다(`COMPILE_FALLBACK` diagnostic 기록). 화면 **발견은 항상 정적 분석**이며, 캡처만 2티어로 나뉜다.
+# 2. Diagnose your environment (auto-install what's missing)
+node packages/cli/dist/bin.js doctor --fix
 
----
+# 3. Capture every screen of your app
+node packages/cli/dist/bin.js capture ./my-app --out ./screenshots
 
-## 지원 프레임워크 매트릭스
+# 4. Run an E2E test (boots emulator, builds, installs, drives the app with an LLM agent)
+node packages/cli/dist/bin.js test ./my-app --platform android --agent claude
+```
 
-| 프레임워크 | 발견 | Tier 2 (정적 IR) | Tier 1 (컴파일) |
-|---|---|---|---|
-| Flutter | route-graph + heuristic | 위젯 트리 | `flutter test` golden |
-| React Native | react-navigation 스택/탭 | react-native-web alias | esbuild + Chromium |
-| Android Compose | NavHost route-graph + heuristic | Compose 함수 트리 | Paparazzi (JVM) |
-| Android XML (레거시) | setContentView 연결 | res/layout/*.xml 파싱 | — |
-| iOS SwiftUI | NavigationStack + WindowGroup | SwiftUI 뷰 트리 | xcodebuild + 시뮬레이터 (macOS) |
-| iOS UIKit (레거시) | Storyboard/XIB + segue 그래프 | view 계층 파싱 | — |
+> In the examples below, `karax` stands for `node packages/cli/dist/bin.js`.
 
 ---
 
-## 설치
+## Installation
 
-### MCP 서버 — git clone 방식 (npm 배포 없음)
+### As an MCP server — git clone only (not published to npm)
 
-karax는 npm에 발행되지 않는다. **git clone만 받으면 바로 MCP 서버로 등록·사용**할 수 있다.
+karax is not published to npm. **Just clone the repo and you can register it as an MCP server right away.**
 
-#### Claude Code (권장)
+#### Claude Code (recommended)
 
 ```bash
 git clone <repo-url> karax
 ```
 
-프로젝트를 열면 루트의 `.mcp.json`을 자동으로 인식한다. **첫 실행 시 `pnpm install` + 빌드가 자동으로 수행되므로 수 분이 소요될 수 있다.** 지연을 없애려면 사전 워밍업을 먼저 실행하라.
+Open the project and the root `.mcp.json` is picked up automatically. **The first run performs `pnpm install` + build automatically, which can take a few minutes.** To avoid the delay, warm up first:
 
 ```bash
-# 사전 워밍업 (선택) — install + build + Chromium 설치까지 미리 완료
+# Optional pre-warm — install + build + Chromium install, all upfront
 pnpm bootstrap
 ```
 
-#### 다른 MCP 클라이언트 (Cursor, 직접 등록)
+#### Other MCP clients (Cursor, manual registration)
 
 ```bash
-# 방법 1: claude mcp add 명령
+# Option 1: claude mcp add
 claude mcp add karax -- node "$(pwd)/scripts/mcp-launcher.mjs"
 
-# 방법 2: karax mcp-config로 스니펫 생성
-node packages/cli/dist/bin.js mcp-config
+# Option 2: generate a config snippet
+node packages/cli/dist/bin.js mcp-config        # alias: karax mcp install-config
 ```
 
-방법 2 출력 예시:
+Option 2 prints:
 
 ```json
 {
   "mcpServers": {
     "karax": {
       "command": "node",
-      "args": ["/절대/경로/karax/scripts/mcp-launcher.mjs"]
+      "args": ["/absolute/path/karax/scripts/mcp-launcher.mjs"]
     }
   }
 }
 ```
 
-이 JSON을 클라이언트의 설정 파일에 붙여넣는다.
+Paste this JSON into your client's configuration file.
 
-> **첫 실행 지연**: `node_modules`나 `dist`가 없으면 런처가 자동으로 install + build를 수행한다(진행 로그는 stderr로만 출력 — MCP stdout 프로토콜 채널은 오염되지 않음). MCP 클라이언트의 연결 타임아웃이 짧은 경우 `pnpm bootstrap`을 먼저 실행해 사전 워밍업하라.
+> **First-run delay**: if `node_modules` or `dist` is missing, the launcher installs + builds automatically (progress logs go to stderr only — the MCP stdout protocol channel stays clean). If your MCP client has a short connection timeout, run `pnpm bootstrap` first.
 
-> **보안**: 런처는 첫 실행 시 `pnpm install`을 자동 수행하며 이 과정에서 의존성 postinstall 스크립트가 실행된다. 신뢰할 수 있는 출처(공식 저장소)에서 클론한 경우에만 사용할 것.
+> **Security**: the launcher runs `pnpm install` on first start, which executes dependency postinstall scripts. Only use it when cloned from a trusted source (the official repository).
 
-### CLI 직접 실행
+### CLI directly
 
 ```bash
-# 의존성 설치 및 빌드 (처음 한 번)
+# Install dependencies and build (once)
 pnpm install && pnpm -r build
 
 node packages/cli/dist/bin.js <command>
@@ -114,163 +96,145 @@ node packages/cli/dist/bin.js <command>
 
 ---
 
-## CLI 사용법
+## CLI Usage
 
 ```
-karax detect <path>                      프레임워크 감지
-karax doctor [path] [--fix]              환경 진단 + 자동 설치
-karax list <path> [--json] [--no-candidates]   화면 목록 출력
-karax capture <path>                     전체 화면 캡처
-  --screen <id>                        단일 화면 지정
-  --mode auto|compile|static           캡처 모드 (기본: auto)
-  --device <id>                        디바이스 프로파일 (기본: iphone-15)
-  --out <dir>                          출력 디렉토리
-  --seed <n>                           결정론적 mock 시드
-  --variants                           Branch 분기별 추가 PNG 생성 (Tier 2 전용)
-  --overlay                            confidence 오버레이 PNG 추가 생성
-  --json                               JSON 형식 출력
-karax map <path>                         앱 지도(App Map) 마크다운 생성
-  --out <dir>                          출력 디렉토리 (기본: ./)
-  --framework <id>                     프레임워크 강제 지정: flutter|react-native|android|ios
-  --max-chars <n>                      문서 분할 기준 최대 글자 수
-  --stdout                             파일 저장 없이 마크다운을 stdout으로 출력 (--out과 동시 지정 불가)
-  --no-layout                          정적 좌표 측정 비활성화 (Chromium 미사용)
-  --json                               AppMap JSON 출력
-karax test <path>                        LLM 에이전트 E2E 테스트 (실기기 빌드·설치)
-  --platform android|ios               타겟 플랫폼 (필수)
-  --scenario <file|dir>                시나리오 마크다운 또는 디렉토리 (없으면 탐색적 테스트)
-  --agent claude|codex|gemini          LLM 에이전트 CLI (기본: claude)
-  --api-key <key>                      API 키 (없으면 CLI 로그인 사용)
-  --device <id>                        디바이스/에뮬레이터 ID
-  --out <dir>                          결과 출력 디렉토리
-  --timeout <ms>                       에이전트 전체 타임아웃
-  --max-steps <n>                      에이전트 최대 스텝 수
-  --keep-booted                        테스트 후 디바이스 유지
-  --reuse-build                        이전 빌드 캐시 재사용
-  --no-build                           빌드 없이 캐시 artifact만 사용
-  --grant-permissions                  시나리오 permissions 자동 grant
-  --record-video                       세션 비디오 녹화
-karax ui dump <deviceId>                 에이전트용 UI 헬퍼 — 현재 화면 요소 덤프
-karax ui locate <deviceId> <text>        텍스트/role로 요소 좌표 즉답
-karax ui which-screen <deviceId>         현재 화면 AppMap ID 매칭
-karax mcp-config                         MCP 클라이언트 설정 스니펫 출력
+karax detect <path>                      Detect framework
+karax doctor [path] [--fix]              Diagnose environment + auto-install
+karax list <path> [--json] [--no-candidates]   List discovered screens
+karax capture <path>                     Capture all screens
+  --screen <id>                        Capture a single screen
+  --mode auto|compile|static           Capture mode (default: auto)
+  --device <id>                        Device profile (default: iphone-15)
+  --out <dir>                          Output directory (default: /tmp/karax-out)
+  --seed <n>                           Deterministic mock seed
+  --variants                           Extra PNG per Branch variant (Tier 2 only)
+  --overlay                            Extra confidence-overlay debug PNG
+  --json                               JSON output
+karax map <path>                         Generate the App Map markdown
+  --out <dir>                          Output directory (default: ./)
+  --framework <id>                     Force framework: flutter|react-native|android|ios
+  --max-chars <n>                      Max characters per document before splitting
+  --stdout                             Print markdown to stdout instead of files (mutually exclusive with --out)
+  --no-layout                          Disable static coordinate measurement (no Chromium)
+  --json                               Output the AppMap as JSON
+karax test <path>                        LLM-agent E2E test (real device build & install)
+  --platform android|ios               Target platform (required)
+  --scenario <file|dir>                Scenario markdown or directory (omit for exploratory mode)
+  --agent claude|codex|gemini          LLM agent CLI (default: claude)
+  --api-key <key>                      API key (falls back to CLI login)
+  --device <id>                        Device/emulator ID
+  --out <dir>                          Output directory (default: /tmp/karax-e2e-out)
+  --timeout <ms>                       Overall agent timeout (default: 900000)
+  --max-steps <n>                      Max agent steps (default: 20)
+  --keep-booted                        Keep the device booted after the test
+  --reuse-build                        Reuse the previous build when source fingerprint matches
+  --no-build                           Skip building; use cached artifact only (errors if missing)
+  --grant-permissions                  Auto-grant the scenario's permissions[]
+  --record-video                       Record the session as video
+  --no-fail-on-crash                   Don't downgrade outcome to fail on crash detection
+karax ui dump --device <id>              Agent UI helper — dump current screen elements
+karax ui locate --device <id> --label <text>   Resolve element coordinates by text/role
+karax ui which-screen --device <id>      Match current screen to an AppMap ID
+karax mcp-config                         Print MCP client config snippet (alias: karax mcp install-config)
 ```
 
-### 사용 예
+Every command accepts `--debug` (see [Debug mode](#debug-mode)).
+
+### Examples
 
 ```bash
-# flutter 프로젝트 전체 화면 캡처 (auto 모드)
+# Capture every screen of a Flutter project (auto mode)
 karax capture ./my-flutter-app --out ./screenshots
 
-# 특정 화면만 static 모드로 캡처
+# Capture one screen in static mode
 karax capture ./my-app --screen HomeScreen --mode static --out ./out
 
-# Branch 분기별 variant 스크린샷 생성
+# Per-Branch variant screenshots
 karax capture ./my-app --screen ListScreen --mode static --variants --out ./out
 # → ListScreen_iphone-15.png, ListScreen__arm1_iphone-15.png, ...
 
-# confidence 오버레이 디버그 PNG 생성
+# Confidence-overlay debug PNG
 karax capture ./my-app --screen HomeScreen --mode static --overlay --out ./out
 # → HomeScreen_iphone-15.png, HomeScreen_iphone-15__overlay.png
 
-# 앱 지도 생성 — 네비게이션 그래프 + 트리거 요소의 텍스트·스타일·좌표
+# App Map — navigation graph + trigger text/style/coordinates
 karax map ./my-app --out ./docs
-# → {앱 이름}_map_1.md (길면 _2, _3, ... 분할 + 상호 링크)
+# → {app name}_map_1.md (splits into _2, _3, ... with cross-links when long)
 
-# E2E 테스트 — 에뮬레이터 부팅 + 풀 빌드 + LLM 에이전트 주행
+# E2E test — boot emulator + full build + LLM agent drive
 karax test ./my-app --platform android --agent claude
 
-# 시나리오 지정
+# With a scenario
 karax test ./my-app --platform ios --scenario ./scenarios/login.md
 
-# 디렉토리 일괄 실행 (suite)
+# Run a whole directory as a suite
 karax test ./my-app --platform android --scenario ./scenarios/
 
-# 빌드 캐시 재사용 + 비디오 녹화
+# Reuse build cache + record video
 karax test ./my-app --platform android --reuse-build --record-video --out ./reports
 
-# 탐색적 테스트 (시나리오 없음) — findings 보고서 생성
+# Exploratory test (no scenario) — produces a findings report
 karax test ./my-app --platform ios --agent claude --out ./reports
 ```
 
 ---
 
-## 앱 지도 (App Map)
+## E2E Testing (`karax test`)
 
-화면 간 **이동 관계**(어떤 요소를 누르면 어떤 화면으로 가는지)를 정적 분석으로 추출해 "프로그램 지도"를 만든다.
+Boots a real emulator/simulator, fully builds·installs·launches the app, then an **LLM agent (Claude Code / Codex / Gemini CLI) drives the E2E test via adb·simctl**.
 
-- **산출물**: Mermaid `flowchart TD` 그래프 + 화면 목록 테이블 + 화면별 상세 섹션(요소 테이블 · 이동 테이블). `--max-chars` 초과 시 화면 단위로 문서 분할 + 상호 링크.
-- **상세 매핑**: 트리거 요소의 텍스트, 스타일(배경색·모서리 등), 위치/크기(좌표)까지 기록. 좌표는 Tier 2 정적 렌더 기반 **근사값**이며 `LAYOUT_APPROX` diagnostic으로 명시된다.
-- **graceful degradation**: Chromium이 없으면 좌표만 생략(`LAYOUT_UNAVAILABLE`), 어댑터가 네비게이션 추적을 지원하지 않으면 빈 그래프 + `NAV_UNSUPPORTED`.
-- **신뢰도**: 해석 성공 1.0 / 휴리스틱 0.6 / 미해석 0.3 (`DYNAMIC_NAV` / `UNRESOLVED_NAV` diagnostic).
+- **Single agent-CLI path**: spawns the `claude -p` / `codex exec` / `gemini -p` headless CLIs. Subscription users keep their existing login; API-key users get env injection.
+- **Automatic App Map injection**: the App Map is generated at session start and injected into the agent prompt. Three-stage compression (full → summary → core) adapts to context size. Ad regions are tagged `role:"ad"`.
+- **Agent vision**: Claude reads screenshots directly to understand the UI visually (Read scoped to `claude`). Budget auto-scales with App Map screen count.
+- **Scenario v2**: declare `title` / `mode` / `preconditions` / `testData` / `steps(action+expect)` / `permissions` in frontmatter. Omit the file entirely for exploratory mode.
+- **Directory suites**: `--scenario <dir>` runs every `*.md` file as a suite.
+- **Exploratory testing / findings**: without a scenario, the agent freely explores the app and classifies findings into a 10-type anomaly taxonomy (`crash` / `layout-overflow` / `untranslated-text` / `dead-button` / `navigation-inconsistency` / `slow-response` / `accessibility` / `visual-glitch` / `error-state` / `other`). Coverage ratio is tracked too.
+- **Reliability**: crash detection (logcat / idb crash), partial recovery (`outcome: partial`), report v2 (`findings` / `coverage` / `crashes` / `videos` / `qualityWarnings` sections).
+- **Operations**: build caching (`--reuse-build` / `--no-build`), permission auto-grant (`--grant-permissions`; individual grants when the scenario declares `permissions`), video recording (`--record-video`).
+- **iOS input**: tap/swipe/text injection when idb is installed; falls back to coordinate estimation otherwise.
+- **Artifacts**: session directory with `report.json` + `report.md` + `screenshots/` (+ `videos/` with `--record-video`).
+- **Exit codes**: pass = 0, infra error = 1, test failure = 2.
+- **RN iOS**: `pod install` is never run automatically (read-only principle) — only a `COCOAPODS_REQUIRED` diagnostic is reported.
 
-```ts
-import { generateAppMap, renderAppMapMarkdown } from "@karax/sdk";
+13 error codes: `FRAMEWORK_NOT_DETECTED`, `SCENARIO_PARSE_ERROR`, `NO_DEVICE_AVAILABLE`, `EMULATOR_BOOT_TIMEOUT`, `COCOAPODS_REQUIRED`, `BUILD_FAILED`, `ARTIFACT_NOT_FOUND`, `INSTALL_FAILED`, `LAUNCH_FAILED`, `AGENT_CLI_MISSING`, `AGENT_OUTPUT_INVALID`, `AGENT_TIMEOUT`, `INVALID_ARGUMENT`
 
-const appMap = await generateAppMap({
-  projectPath: "./my-app",
-  includeLayout: true, // 기본 ON, false면 Chromium 미사용
-});
-const docs = renderAppMapMarkdown(appMap, { maxChars: 20000 });
-```
-
----
-
-## E2E 테스트 (`karax test`)
-
-에뮬레이터/시뮬레이터를 실제로 부팅하고, 앱을 풀 빌드·설치·실행한 뒤, **LLM 에이전트(Claude Code / Codex / Gemini CLI)가 adb·simctl로 E2E 테스트를 수행**한다.
-
-- **에이전트 CLI 단일 경로**: `claude -p` / `codex exec` / `gemini -p` 헤드리스 CLI를 spawn. 구독 사용자는 기존 로그인 그대로, API 키 사용자는 env 주입.
-- **AppMap 자동 주입**: 세션 시작 시 AppMap을 자동 생성해 에이전트 프롬프트에 주입. 3단계 압축(전체→요약→핵심)으로 컨텍스트 크기 조정. 광고 영역은 `role:"ad"`로 태깅.
-- **에이전트 시각 능력**: Claude는 스크린샷을 직접 읽어 UI를 시각적으로 파악(`claude` 스코프 Read). AppMap 화면 수 기반으로 budget 자동 조정.
-- **시나리오 v2**: frontmatter에 `title` / `mode` / `preconditions` / `testData` / `steps(action+expect)` / `permissions` 선언. 없으면 탐색적(exploratory) 테스트.
-- **디렉토리 일괄 실행**: `--scenario <dir>`로 `*.md` 파일 전체를 suite로 실행.
-- **탐색적 테스트 / findings**: 시나리오 없이 실행하면 에이전트가 앱을 자유 탐색하며 anomaly 10종(`crash` / `layout-overflow` / `untranslated-text` / `dead-button` / `navigation-inconsistency` / `slow-response` / `accessibility` / `visual-glitch` / `error-state` / `other`) 분류로 findings 보고. 커버리지 목표 비율도 추적.
-- **신뢰성**: 크래시 감지(logcat / idb crash), 부분 복구(`outcome: partial`), report v2(`findings` / `coverage` / `crashes` / `videos` / `qualityWarnings` 섹션).
-- **운영**: 빌드 캐싱(`--reuse-build` / `--no-build`), 권한 자동 grant(`--grant-permissions`, 시나리오 `permissions` 선언 시 개별 grant), 비디오 녹화(`--record-video`).
-- **iOS 입력**: idb가 설치된 경우 tap/swipe/text 주입. 없으면 adb 방식 fallback(좌표 추정 기반).
-- **산출물**: 세션 디렉토리에 `report.json` + `report.md` + `screenshots/` (+ `videos/` if `--record-video`).
-- **종료 코드**: 통과 = 0, 인프라 에러 = 1, 테스트 실패 = 2.
-- **RN iOS**: `pod install`을 자동 실행하지 않는다(원본 무수정 원칙) — `COCOAPODS_REQUIRED` 진단만 보고.
-
-에러 코드 13종: `FRAMEWORK_NOT_DETECTED`, `SCENARIO_PARSE_ERROR`, `NO_DEVICE_AVAILABLE`, `EMULATOR_BOOT_TIMEOUT`, `COCOAPODS_REQUIRED`, `BUILD_FAILED`, `ARTIFACT_NOT_FOUND`, `INSTALL_FAILED`, `LAUNCH_FAILED`, `AGENT_CLI_MISSING`, `AGENT_OUTPUT_INVALID`, `AGENT_TIMEOUT`, `INVALID_ARGUMENT`
-
-### 시나리오 v2 예시
+### Scenario v2 example
 
 ```markdown
 ---
-title: 로그인 정상 흐름
+title: Login happy path
 platform: android
 appId: com.example.app
 mode: scenario
 preconditions:
-  - 앱이 설치되어 있음
-  - 네트워크 연결됨
+  - App is installed
+  - Network is connected
 testData:
   email: test@example.com
   password: "{{SECRET:TEST_PASSWORD}}"
 permissions:
   - android.permission.CAMERA
 steps:
-  - action: 이메일 입력란에 {{testData.email}} 입력
-    expect: 이메일 입력란에 텍스트가 표시됨
-  - action: 로그인 버튼 탭
-    expect: 홈 화면으로 이동, 환영 메시지 표시
+  - action: Type {{testData.email}} into the email field
+    expect: The email field shows the text
+  - action: Tap the login button
+    expect: Navigates to the home screen, welcome message shown
 ---
 
-로그인 후 기본 홈 화면이 정상 표시되는지 확인한다.
+Verify the default home screen renders correctly after login.
 ```
 
-시나리오 작성 상세는 [docs/scenario-guide.md](docs/scenario-guide.md) 참조.
+See [docs/scenario-guide.md](docs/scenario-guide.md) for the full scenario authoring guide.
 
-### 탐색적 테스트 예시
+### Exploratory test example
 
 ```bash
-# 시나리오 없이 실행 → exploratory 모드 자동 선택
+# Run without a scenario → exploratory mode is selected automatically
 karax test ./my-app --platform android --agent claude --out ./reports
 ```
 
-report.md의 `## Findings` 섹션에 severity(critical/major/minor) · category · reproSteps가 기록된다.
+The `## Findings` section of `report.md` records severity (critical/major/minor) · category · reproSteps.
 
 ```ts
 import { runE2eTest } from "@karax/sdk";
@@ -279,30 +243,90 @@ const result = await runE2eTest({
   projectPath: "./my-app",
   platform: "android",
   agent: "claude",
-  scenarioPath: "./scenarios/login.md", // 생략 시 exploratory
+  scenarioPath: "./scenarios/login.md", // omit for exploratory mode
 });
 ```
 
-> `run_e2e_test` MCP 툴은 빌드·부팅을 포함하므로 **수 분이 소요**될 수 있다.
+> The `run_e2e_test` MCP tool includes the build & boot, so it **can take several minutes**.
 
-### `karax ui` — 에이전트용 결정론 헬퍼
+### `karax ui` — deterministic helpers for agents
 
-에이전트가 E2E 테스트 중 현재 화면 상태를 결정론적으로 조회하는 서브커맨드. uiautomator(Android) / idb(iOS)와 AppMap을 런타임 매칭한다.
+Subcommands that let the agent deterministically inspect the current screen state during an E2E test. Matches uiautomator (Android) / idb (iOS) output against the App Map at runtime.
 
 ```bash
-# 현재 화면의 모든 상호작용 가능 요소를 덤프
-karax ui dump emulator-5554
+# Dump every interactable element on the current screen
+karax ui dump --device emulator-5554
 
-# 텍스트/role로 요소 좌표 즉답
-karax ui locate emulator-5554 "로그인"
+# Resolve element coordinates by text/role
+karax ui locate --device emulator-5554 --label "Login"
 
-# 현재 화면의 AppMap ID 매칭
-karax ui which-screen emulator-5554
+# Match the current screen to an AppMap ID
+karax ui which-screen --device emulator-5554 --appmap ./appmap.json
+```
+
+Common flags: `--device <id>` (required), `--platform android|ios` (default: android). `locate` also takes `--label <text>` / `--appmap <path>` / `--screen <id>`.
+
+---
+
+## App Map
+
+Extracts the **navigation relations** between screens (which element leads to which screen) via static analysis and builds a "program map".
+
+- **Output**: Mermaid `flowchart TD` graph + screen list table + per-screen detail sections (element table · navigation table). Splits into multiple cross-linked documents when `--max-chars` is exceeded.
+- **Detailed mapping**: records the trigger element's text, style (background color, corner radius, …) and position/size (coordinates). Coordinates are **approximations** from the Tier 2 static render, flagged with the `LAYOUT_APPROX` diagnostic.
+- **Graceful degradation**: without Chromium only the coordinates are omitted (`LAYOUT_UNAVAILABLE`); if the adapter doesn't support navigation tracking you get an empty graph + `NAV_UNSUPPORTED`.
+- **Confidence**: resolved 1.0 / heuristic 0.6 / unresolved 0.3 (`DYNAMIC_NAV` / `UNRESOLVED_NAV` diagnostics).
+
+```ts
+import { generateAppMap, renderAppMapMarkdown } from "@karax/sdk";
+
+const appMap = await generateAppMap({
+  projectPath: "./my-app",
+  includeLayout: true, // default ON; false skips Chromium
+});
+const docs = renderAppMapMarkdown(appMap, { maxChars: 20000 });
 ```
 
 ---
 
-## SDK API 요약
+## Screen Capture (2-tier strategy)
+
+| Tier | Condition | Method | Fidelity |
+|---|---|---|---|
+| **Tier 1: Partial Compile** | framework toolchain detected | compile a per-screen harness, capture with the real renderer | high |
+| **Tier 2: Static IR** | no toolchain / Tier 1 failed | static analysis → UI IR → HTML/CSS → Chromium capture | structural approximation + confidence score |
+
+The default mode (`auto`) tries Tier 1 and falls back to Tier 2 per screen on failure (recorded as a `COMPILE_FALLBACK` diagnostic). Screen **discovery is always static analysis**; only capture is tiered.
+
+### Framework support matrix
+
+| Framework | Discovery | Tier 2 (static IR) | Tier 1 (compile) |
+|---|---|---|---|
+| Flutter | route-graph + heuristic | widget tree | `flutter test` golden |
+| React Native | react-navigation stacks/tabs | react-native-web alias | esbuild + Chromium |
+| Android Compose | NavHost route-graph + heuristic | Compose function tree | Paparazzi (JVM) |
+| Android XML (legacy) | setContentView links | parses res/layout/*.xml | — |
+| iOS SwiftUI | NavigationStack + WindowGroup | SwiftUI view tree | xcodebuild + simulator (macOS) |
+| iOS UIKit (legacy) | Storyboard/XIB + segue graph | view hierarchy parsing | — |
+
+---
+
+## Capability map
+
+| Capability | CLI | MCP tool | SDK |
+|---|---|---|---|
+| Framework detection | `detect` | `detect_framework` | `detectFramework` |
+| Environment diagnosis + auto-install | `doctor` | `doctor` | `doctor` / `doctorFix` |
+| Screen discovery (static analysis) | `list` | `list_screens` | `listScreens` |
+| Screen capture (2-tier) | `capture` | `capture_screen` / `capture_all` | `captureScreen` / `captureAll` |
+| UI IR extraction | — | `get_screen_ir` | `buildScreenIR` |
+| Full analysis report | — | `get_analysis_report` | — |
+| **App Map** | `map` | `generate_app_map` | `generateAppMap` |
+| **E2E test (LLM agent)** | `test` | `run_e2e_test` | `runE2eTest` / `runE2eSuite` |
+
+---
+
+## SDK API summary
 
 ```ts
 import {
@@ -313,38 +337,38 @@ import {
   captureScreen,
   captureAll,
   generateAppMap, renderAppMapMarkdown,
-  runE2eTest,
+  runE2eTest, runE2eSuite,
 } from "@karax/sdk";
 
-// 프레임워크 감지
+// Detect framework
 const { frameworks } = await detectFramework("./my-app");
 
-// 화면 목록
+// List screens
 const screens = await listScreens({ projectPath: "./my-app" });
 
-// 특정 화면 캡처
+// Capture one screen
 const result = await captureScreen({
   projectPath: "./my-app",
   screenId: "HomeScreen",
   outDir: "./out",
   captureMode: "auto",    // "auto" | "compile" | "static"
   device: "iphone-15",
-  variants: true,         // Branch 분기별 PNG 추가 생성 (Tier 2 전용)
-  overlay: "confidence",  // confidence 오버레이 PNG 추가 생성
+  variants: true,         // extra PNG per Branch variant (Tier 2 only)
+  overlay: "confidence",  // extra confidence-overlay PNG
 });
 
-// 전체 화면 캡처
+// Capture everything
 const { screens: captured, report } = await captureAll({
   projectPath: "./my-app",
   outDir: "./out",
 });
 
-// LLM 보강 플러그인 (선택)
+// Optional LLM enrichment plugin
 import { createLlmEnrichmentPlugin } from "@karax/enrich-llm";
 
 const enrich = createLlmEnrichmentPlugin({
   complete: async (prompt) => { /* your LLM call */ return response; },
-  threshold: 0.5, // confidence 이 미만 노드만 보강
+  threshold: 0.5, // only nodes below this confidence are enriched
 });
 
 await captureScreen({ projectPath: "./my-app", screenId: "HomeScreen", outDir: "./out", enrich });
@@ -352,144 +376,148 @@ await captureScreen({ projectPath: "./my-app", screenId: "HomeScreen", outDir: "
 
 ### AnalyzeOptions
 
-| 옵션 | 타입 | 기본값 | 설명 |
+| Option | Type | Default | Description |
 |---|---|---|---|
-| `projectPath` | `string` | 필수 | 분석할 프로젝트 경로 |
-| `framework` | `FrameworkId` | 자동 감지 | `"flutter"` \| `"react-native"` \| `"android"` \| `"ios"` |
-| `device` | `DeviceProfileId` | `"iphone-15"` | 디바이스 프로파일 |
+| `projectPath` | `string` | required | project to analyze |
+| `framework` | `FrameworkId` | auto-detected | `"flutter"` \| `"react-native"` \| `"android"` \| `"ios"` |
+| `device` | `DeviceProfileId` | `"iphone-15"` | device profile |
 | `captureMode` | `CaptureMode` | `"auto"` | `"auto"` \| `"compile"` \| `"static"` |
-| `mockSeed` | `number` | `0` | 결정론적 mock 시드 |
-| `includeCandidates` | `boolean` | `true` | 라우트 미연결 후보 화면 포함 |
-| `enrich` | `EnrichmentPlugin` | — | LLM 보강 플러그인 |
+| `mockSeed` | `number` | `0` | deterministic mock seed |
+| `includeCandidates` | `boolean` | `true` | include route-unconnected candidate screens |
+| `enrich` | `EnrichmentPlugin` | — | LLM enrichment plugin |
 
 ---
 
-## MCP Tools (9종)
+## MCP Tools (9)
 
-| tool | 설명 |
+| Tool | Description |
 |---|---|
-| `detect_framework` | 프레임워크 감지 |
-| `doctor` | 환경 진단 + 자동 설치 (fix 옵션) |
-| `list_screens` | 화면 목록 반환 |
-| `get_screen_ir` | 특정 화면의 UI IR 반환 |
-| `capture_screen` | 화면 캡처 (image content + 사이드카 JSON) |
-| `capture_all` | 전체 화면 캡처 |
-| `get_analysis_report` | 프로젝트 전체 분석 리포트 |
-| `generate_app_map` | 앱 지도 — 네비 그래프 + 트리거 상세 (`includeLayout`, `maxCharsPerDoc`, `write`+`outDir` 옵션) |
-| `run_e2e_test` | 실기기 E2E 테스트 (수 분 소요) |
+| `detect_framework` | detect framework |
+| `doctor` | diagnose environment + auto-install (fix option) |
+| `list_screens` | return screen list |
+| `get_screen_ir` | return the UI IR of a screen |
+| `capture_screen` | capture a screen (image content + sidecar JSON) |
+| `capture_all` | capture every screen |
+| `get_analysis_report` | full project analysis report |
+| `generate_app_map` | App Map — nav graph + trigger details (`includeLayout`, `maxCharsPerDoc`, `write`+`outDir` options) |
+| `run_e2e_test` | real-device E2E test (takes minutes) |
 
-`capture_screen` / `capture_all` 공통 옵션:
-- `variants: boolean` — Branch 분기별 variant PNG 추가 생성
-- `overlay: "confidence"` — confidence 오버레이 PNG 추가 생성
+Options shared by `capture_screen` / `capture_all`:
+- `variants: boolean` — extra PNG per Branch variant
+- `overlay: "confidence"` — extra confidence-overlay PNG
+
+---
+
+## Debug mode
+
+Every CLI command accepts `--debug`; alternatively set the `KARAX_DEBUG` env var. In debug mode, errors include full stack traces and intermediate artifacts are preserved for inspection. The flag/env propagates to child processes automatically.
+
+```bash
+karax capture ./my-app --debug
+KARAX_DEBUG=1 karax test ./my-app --platform android
+```
 
 ---
 
 ## Confidence & Diagnostics
 
-### Tier 2 confidence 계산
+### Tier 2 confidence
 
-| 상황 | confidence |
+| Situation | confidence |
 |---|---|
-| 표준 위젯 매핑 | 1.0 |
-| 인라인 해석 성공 | 0.7 |
-| mock 데이터 바인딩 | 0.5 |
-| Unknown 노드 | 0.2 |
-| route 발견 가중치 | 1.0 |
-| candidate 발견 가중치 | 0.6 |
+| standard widget mapping | 1.0 |
+| inline resolution success | 0.7 |
+| mock data binding | 0.5 |
+| Unknown node | 0.2 |
+| route discovery weight | 1.0 |
+| candidate discovery weight | 0.6 |
 
-### Diagnostics 코드
+### Diagnostics codes
 
-| 코드 | 의미 |
+| Code | Meaning |
 |---|---|
-| `UNRESOLVED_COMPONENT` | 커스텀 컴포넌트 심볼 해석 실패 |
-| `THEME_DEFAULTED` | 테마 토큰 해석 실패 → 기본 테마 사용 |
-| `DYNAMIC_DATA_MOCKED` | 런타임 데이터 → mock 값으로 대체 |
-| `COMPILE_FALLBACK` | Tier 1 실패 → Tier 2 fallback |
-| `BRANCH_VARIANT_EXPANDED` | Branch 분기 variant 확장 |
-| `ENRICHED` | LLM 보강 적용됨 |
-| `ENRICH_REJECTED` | LLM 보강 실패/스키마 위반 |
-| `NAV_UNSUPPORTED` | 어댑터가 네비게이션 추적 미지원 → 빈 그래프 |
-| `DYNAMIC_NAV` | 동적 네비게이션 → 휴리스틱 해석 (conf 하향) |
-| `UNRESOLVED_NAV` | 네비게이션 타겟 해석 실패 |
-| `TRIGGER_UNMATCHED` | 트리거 ↔ 요소 매칭 실패 |
-| `LAYOUT_APPROX` | 좌표는 Tier 2 정적 렌더 기반 근사값 |
-| `LAYOUT_UNAVAILABLE` | Chromium 측정 실패 → 좌표 생략 |
-| `COCOAPODS_REQUIRED` | RN iOS — `pod install` 수동 실행 필요 |
+| `UNRESOLVED_COMPONENT` | failed to resolve a custom component symbol |
+| `THEME_DEFAULTED` | theme token resolution failed → default theme used |
+| `DYNAMIC_DATA_MOCKED` | runtime data replaced with mock values |
+| `COMPILE_FALLBACK` | Tier 1 failed → Tier 2 fallback |
+| `BRANCH_VARIANT_EXPANDED` | Branch variants expanded |
+| `ENRICHED` | LLM enrichment applied |
+| `ENRICH_REJECTED` | LLM enrichment failed / schema violation |
+| `NAV_UNSUPPORTED` | adapter lacks navigation tracking → empty graph |
+| `DYNAMIC_NAV` | dynamic navigation → heuristic resolution (lower conf) |
+| `UNRESOLVED_NAV` | failed to resolve navigation target |
+| `TRIGGER_UNMATCHED` | failed to match trigger ↔ element |
+| `LAYOUT_APPROX` | coordinates approximated from Tier 2 static render |
+| `LAYOUT_UNAVAILABLE` | Chromium measurement failed → coordinates omitted |
+| `COCOAPODS_REQUIRED` | RN iOS — run `pod install` manually |
 
-### confidence 오버레이
+### Confidence overlay
 
-`--overlay` (CLI) / `overlay: "confidence"` (SDK/MCP)를 사용하면 각 화면의 저신뢰 노드를 하이라이트한 디버그 PNG가 추가로 생성된다.
+With `--overlay` (CLI) / `overlay: "confidence"` (SDK/MCP), an extra debug PNG highlights low-confidence nodes on each screen.
 
-- `confidence < 0.5`: 반투명 주황 테두리 + 코너 점수 라벨
-- `Unknown` 노드: 빨강 테두리
-- 파일명: `<screenId>_<device>__overlay.png`
+- `confidence < 0.5`: translucent orange border + corner score label
+- `Unknown` node: red border
+- File name: `<screenId>_<device>__overlay.png`
 
 ---
 
-## 한계
+## Limitations
 
-> Tier 2는 픽셀 퍼펙트가 아닌 **구조적 근사**다. (설계 배경: `plans/total_plan.md`)
+> Tier 2 is a **structural approximation**, not pixel-perfect.
 
-- **잘 됨**: 화면 인벤토리, 정적 레이아웃 골격, 정적 텍스트, 명시적 색/spacing, 표준 컴포넌트
-- **근사**: 커스텀 컴포넌트 다수 화면, 테마 토큰 간접 참조, 리스트/그리드
-- **약함**: 런타임 API 데이터 의존 화면, 차트/지도/Canvas, 애니메이션 상태, 복잡한 DI 그래프, 코드생성(`build_runner`/`R.java`) 의존 UI
-- **App Map 좌표는 근사값** — 실기기 픽셀과 다를 수 있다 (`LAYOUT_APPROX`)
-- **Android 네비 추적은 2단계 간접 추적까지** — 3단계 이상 콜백 전달은 conf 0.3으로 보고
-- **에이전트 CLI 플래그는 버전 의존** — `--permission-mode bypassPermissions` 등은 런타임 검증 필요
+- **Strong**: screen inventory, static layout skeleton, static text, explicit colors/spacing, standard components
+- **Approximate**: screens dominated by custom components, indirect theme token references, lists/grids
+- **Weak**: screens dependent on runtime API data, charts/maps/Canvas, animation states, complex DI graphs, codegen-dependent UI (`build_runner`/`R.java`)
+- **App Map coordinates are approximate** — may differ from real-device pixels (`LAYOUT_APPROX`)
+- **Android nav tracking goes up to 2 levels of indirection** — 3+ levels of callback passing are reported with conf 0.3
+- **Agent CLI flags are version-dependent** — flags like `--permission-mode bypassPermissions` need runtime verification
 
-동적 데이터, 차트, 지도, 애니메이션은 placeholder/근사로 처리된다. 코드 생성 의존 UI는 누락될 수 있다.
+Dynamic data, charts, maps, and animations are handled as placeholders/approximations. Codegen-dependent UI may be missed.
 
 ---
 
-## 개발 가이드
+## Development guide
 
 ```bash
-# 의존성 설치 (최초 1회)
-pnpm install
+pnpm install              # install dependencies (once)
+pnpm -r build             # build all packages
+pnpm test                 # all tests (packages + scripts launcher tests)
 
-# 전체 빌드
-pnpm -r build
-
-# 전체 테스트 (패키지 + scripts 런처 테스트)
-pnpm test
-
-# 특정 패키지만
+# Single package
 pnpm --filter @karax/core test
-pnpm --filter @karax/renderer test  # Playwright 필요
+pnpm --filter @karax/renderer test  # requires Playwright
 
-# 통합 테스트 환경변수
-KARAX_SKIP_ENSURE=1 pnpm --filter @karax/sdk test   # Chromium 자동 설치 건너뜀
+# Integration test env var
+KARAX_SKIP_ENSURE=1 pnpm --filter @karax/sdk test   # skip Chromium auto-install
+
+# Update golden/snapshot images (only after explicit review — no blind updates)
+UPDATE_GOLDEN=1 pnpm --filter @karax/renderer test
 ```
 
-### 패키지 구조
+### Package layout
 
 ```
 packages/
-  core/           IR 스키마, Detector, 파이프라인, confidence, appmap
-  adapter-api/    FrameworkAdapter/CompileBackend 인터페이스
+  core/           IR schema, detector, pipeline, confidence, appmap
+  adapter-api/    FrameworkAdapter/CompileBackend interfaces
   adapter-flutter/
   adapter-react-native/
-  adapter-ios/    SwiftUI + UIKit 레거시
-  adapter-android/ Compose + XML 레거시
+  adapter-ios/    SwiftUI + UIKit legacy
+  adapter-android/ Compose + XML legacy
   compile-flutter/
   compile-react-native/
   compile-android/
   compile-ios/
-  renderer/       IR → HTML → Playwright PNG, 좌표 측정
-  doctor/         환경 감지 + 의존성 자동 설치 (adb/emulator/agent CLI 체크 포함)
-  sdk/            공개 API 조립
-  mcp/            MCP 서버 (tool 9종)
-  cli/            karax 커맨드
-  e2e/            E2E 테스트 (device/build/agent/scenario/report)
-  enrich-llm/     선택 LLM 보강 플러그인
+  renderer/       IR → HTML → Playwright PNG, coordinate measurement
+  doctor/         environment detection + dependency auto-install
+  sdk/            public API assembly
+  mcp/            MCP server (9 tools)
+  cli/            karax command
+  e2e/            E2E testing (device/build/agent/scenario/report)
+  enrich-llm/     optional LLM enrichment plugin
 scripts/
-  mcp-launcher.mjs  자가 부트스트랩 MCP 런처 (의존성 0)
-  setup.mjs         사전 워밍업 (pnpm bootstrap)
+  mcp-launcher.mjs  self-bootstrapping MCP launcher (zero deps)
+  setup.mjs         pre-warm (pnpm bootstrap)
 ```
 
-### 골든/스냅샷 이미지 갱신
-
-```bash
-# 골든은 명시적 리뷰 후에만 갱신 (자동 갱신 금지)
-UPDATE_GOLDEN=1 pnpm --filter @karax/renderer test
-```
+See `PLAN.md` for the self-contained design document behind the architecture decisions.
