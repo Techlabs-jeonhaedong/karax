@@ -7,6 +7,8 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
+import type { ServerRequest, ServerNotification } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
@@ -23,7 +25,7 @@ import {
   renderAppMapMarkdown,
   resetParserState,
 } from "@karax/sdk";
-import type { FrameworkId, DeviceProfileId, CaptureMode } from "@karax/sdk";
+import type { FrameworkId, DeviceProfileId, CaptureMode, E2eProgressEvent } from "@karax/sdk";
 
 // ── 입력 스키마 (zod) ────────────────────────────────────────────────
 
@@ -612,7 +614,7 @@ export function createMcpServer(): McpServer {
        */
       buildCommand: z.string().min(1).max(4096).optional(),
     },
-    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted, failOnCrash, reuseBuild, noBuild, grantPermissions, recordVideo, buildCommand }) => {
+    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted, failOnCrash, reuseBuild, noBuild, grantPermissions, recordVideo, buildCommand }, extra: RequestHandlerExtra<ServerRequest, ServerNotification>) => {
       try {
         validateProjectPath(projectPath);
 
@@ -628,6 +630,54 @@ export function createMcpServer(): McpServer {
           })();
 
         const sdk = await import("@karax/sdk");
+
+        // ── MCP progress notification 헬퍼 ──────────────────────────
+        const progressToken = extra._meta?.progressToken;
+        let progressValue = 0;
+        const PHASE_TOTAL = 10;
+        const PHASE_ORDER: Record<string, number> = {
+          scenario: 1, detect: 2, device: 3, appmap: 4, build: 5,
+          install: 6, launch: 7, agent: 8, "crash-scan": 9, report: 10,
+        };
+
+        const sendMcpProgress = async (event: E2eProgressEvent): Promise<void> => {
+          const phaseNum = PHASE_ORDER[event.phase] ?? progressValue;
+          if (event.status === "start") progressValue = phaseNum - 1;
+          else if (event.status === "done") progressValue = phaseNum;
+
+          const messageText = `[${event.phase}] ${event.status}${event.detail ? ` — ${event.detail}` : ""}`;
+
+          // logging notification — progressToken 유무에 관계없이 항상 전송 (best-effort)
+          try {
+            await extra.sendNotification({
+              method: "notifications/message",
+              params: {
+                level: event.status === "error" ? "error" : "info",
+                logger: "karax/e2e",
+                data: messageText,
+              },
+            });
+          } catch {
+            // logging 실패 무시
+          }
+
+          // progress notification — progressToken이 있을 때만
+          if (progressToken !== undefined) {
+            try {
+              await extra.sendNotification({
+                method: "notifications/progress",
+                params: {
+                  progressToken,
+                  progress: progressValue,
+                  total: PHASE_TOTAL,
+                  message: messageText,
+                },
+              });
+            } catch {
+              // progress 전송 실패 무시 — 테스트 진행에 영향 없음
+            }
+          }
+        };
 
         const commonOpts = {
           projectPath,
@@ -649,6 +699,8 @@ export function createMcpServer(): McpServer {
           debug: process.env["KARAX_DEBUG"] === "1",
           // 사용자 정의 빌드 커맨드
           ...(buildCommand !== undefined ? { buildCommand } : {}),
+          // progress 콜백
+          onProgress: sendMcpProgress,
         };
 
         if (scenarioIsDir && scenarioPath) {

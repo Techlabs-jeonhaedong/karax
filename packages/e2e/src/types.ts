@@ -2,6 +2,8 @@
  * @karax/e2e — 공유 타입 및 에러 코드
  */
 
+import type { E2eProgressCallback } from "./progress.js";
+
 // ── 에러 코드 ────────────────────────────────────────────────────────────
 
 export const E2E_ERROR_CODES = {
@@ -117,6 +119,13 @@ export interface RunE2eTestOptions {
    * noBuild=true와 함께 오면 무시된다 (에러 아님).
    */
   buildCommand?: string;
+  /**
+   * 파이프라인 진행 상황 콜백.
+   * 각 파이프라인 단계의 시작/완료/오류 시점에 호출된다.
+   * 콜백이 throw해도 파이프라인에 영향을 주지 않는다.
+   * runE2eSuite에서도 전파되며, stepIndex/totalSteps로 시나리오 번호를 알 수 있다.
+   */
+  onProgress?: E2eProgressCallback;
 }
 
 // ── AgentKind ─────────────────────────────────────────────────────────────
