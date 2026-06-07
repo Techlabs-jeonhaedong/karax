@@ -667,10 +667,19 @@ program
         const PHASE_TOTAL = 10;
         let phaseIndex = 0;
         const seenPhases = new Set<string>();
+        // suite에서 stepIndex별 카운터 리셋을 위해 마지막으로 본 stepIndex 추적
+        let lastStepIndex: number | undefined = undefined;
 
         const onProgress = (event: import("@karax/sdk").E2eProgressEvent) => {
           const label = PHASE_LABELS[event.phase] ?? event.phase;
           const key = `${event.stepIndex ?? ""}-${event.phase}`;
+
+          // suite 모드: stepIndex가 바뀌면 phaseIndex/seenPhases 리셋
+          if (event.stepIndex !== undefined && event.stepIndex !== lastStepIndex) {
+            lastStepIndex = event.stepIndex;
+            phaseIndex = 0;
+            seenPhases.clear();
+          }
 
           if (event.status === "start") {
             if (!seenPhases.has(event.phase)) {

@@ -633,6 +633,12 @@ export function createMcpServer(): McpServer {
 
         // ── MCP progress notification 헬퍼 ──────────────────────────
         const progressToken = extra._meta?.progressToken;
+        // progressToken sanity 가드: string(≤1024) 또는 number만 허용
+        const isValidProgressToken =
+          progressToken !== undefined &&
+          (typeof progressToken === "number" ||
+            (typeof progressToken === "string" && progressToken.length <= 1024));
+
         let progressValue = 0;
         const PHASE_TOTAL = 10;
         const PHASE_ORDER: Record<string, number> = {
@@ -641,9 +647,26 @@ export function createMcpServer(): McpServer {
         };
 
         const sendMcpProgress = async (event: E2eProgressEvent): Promise<void> => {
-          const phaseNum = PHASE_ORDER[event.phase] ?? progressValue;
-          if (event.status === "start") progressValue = phaseNum - 1;
-          else if (event.status === "done") progressValue = phaseNum;
+          const phaseNum = PHASE_ORDER[event.phase] ?? 0;
+
+          // suite 모드: stepIndex/totalSteps가 있으면 누적 계산으로 단조 증가 보장
+          let computed: number;
+          let total: number;
+          if (event.stepIndex !== undefined && event.totalSteps !== undefined && event.totalSteps > 0) {
+            // 각 시나리오의 phase 진행을 전체 범위로 누적
+            const stepBase = event.stepIndex * PHASE_TOTAL;
+            if (event.status === "start") computed = stepBase + phaseNum - 1;
+            else if (event.status === "done") computed = stepBase + phaseNum;
+            else computed = stepBase + phaseNum - 1; // error: 직전 값 유지
+            total = event.totalSteps * PHASE_TOTAL;
+          } else {
+            if (event.status === "start") computed = phaseNum - 1;
+            else if (event.status === "done") computed = phaseNum;
+            else computed = progressValue; // error: 직전 값 유지
+            total = PHASE_TOTAL;
+          }
+          // 단조 증가 보장: 이전보다 작아지면 이전 값 유지
+          progressValue = Math.max(progressValue, computed);
 
           const messageText = `[${event.phase}] ${event.status}${event.detail ? ` — ${event.detail}` : ""}`;
 
@@ -661,15 +684,15 @@ export function createMcpServer(): McpServer {
             // logging 실패 무시
           }
 
-          // progress notification — progressToken이 있을 때만
-          if (progressToken !== undefined) {
+          // progress notification — 유효한 progressToken이 있을 때만
+          if (isValidProgressToken) {
             try {
               await extra.sendNotification({
                 method: "notifications/progress",
                 params: {
                   progressToken,
                   progress: progressValue,
-                  total: PHASE_TOTAL,
+                  total,
                   message: messageText,
                 },
               });

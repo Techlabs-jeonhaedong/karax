@@ -122,8 +122,13 @@ export interface RunE2eTestOptions {
   /**
    * 파이프라인 진행 상황 콜백.
    * 각 파이프라인 단계의 시작/완료/오류 시점에 호출된다.
-   * 콜백이 throw해도 파이프라인에 영향을 주지 않는다.
-   * runE2eSuite에서도 전파되며, stepIndex/totalSteps로 시나리오 번호를 알 수 있다.
+   *
+   * - **신뢰 가능한 코드만 제공**: 콜백은 파이프라인 내부 상태에 접근할 수 있으므로
+   *   신뢰할 수 있는 코드만 이 옵션에 전달해야 한다.
+   * - **격리(isolation)**: 콜백이 throw해도 파이프라인은 계속 진행된다. 에러는 무시된다.
+   * - **detail redaction**: `detail` 필드는 발행 전에 민감 정보(KEY/PASSWORD/SECRET/TOKEN/CREDENTIAL 패턴)가
+   *   자동으로 마스킹된 표시용 문자열이다. 원본 값을 그대로 포함하지 않는다.
+   * - runE2eSuite에서도 전파되며, `stepIndex`/`totalSteps`로 시나리오 번호를 알 수 있다.
    */
   onProgress?: E2eProgressCallback;
 }

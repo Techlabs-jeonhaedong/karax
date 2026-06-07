@@ -4,6 +4,9 @@
  * - onProgress 콜백이 각 파이프라인 단계에서 올바른 순서/페이로드로 발행되는지
  * - 콜백이 throw해도 파이프라인이 정상 완료되는지
  * - suite에서 시나리오 인덱스가 전파되는지
+ * - detail 민감 정보 redaction
+ * - noBuild ARTIFACT_NOT_FOUND 에러 이벤트 대칭
+ * - catch phase 라벨 정확성
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -11,6 +14,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import type { E2eProgressEvent, E2eProgressPhase } from "../progress.js";
+import { redactDetail } from "../progress.js";
 
 // ── 외부 의존 mock ─────────────────────────────────────────────────
 
@@ -415,5 +419,130 @@ describe("runE2eSuite — onProgress 전파", () => {
     });
 
     expect(result.outcome).toBe("pass");
+  });
+});
+
+// ── redactDetail 단위 테스트 ────────────────────────────────────────
+
+describe("redactDetail — 민감 정보 마스킹", () => {
+  it("KEY=값 패턴을 마스킹한다", () => {
+    expect(redactDetail("API_KEY=abc123")).toBe("API_KEY=***");
+  });
+
+  it("PASSWORD=값 패턴을 마스킹한다", () => {
+    expect(redactDetail("password=s3cr3t")).toBe("password=***");
+  });
+
+  it("SECRET=값 패턴을 마스킹한다", () => {
+    expect(redactDetail("MY_SECRET=xyz")).toBe("MY_SECRET=***");
+  });
+
+  it("TOKEN=값 패턴을 마스킹한다", () => {
+    expect(redactDetail("token=bearer123")).toBe("token=***");
+  });
+
+  it("CREDENTIAL=값 패턴을 마스킹한다", () => {
+    expect(redactDetail("CREDENTIAL=admin:pass")).toBe("CREDENTIAL=***");
+  });
+
+  it("일반 텍스트는 변경하지 않는다", () => {
+    expect(redactDetail("앱 빌드 완료")).toBe("앱 빌드 완료");
+  });
+
+  it("민감 패턴이 없는 경로 문자열은 변경하지 않는다", () => {
+    expect(redactDetail("/tmp/karax/app.apk")).toBe("/tmp/karax/app.apk");
+  });
+
+  it("undefined는 undefined를 반환한다", () => {
+    expect(redactDetail(undefined)).toBeUndefined();
+  });
+
+  it("여러 민감 패턴이 섞여 있어도 모두 마스킹한다", () => {
+    const result = redactDetail("API_KEY=abc SECRET=xyz 나머지 텍스트");
+    expect(result).toBe("API_KEY=*** SECRET=*** 나머지 텍스트");
+  });
+
+  it("대소문자 무관하게 마스킹한다", () => {
+    expect(redactDetail("Password=abc123")).toBe("Password=***");
+  });
+});
+
+// ── noBuild ARTIFACT_NOT_FOUND 에러 이벤트 ─────────────────────────
+
+describe("runE2eTest — noBuild ARTIFACT_NOT_FOUND 에러 이벤트", () => {
+  it("noBuild=true + 캐시 미스 시 build:error 이벤트가 발행된다", async () => {
+    // readBuildCache가 null을 반환 → 캐시 미스
+    const { readBuildCache } = await import("../build/cache.js");
+    vi.mocked(readBuildCache).mockReturnValue(null);
+
+    const mockManager = makeMockDeviceManager();
+    mockCreateDeviceManager.mockResolvedValue(mockManager as ReturnType<typeof createDeviceManager>);
+    const mockBuilder = makeMockBuilder();
+    mockSelectBuilder.mockReturnValue(mockBuilder as ReturnType<typeof selectBuilder>);
+
+    const events: E2eProgressEvent[] = [];
+    const result = await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+      noBuild: true,
+      onProgress: (e) => events.push(e),
+    });
+
+    expect(result.outcome).toBe("error");
+    // build:error 이벤트가 발행됐어야 함
+    expect(events.some((e) => e.phase === "build" && e.status === "error")).toBe(true);
+  });
+});
+
+// ── catch phase 라벨 정확성 ──────────────────────────────────────────
+
+describe("runE2eTest — catch phase 라벨 정확성", () => {
+  it("빌드 실패 시 error 이벤트의 phase가 report가 아닌 실제 실패 phase다", async () => {
+    const mockManager = makeMockDeviceManager();
+    mockCreateDeviceManager.mockResolvedValue(mockManager as ReturnType<typeof createDeviceManager>);
+    const mockBuilder = makeMockBuilder();
+    mockBuilder.build.mockRejectedValue(new Error("빌드 실패"));
+    mockSelectBuilder.mockReturnValue(mockBuilder as ReturnType<typeof selectBuilder>);
+
+    const events: E2eProgressEvent[] = [];
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+      onProgress: (e) => events.push(e),
+    });
+
+    const errorEvents = events.filter((e) => e.status === "error");
+    expect(errorEvents.length).toBeGreaterThan(0);
+    // 빌드 실패이므로 error phase는 report가 아니어야 함
+    const errorPhases = errorEvents.map((e) => e.phase);
+    expect(errorPhases).not.toContain("report");
+    // build 또는 이전 단계여야 함
+    expect(errorPhases.some((p) => p === "build" || p === "device" || p === "detect" || p === "appmap")).toBe(true);
+  });
+
+  it("디바이스 부팅 실패 시 error 이벤트의 phase가 device다", async () => {
+    mockCreateDeviceManager.mockResolvedValue({
+      platform: "android" as const,
+      list: vi.fn().mockResolvedValue([]),
+      ensureBooted: vi.fn().mockRejectedValue(new Error("디바이스 없음")),
+      install: vi.fn().mockResolvedValue(undefined),
+      launch: vi.fn().mockResolvedValue(undefined),
+      screenshot: vi.fn().mockResolvedValue(undefined),
+      shutdown: vi.fn().mockResolvedValue(undefined),
+    } as ReturnType<typeof createDeviceManager>);
+
+    const events: E2eProgressEvent[] = [];
+    await runE2eTest({
+      projectPath: tmpDir,
+      platform: "android",
+      outDir: tmpDir,
+      onProgress: (e) => events.push(e),
+    });
+
+    const errorEvents = events.filter((e) => e.status === "error");
+    expect(errorEvents.length).toBeGreaterThan(0);
+    expect(errorEvents.some((e) => e.phase === "device")).toBe(true);
   });
 });
