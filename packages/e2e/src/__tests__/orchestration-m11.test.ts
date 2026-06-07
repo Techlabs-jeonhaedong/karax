@@ -87,14 +87,24 @@ const mockStartAndroidRecording = vi.mocked(startAndroidRecording);
 const mockStartIosRecording = vi.mocked(startIosRecording);
 
 let tmpDir: string;
+let karaxDebugBackup: string | undefined;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // KARAX_DEBUG 환경변수 백업·제거 — 환경에 KARAX_DEBUG=1이 있어도 테스트가 결정론적이어야 함
+  karaxDebugBackup = process.env["KARAX_DEBUG"];
+  delete process.env["KARAX_DEBUG"];
   mockGenerateAppMapForSession.mockRejectedValue(new Error("AppMap 미설정"));
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-e2e-m11-test-"));
 });
 
 afterEach(() => {
+  // KARAX_DEBUG 복원
+  if (karaxDebugBackup !== undefined) {
+    process.env["KARAX_DEBUG"] = karaxDebugBackup;
+  } else {
+    delete process.env["KARAX_DEBUG"];
+  }
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 

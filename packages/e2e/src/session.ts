@@ -12,6 +12,11 @@ export interface SessionInfo {
   /** M11: 비디오 녹화 파일 저장 디렉토리 */
   videosDir: string;
   sessionId: string;
+  /**
+   * 디버그 아티팩트 저장 디렉토리.
+   * debug=true일 때만 생성되며, 그 외에는 undefined (디렉토리 미생성).
+   */
+  debugDir?: string;
 }
 
 /** 최대 suffix 카운터 (충돌 회피 상한) */
@@ -23,8 +28,10 @@ const MAX_SESSION_SUFFIX = 100;
  *
  * 밀리초를 포함한 sessionId를 사용하고, 동일 타임스탬프 충돌 시
  * -2, -3 suffix로 회피한다 (상한 100).
+ *
+ * debug=true이면 sessionDir/debug/ 를 추가로 생성하고 debugDir을 반환한다.
  */
-export function createSessionDir(outDir: string): SessionInfo {
+export function createSessionDir(outDir: string, opts?: { debug?: boolean }): SessionInfo {
   // 형식: 2026-06-06T12-34-56-789Z (밀리초 포함)
   const baseId = new Date()
     .toISOString()
@@ -59,5 +66,13 @@ export function createSessionDir(outDir: string): SessionInfo {
   fs.mkdirSync(appMapDir, { recursive: true });
   // videosDir는 recordVideo=true일 때만 생성 — session 생성 시에는 경로만 계산
 
-  return { dir, screenshotsDir, appMapDir, videosDir, sessionId };
+  // debug 모드: sessionDir/debug/ 생성 (off 시 디렉토리 미생성)
+  // mode: 0o700 — 소유자만 접근 가능 (Windows에서는 무시되므로 무해)
+  let debugDir: string | undefined;
+  if (opts?.debug === true) {
+    debugDir = path.join(dir, "debug");
+    fs.mkdirSync(debugDir, { recursive: true, mode: 0o700 });
+  }
+
+  return { dir, screenshotsDir, appMapDir, videosDir, sessionId, debugDir };
 }

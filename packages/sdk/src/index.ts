@@ -19,7 +19,9 @@ import type {
   DeviceProfileId,
   FrameworkId,
   CaptureMode,
+  DebugEvent,
 } from "@karax/adapter-api";
+export type { DebugEvent } from "@karax/adapter-api";
 export { resetParserState } from "@karax/adapter-api";
 import { detectFramework as coreDetectFramework } from "@karax/core";
 import type { DetectResult } from "@karax/core";
@@ -64,6 +66,8 @@ async function makeDefaultAppMapGenerator(): Promise<
  *
  * appMapGenerator가 미지정인 경우 sdk의 generateAppMap을 어댑터로 감싸 기본 주입한다.
  * 이를 통해 e2e→sdk 정적 순환 의존 없이 AppMap 생성 기능이 동작한다.
+ *
+ * debug 필드는 RunE2eTestOptions에 포함되어 있으며, spread(...opts)로 @karax/e2e에 자동 패스스루된다.
  */
 export async function runE2eTest(
   opts: import("@karax/e2e").RunE2eTestOptions
@@ -82,6 +86,8 @@ export async function runE2eTest(
  *
  * scenarioPath가 파일이면 runE2eTest 1회, 디렉토리이면 *.md를 사전순으로 순차 실행.
  * appMapGenerator가 미지정인 경우 sdk의 generateAppMap을 어댑터로 기본 주입한다.
+ *
+ * debug 필드는 RunE2eSuiteOptions에 포함되어 있으며, spread(...opts)로 @karax/e2e에 자동 패스스루된다.
  */
 export async function runE2eSuite(
   opts: import("@karax/e2e").RunE2eSuiteOptions
@@ -262,6 +268,10 @@ export interface AnalyzeOptions {
   includeCandidates?: boolean;
   /** LLM 보강 플러그인 — Tier 2 경로에서 IR 생성 후 적용 */
   enrich?: EnrichmentPlugin;
+  /** 디버그 이벤트 수신 콜백. CLI가 주입하고 [karax/debug] 형태로 stderr에 출력. */
+  onDebug?: (e: DebugEvent) => void;
+  /** 디버그 모드 활성화 플래그. onDebug와 함께 사용. */
+  debug?: boolean;
 }
 
 // ── AnalysisReport ─────────────────────────────────────────────────
@@ -312,7 +322,7 @@ async function getAdapter(frameworkId: FrameworkId): Promise<FrameworkAdapter> {
 }
 
 /** renderScreenshot을 captureEngine deps 형식으로 래핑 */
-function makeRenderFn(device?: DeviceProfileId) {
+function makeRenderFn(device?: DeviceProfileId, debug?: boolean) {
   return async (
     ir: IRDocument,
     opts: { device?: string; outDir: string }
@@ -320,6 +330,7 @@ function makeRenderFn(device?: DeviceProfileId) {
     return renderScreenshot(ir, {
       device: opts.device ?? device,
       outDir: opts.outDir,
+      ...(debug ? { debug: true } : {}),
     });
   };
 }
@@ -509,6 +520,7 @@ export async function listScreens(opts: AnalyzeOptions): Promise<ScreenSummary[]
     maxInlineDepth: opts.maxInlineDepth,
     mockSeed: opts.mockSeed,
     includeCandidates: opts.includeCandidates ?? true,
+    onDebug: opts.onDebug,
   };
 
   return adapter.discoverScreens(ctx);
@@ -531,6 +543,7 @@ export async function buildScreenIR(
     maxInlineDepth: opts.maxInlineDepth,
     mockSeed: opts.mockSeed,
     includeCandidates: opts.includeCandidates ?? true,
+    onDebug: opts.onDebug,
   };
 
   if (opts.screenId) {
@@ -582,6 +595,7 @@ export async function captureScreen(
     mockSeed: opts.mockSeed,
     maxInlineDepth: opts.maxInlineDepth,
     includeCandidates: true,
+    onDebug: opts.onDebug,
   };
 
   // 대상 화면 찾기
@@ -597,7 +611,7 @@ export async function captureScreen(
     {
       adapter,
       compileBackend,
-      renderScreenshot: makeRenderFn(opts.device),
+      renderScreenshot: makeRenderFn(opts.device, opts.debug),
     },
     {
       projectPath: opts.projectPath,
@@ -606,6 +620,9 @@ export async function captureScreen(
       captureMode: opts.captureMode ?? "auto",
       device: opts.device ?? "iphone-15",
       mockSeed: opts.mockSeed ?? 0,
+      onDebug: opts.onDebug,
+      // debug=true 시 compile backend가 workDir을 보존한다
+      keepWorkDir: opts.debug === true,
     }
   );
 
@@ -691,6 +708,7 @@ export async function captureAll(
     device: opts.device,
     mockSeed: opts.mockSeed,
     includeCandidates: opts.includeCandidates ?? true,
+    onDebug: opts.onDebug,
   };
 
   const screens = await adapter.discoverScreens(ctx);
@@ -706,7 +724,7 @@ export async function captureAll(
         {
           adapter,
           compileBackend,
-          renderScreenshot: makeRenderFn(opts.device),
+          renderScreenshot: makeRenderFn(opts.device, opts.debug),
         },
         {
           projectPath: opts.projectPath,
@@ -715,6 +733,9 @@ export async function captureAll(
           captureMode: opts.captureMode ?? "auto",
           device: opts.device ?? "iphone-15",
           mockSeed: opts.mockSeed ?? 0,
+          onDebug: opts.onDebug,
+          // debug=true 시 compile backend가 workDir을 보존한다
+          keepWorkDir: opts.debug === true,
         }
       );
 
@@ -749,9 +770,14 @@ export async function captureAll(
               outDir: opts.outDir,
             });
           }
-        } catch {
+        } catch (e) {
           // variant 생성 실패는 경고만, 전체 캡처 실패로 처리하지 않음
           extraLimitations.push(`${screen.id}: variant 생성 실패`);
+          opts.onDebug?.({
+            tag: "variant-failed",
+            message: `${screen.id}: variant 생성 실패`,
+            detail: e instanceof Error ? e.stack : String(e),
+          });
         }
       }
 
@@ -764,14 +790,24 @@ export async function captureAll(
             outDir: opts.outDir,
             overlay: "confidence",
           });
-        } catch {
+        } catch (e) {
           extraLimitations.push(`${screen.id}: overlay 생성 실패`);
+          opts.onDebug?.({
+            tag: "overlay-failed",
+            message: `${screen.id}: overlay 생성 실패`,
+            detail: e instanceof Error ? e.stack : String(e),
+          });
         }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       failures.push(screen.id);
       extraLimitations.push(`${screen.id}: 캡처 실패 — ${msg}`);
+      opts.onDebug?.({
+        tag: "capture-failed",
+        message: `${screen.id}: 캡처 실패 — ${msg}`,
+        detail: e instanceof Error ? e.stack : String(e),
+      });
     }
   }
 

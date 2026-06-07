@@ -1110,6 +1110,110 @@ describe("MCP 서버 — run_e2e_test screenshot path traversal 방어", () => {
 
 // ── [작업 C-3] generate_app_map — maxCharsPerDoc / write / outDir 파라미터 ─
 
+// ─── KARAX_DEBUG 환경변수 — stdout 계약 불변 검증 ─────────────────────────────
+// KARAX_DEBUG=1 설정 시 tool 에러 응답의 errorContent 형태가
+// KARAX_DEBUG 미설정 시와 동일해야 한다 (stdout 계약 불변).
+// 디버그 추가 정보는 stderr 전용 (MCP JSON-RPC 채널 보호).
+
+describe("MCP 서버 — KARAX_DEBUG=1 시 errorContent 형태 불변", () => {
+  afterEach(() => {
+    vi.resetModules();
+    vi.restoreAllMocks();
+    delete process.env["KARAX_DEBUG"];
+  });
+
+  it("KARAX_DEBUG=1 설정 후 detect_framework 에러 응답이 KARAX_DEBUG 없을 때와 형태 동일", async () => {
+    // 1. KARAX_DEBUG 없이 에러 응답 수집
+    process.env.KARAX_SKIP_ENSURE = "1";
+    const { client: cli1, server: srv1 } = await makeClientServer();
+    const resultWithout = await cli1.callTool({
+      name: "detect_framework",
+      arguments: { projectPath: "/tmp/nonexistent-karax-debug-test" },
+    });
+    await cli1.close();
+    await srv1.close();
+
+    // 2. KARAX_DEBUG=1 설정 후 동일 에러 응답 수집
+    process.env["KARAX_DEBUG"] = "1";
+    const { client: cli2, server: srv2 } = await makeClientServer();
+    const resultWith = await cli2.callTool({
+      name: "detect_framework",
+      arguments: { projectPath: "/tmp/nonexistent-karax-debug-test" },
+    });
+    await cli2.close();
+    await srv2.close();
+
+    // isError 형태 동일
+    expect(resultWith.isError).toBe(resultWithout.isError);
+    expect(resultWith.isError).toBe(true);
+
+    // content 구조 동일: [{ type: "text", text: string }]
+    const contentsWithout = resultWithout.content as Array<{ type: string; text?: string }>;
+    const contentsWith = resultWith.content as Array<{ type: string; text?: string }>;
+
+    expect(contentsWith.length).toBe(contentsWithout.length);
+    expect(contentsWith[0]?.type).toBe("text");
+    expect(contentsWith[0]?.type).toBe(contentsWithout[0]?.type);
+
+    // text 필드가 string이어야 한다 (내용은 다를 수 있지만 타입은 동일)
+    expect(typeof contentsWith[0]?.text).toBe("string");
+    expect(typeof contentsWithout[0]?.text).toBe("string");
+
+    // 정리
+    delete process.env["KARAX_DEBUG"];
+  });
+
+  it("KARAX_DEBUG=1 설정 시 에러 발생 tool의 stderr에 추가 진단이 기록된다", async () => {
+    process.env.KARAX_SKIP_ENSURE = "1";
+    process.env["KARAX_DEBUG"] = "1";
+
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    try {
+      vi.resetModules();
+      vi.doMock("@karax/sdk", async () => {
+        const actual = await vi.importActual<typeof import("@karax/sdk")>("@karax/sdk");
+        return {
+          ...actual,
+          detectFramework: vi.fn().mockRejectedValue(new Error("MOCK: 테스트 오류 — stack 포함")),
+        };
+      });
+
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const { createMcpServer: freshServer } = await import("../server.js");
+      const srv = freshServer();
+      await srv.connect(serverTransport);
+      const cli = new Client({ name: "test", version: "0.0.1" }, { capabilities: {} });
+      await cli.connect(clientTransport);
+
+      try {
+        const result = await cli.callTool({
+          name: "detect_framework",
+          arguments: { projectPath: FLUTTER_FIXTURE },
+        });
+
+        // isError: true, content 형태는 기존과 동일
+        expect(result.isError).toBe(true);
+        const contents = result.content as Array<{ type: string; text?: string }>;
+        expect(contents[0]?.type).toBe("text");
+        expect(typeof contents[0]?.text).toBe("string");
+
+        // KARAX_DEBUG=1이므로 stderr에 추가 진단이 기록됐어야 한다
+        const stderrOutput = (stderrSpy.mock.calls as unknown[][])
+          .map((args) => String(args[0]))
+          .join("");
+        expect(stderrOutput).toContain("[karax/debug]");
+      } finally {
+        await cli.close();
+        await srv.close();
+      }
+    } finally {
+      stderrSpy.mockRestore();
+      delete process.env["KARAX_DEBUG"];
+    }
+  });
+});
+
 describe("MCP 서버 — generate_app_map 신규 파라미터 (작업 C-3)", () => {
   let client: Client;
   let server: Awaited<ReturnType<typeof makeClientServer>>["server"];

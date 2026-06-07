@@ -294,6 +294,66 @@ describe("captureScreenWithTiers — 사이드카 report.json", () => {
   });
 });
 
+// ── onDebug 콜백 테스트 ────────────────────────────────────────────
+
+describe("captureScreenWithTiers — onDebug 콜백", () => {
+  it("COMPILE_FALLBACK 발생 시 onDebug가 compile-fallback 이벤트를 수신해야 한다", async () => {
+    const onDebug = vi.fn();
+    const deps = makeDeps({
+      compileBackend: {
+        isAvailable: vi.fn().mockResolvedValue(true),
+        capture: vi.fn().mockRejectedValue(
+          new CompileCaptureError("COMPILE_FAILED", "dart 컴파일 오류", "Error: some dart error")
+        ),
+      },
+    });
+    const result = await captureScreenWithTiers(deps, makeOpts({ captureMode: "auto", onDebug }));
+    expect(result.tierUsed).toBe("static");
+    expect(onDebug).toHaveBeenCalledOnce();
+    const event = onDebug.mock.calls[0][0];
+    expect(event.tag).toBe("compile-fallback");
+    expect(event.message).toContain("HomeScreen");
+    expect(event.message).toContain("dart 컴파일 오류");
+  });
+
+  it("Tier 1 성공 시 onDebug가 호출되지 않아야 한다", async () => {
+    const onDebug = vi.fn();
+    const deps = makeDeps();
+    await captureScreenWithTiers(deps, makeOpts({ captureMode: "auto", onDebug }));
+    expect(onDebug).not.toHaveBeenCalled();
+  });
+
+  it("onDebug 없어도 정상 동작해야 한다 (기본 동작 불변)", async () => {
+    const deps = makeDeps({
+      compileBackend: {
+        isAvailable: vi.fn().mockResolvedValue(true),
+        capture: vi.fn().mockRejectedValue(
+          new CompileCaptureError("COMPILE_FAILED", "실패")
+        ),
+      },
+    });
+    const result = await captureScreenWithTiers(deps, makeOpts({ captureMode: "auto" }));
+    expect(result.tierUsed).toBe("static");
+    expect(result.diagnostics.some((d) => d.code === "COMPILE_FALLBACK")).toBe(true);
+  });
+
+  it("COMPILE_FALLBACK 시 반환값과 diagnostics는 불변이어야 한다", async () => {
+    const onDebug = vi.fn();
+    const deps = makeDeps({
+      compileBackend: {
+        isAvailable: vi.fn().mockResolvedValue(true),
+        capture: vi.fn().mockRejectedValue(
+          new CompileCaptureError("COMPILE_FAILED", "실패")
+        ),
+      },
+    });
+    const result = await captureScreenWithTiers(deps, makeOpts({ captureMode: "auto", onDebug }));
+    expect(result.tierUsed).toBe("static");
+    expect(result.screenId).toBe("HomeScreen");
+    expect(result.diagnostics.some((d) => d.code === "COMPILE_FALLBACK")).toBe(true);
+  });
+});
+
 // ── 결과 형태 테스트 ─────────────────────────────────────────────
 
 describe("captureScreenWithTiers — 결과 형태", () => {

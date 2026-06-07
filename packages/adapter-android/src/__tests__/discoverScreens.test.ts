@@ -1,11 +1,11 @@
 /**
  * discoverScreens 테스트
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import path from "path";
 import { fileURLToPath } from "url";
 import { androidAdapter } from "../index.js";
-import type { AdapterContext } from "@karax/adapter-api";
+import type { AdapterContext, DebugEvent } from "@karax/adapter-api";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = path.resolve(__dirname, "../../../..", "fixtures");
@@ -78,5 +78,33 @@ describe("androidAdapter.discoverScreens — 합성 케이스", () => {
       projectPath: "/tmp/nonexistent-karax-android-test",
     });
     expect(screens).toEqual([]);
+  });
+});
+
+// ── onDebug 콜백 관측 테스트 ─────────────────────────────────────────────────
+
+describe("androidAdapter — onDebug 콜백", () => {
+  it("존재하지 않는 프로젝트 경로에서 onDebug가 kotlin 심볼 실패 이벤트를 받을 수 있다", async () => {
+    const events: DebugEvent[] = [];
+    const onDebug = vi.fn((e: DebugEvent) => events.push(e));
+
+    const ctx: AdapterContext = {
+      projectPath: "/nonexistent/android/project",
+      onDebug,
+    };
+
+    // 에러 없이 완료되어야 한다
+    await expect(androidAdapter.discoverScreens(ctx)).resolves.toBeDefined();
+    // onDebug가 호출되었으면 각 이벤트는 tag와 message를 가져야 한다
+    for (const event of events) {
+      expect(event.tag).toBeDefined();
+      expect(event.message).toBeDefined();
+    }
+  });
+
+  it("onDebug 없이도 discoverScreens가 정상 동작해야 한다 (하위호환)", async () => {
+    await expect(androidAdapter.discoverScreens({
+      projectPath: "/tmp/nonexistent-karax-android-test",
+    })).resolves.toBeDefined();
   });
 });

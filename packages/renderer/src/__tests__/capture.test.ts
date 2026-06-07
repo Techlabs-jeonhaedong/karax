@@ -3,7 +3,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { describe, expect, it, afterEach } from "vitest";
 import type { IRDocument } from "@karax/core";
-import { renderScreenshot } from "../capture/capture.js";
+import { renderScreenshot, sanitizeScreenId } from "../capture/capture.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -214,4 +214,55 @@ describe("renderScreenshot — Playwright Chromium 캡처", () => {
     },
     60_000,
   );
+});
+
+// ── sanitizeScreenId — 경로 주입 방어 ────────────────────────────────────
+
+describe("sanitizeScreenId", () => {
+  it("일반 screenId는 그대로 유지한다", () => {
+    expect(sanitizeScreenId("HomeScreen")).toBe("HomeScreen");
+  });
+
+  it("점(.)과 하이픈(-)은 허용한다", () => {
+    expect(sanitizeScreenId("home.screen-v2")).toBe("home.screen-v2");
+  });
+
+  it("../../evil 같은 경로 탈출 시도를 차단한다 (debugDir 밖으로 못 나감)", () => {
+    const result = sanitizeScreenId("../../evil");
+    // 결과에 경로 구분자·.. 가 없어야 한다
+    expect(result).not.toContain("..");
+    expect(result).not.toContain("/");
+    expect(result).not.toContain("\\");
+  });
+
+  it("../../../etc/passwd 형태도 안전하게 처리된다", () => {
+    const result = sanitizeScreenId("../../../etc/passwd");
+    expect(result).not.toContain("..");
+    expect(result).not.toContain("/");
+  });
+
+  it("널문자·제어문자를 _로 치환한다", () => {
+    const result = sanitizeScreenId("screen\x00name");
+    expect(result).not.toContain("\x00");
+  });
+
+  it("공백을 _로 치환한다", () => {
+    expect(sanitizeScreenId("home screen")).toBe("home_screen");
+  });
+
+  it("빈 문자열이 되면 'unknown'으로 대체한다", () => {
+    expect(sanitizeScreenId("")).toBe("unknown");
+  });
+
+  it("특수문자만으로 구성된 id가 'unknown'이 되거나 안전한 이름이 된다", () => {
+    const result = sanitizeScreenId("???");
+    expect(result.length).toBeGreaterThan(0);
+    expect(result).not.toMatch(/[^A-Za-z0-9._\-]/);
+  });
+
+  it("슬래시가 포함된 경로 형태의 id를 파일명으로 안전하게 처리한다", () => {
+    const result = sanitizeScreenId("screens/home/main");
+    // path.basename 적용 → "main" 만 남음
+    expect(result).toBe("main");
+  });
 });

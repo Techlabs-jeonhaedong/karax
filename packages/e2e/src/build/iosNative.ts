@@ -7,9 +7,11 @@ import os from "os";
 import path from "path";
 import { execa } from "execa";
 import { E2eError } from "../types.js";
+import { redactSecrets } from "@karax/core";
+import { createDebugArtifacts } from "../debug.js";
 import { extractIosBundleId, findDerivedDataApp } from "./artifact.js";
 import { parseXcodebuildListJson, selectXcodeScheme } from "./detect.js";
-import type { AppBuilder, BuildResult } from "./types.js";
+import type { AppBuilder, BuildContext, BuildResult } from "./types.js";
 
 const XCBUILD_TIMEOUT = 600_000;
 
@@ -23,7 +25,10 @@ export class IosNativeBuilder implements AppBuilder {
     this.derivedDataPath = derivedDataPath ?? path.join(os.tmpdir(), `karax-ios-${Date.now()}`);
   }
 
-  async build(projectPath: string): Promise<BuildResult> {
+  async build(projectPath: string, ctx?: BuildContext): Promise<BuildResult> {
+    const artifacts = createDebugArtifacts(ctx?.debug ? ctx.debugDir : undefined);
+    const BUILD_5MB = 5 * 1024 * 1024;
+
     // CocoaPods 확인
     // xcworkspace 또는 xcodeproj가 있고 Pods/ 가 없으면 pod install 필요
     const podsDir = path.join(projectPath, "Pods");
@@ -65,21 +70,51 @@ export class IosNativeBuilder implements AppBuilder {
     }
 
     // 빌드
-    const buildResult = await execa(
-      "xcodebuild",
-      [
-        targetFlag, targetPath,
-        "-scheme", scheme,
-        "-sdk", "iphonesimulator",
-        "-derivedDataPath", this.derivedDataPath,
-        "build",
-      ],
-      { timeout: XCBUILD_TIMEOUT }
-    );
-
-    if (buildResult.exitCode !== 0) {
-      throw new E2eError("BUILD_FAILED", `xcodebuild 실패: ${buildResult.stderr}`);
+    let buildStdout = "";
+    let buildStderr = "";
+    let buildExitCode = 0;
+    try {
+      const buildResult = await execa(
+        "xcodebuild",
+        [
+          targetFlag, targetPath,
+          "-scheme", scheme,
+          "-sdk", "iphonesimulator",
+          "-derivedDataPath", this.derivedDataPath,
+          "build",
+        ],
+        { timeout: XCBUILD_TIMEOUT }
+      );
+      buildStdout = buildResult.stdout ?? "";
+      buildStderr = buildResult.stderr ?? "";
+      buildExitCode = buildResult.exitCode ?? 0;
+    } catch (e) {
+      const err = e as { stdout?: string; stderr?: string; exitCode?: number };
+      buildStdout = err.stdout ?? "";
+      buildStderr = err.stderr ?? "";
+      buildExitCode = err.exitCode ?? 1;
+      await artifacts.write(
+        "build-ios-native.log",
+        `[stdout]\n${buildStdout}\n\n[stderr]\n${buildStderr}\n\n[exitCode] ${buildExitCode}`,
+        BUILD_5MB
+      );
+      throw new E2eError("BUILD_FAILED", `xcodebuild 실패: ${redactSecrets(buildStderr)}`);
     }
+
+    if (buildExitCode !== 0) {
+      await artifacts.write(
+        "build-ios-native.log",
+        `[stdout]\n${buildStdout}\n\n[stderr]\n${buildStderr}\n\n[exitCode] ${buildExitCode}`,
+        BUILD_5MB
+      );
+      throw new E2eError("BUILD_FAILED", `xcodebuild 실패: ${redactSecrets(buildStderr)}`);
+    }
+
+    await artifacts.write(
+      "build-ios-native.log",
+      `[stdout]\n${buildStdout}\n\n[stderr]\n${buildStderr}\n\n[exitCode] ${buildExitCode}`,
+      BUILD_5MB
+    );
 
     const appPath = findDerivedDataApp(this.derivedDataPath);
     if (!appPath) {

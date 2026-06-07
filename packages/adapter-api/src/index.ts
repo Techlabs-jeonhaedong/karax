@@ -5,6 +5,7 @@ export type {
   CaptureResult,
   CompileBackend,
   CompileEnvironment,
+  DebugEvent,
   DetectResult,
   DeviceProfileId,
   FrameworkAdapter,

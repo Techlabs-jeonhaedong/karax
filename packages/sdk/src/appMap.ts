@@ -11,6 +11,7 @@ import type {
   FrameworkId,
   AdapterContext,
   FrameworkAdapter,
+  DebugEvent,
 } from "@karax/adapter-api";
 import { detectFramework as coreDetectFramework } from "@karax/core";
 import { assembleAppMap, sanitizeAppName, renderAppMapMarkdown, matchElement, AppMapSchema } from "@karax/core";
@@ -28,6 +29,8 @@ export interface GenerateAppMapOptions {
   includeLayout?: boolean;
   /** 레이아웃 측정 시 사용할 디바이스 프로파일 ID */
   device?: string;
+  /** 디버그 이벤트 수신 콜백. off 시 undefined. */
+  onDebug?: (e: DebugEvent) => void;
 }
 
 /** write: true 오버로드 시 반환 타입 */
@@ -129,6 +132,7 @@ export async function generateAppMap(
     framework: frameworkId,
     mockSeed: opts.mockSeed,
     includeCandidates: opts.includeCandidates ?? true,
+    onDebug: opts.onDebug,
   };
 
   const screens = await adapter.discoverScreens(ctx);
@@ -162,8 +166,13 @@ export async function generateAppMap(
     try {
       const irDoc = await adapter.buildScreenIR(ctx, screen.id);
       irDocs.push(irDoc);
-    } catch {
+    } catch (e) {
       // IR 빌드 실패 — 해당 화면은 elements=[]로 처리 (계속 진행)
+      opts.onDebug?.({
+        tag: "appmap-ir-failed",
+        message: `${screen.id}: IR 빌드 실패, elements=[]로 처리`,
+        detail: e instanceof Error ? e.stack : String(e),
+      });
     }
   }
 

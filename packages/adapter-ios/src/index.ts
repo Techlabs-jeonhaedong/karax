@@ -132,11 +132,21 @@ export const iosAdapter: FrameworkAdapter = {
   },
 
   async discoverScreens(ctx: AdapterContext): Promise<ScreenSummary[]> {
-    const { projectPath, includeCandidates = true } = ctx;
+    const { projectPath, includeCandidates = true, onDebug } = ctx;
 
     // SwiftUI / UIKit 자동 선택
     const uikitDetect = await detectUIKit(projectPath);
-    const swiftUIScreens = await discoverSwiftUIScreens(projectPath, includeCandidates);
+    let swiftUIScreens: ScreenSummary[] = [];
+    try {
+      swiftUIScreens = await discoverSwiftUIScreens(projectPath, includeCandidates);
+    } catch (e) {
+      onDebug?.({
+        tag: "ios-swiftui-discover-failed",
+        message: "SwiftUI 화면 발견 실패.",
+        detail: e instanceof Error ? e.stack : String(e),
+      });
+      throw e;
+    }
     const uikitResult = uikitDetect.hasStoryboard
       ? await discoverUIKitScreens(projectPath)
       : null;

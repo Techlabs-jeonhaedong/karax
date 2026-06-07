@@ -102,6 +102,14 @@ export interface RunE2eTestOptions {
    * 녹화 실패는 비차단 — 테스트 결과에 영향 없음.
    */
   recordVideo?: boolean;
+  /**
+   * 디버그 모드 활성화 여부. 기본값 false.
+   * true이면 sessionDir/debug/ 에 디버그 아티팩트(빌드 로그, 에이전트 invocation,
+   * teardown 로그 등)를 기록한다. 모든 아티팩트는 redact 처리 후 저장된다.
+   * 모든 디버그 출력은 stderr 전용이며 stdout 계약에 영향을 주지 않는다.
+   * KARAX_DEBUG=1 환경변수로도 활성화할 수 있다.
+   */
+  debug?: boolean;
 }
 
 // ── AgentKind ─────────────────────────────────────────────────────────────

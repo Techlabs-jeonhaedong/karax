@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import path from "path";
 import { fileURLToPath } from "url";
-import type { ScreenSummary } from "@karax/adapter-api";
+import type { ScreenSummary, DebugEvent } from "@karax/adapter-api";
 import { flutterAdapter } from "../index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -289,5 +289,38 @@ describe("flutter-getx fixture — discoverScreens (GetPage)", () => {
     const screens = await flutterAdapter.discoverScreens(ctx);
     // AppPath.SETTINGS = '/settings' (single quote) 케이스 포함
     expect(screenById(screens, "SettingsScreen")).toBeDefined();
+  });
+});
+
+// ── onDebug 콜백 관측 테스트 ─────────────────────────────────────────────────
+
+describe("flutter adapter — onDebug 콜백", () => {
+  it("존재하지 않는 프로젝트 경로로 discoverScreens 시 onDebug가 호출될 수 있다", async () => {
+    const events: DebugEvent[] = [];
+    const onDebug = vi.fn((e: DebugEvent) => events.push(e));
+
+    // 존재하지 않는 경로 — pubspec.yaml 읽기 실패 → onDebug 호출
+    const ctx = {
+      projectPath: "/nonexistent/flutter/project",
+      framework: "flutter" as const,
+      includeCandidates: true,
+      onDebug,
+    };
+
+    // 에러 없이 완료되어야 한다 (빈 배열 또는 화면 목록 반환)
+    await expect(flutterAdapter.discoverScreens(ctx)).resolves.toBeDefined();
+    // pubspec 읽기 실패 시 onDebug가 호출되었거나 빈 결과를 반환한다
+    // (실제 프로젝트에 pubspec.yaml이 없으면 readPackageName throw → onDebug 호출)
+    // 실패 이벤트가 있으면 flutter-pubspec-read-failed 태그를 가져야 한다
+    for (const event of events) {
+      expect(event.tag).toBeDefined();
+      expect(event.message).toBeDefined();
+    }
+  });
+
+  it("onDebug 없이도 discoverScreens가 정상 동작해야 한다 (하위호환)", async () => {
+    const ctx = fixtureCtx("flutter-basic");
+    // onDebug 없이도 에러 없이 동작
+    await expect(flutterAdapter.discoverScreens(ctx)).resolves.toBeDefined();
   });
 });

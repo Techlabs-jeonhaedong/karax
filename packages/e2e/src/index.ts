@@ -40,6 +40,7 @@ import {
 } from "./build/cache.js";
 import { startAndroidRecording, startIosRecording } from "./recorder.js";
 import type { Recorder } from "./recorder.js";
+import { isDebug, debugLog, createDebugArtifacts } from "./debug.js";
 
 export type { RunE2eTestOptions, E2eTestResult, Platform };
 export { E2eError, E2E_ERROR_CODES } from "./types.js";
@@ -82,8 +83,44 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     recordVideo = false,
   } = opts;
 
+  const debug = isDebug(opts.debug);
   const startTime = Date.now();
-  const session = createSessionDir(outDir);
+  const session = createSessionDir(outDir, { debug });
+  const artifacts = createDebugArtifacts(session.debugDir);
+
+  // manifest.json 기록 (debug 시)
+  if (debug) {
+    let karaxVersion = "unknown";
+    try {
+      const pkgPath = new URL("../../package.json", import.meta.url);
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { version?: string };
+      karaxVersion = pkg.version ?? "unknown";
+    } catch {
+      // package.json 읽기 실패 무시
+    }
+    const manifest = {
+      karaxVersion,
+      nodeVersion: process.version,
+      platform: process.platform,
+      timestamp: new Date().toISOString(),
+      // apiKey 제외한 옵션 스냅샷 (경로는 상대 경로로 축소 — 절대경로 노출 최소화)
+      options: {
+        projectPath: toRelativePath(opts.projectPath),
+        platform: opts.platform,
+        scenarioPath: opts.scenarioPath !== undefined ? toRelativePath(opts.scenarioPath) : undefined,
+        agent: opts.agent,
+        deviceId: opts.deviceId,
+        outDir: opts.outDir !== undefined ? toRelativePath(opts.outDir) : undefined,
+        keepBooted: opts.keepBooted,
+        failOnCrash: opts.failOnCrash,
+        reuseBuild: opts.reuseBuild,
+        noBuild: opts.noBuild,
+        recordVideo: opts.recordVideo,
+        debug: opts.debug,
+      },
+    };
+    await artifacts.writeJson("manifest.json", manifest);
+  }
 
   // 시나리오 파싱
   let scenario: { body: string; exploratory: boolean; appId?: string; platform?: Platform; steps?: import("./scenario/schema.js").ScenarioStep[]; permissions?: string[] } = { body: "", exploratory: true };
@@ -163,11 +200,11 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
         );
       } else {
         // reuseBuild이지만 불일치 → 자동 재빌드
-        buildResultPromise = builder.build(projectPath);
+        buildResultPromise = builder.build(projectPath, { debug, debugDir: session.debugDir });
       }
     } else {
       // 기본 경로: 항상 빌드
-      buildResultPromise = builder.build(projectPath);
+      buildResultPromise = builder.build(projectPath, { debug, debugDir: session.debugDir });
     }
 
     const [buildResult, sessionAppMap] = await Promise.all([
@@ -304,7 +341,10 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     let isPartialRecovery = false;
 
     try {
-      agentResult = await runAgent(invocation, session.screenshotsDir, { timeoutMs: budget.timeoutMs });
+      agentResult = await runAgent(invocation, session.screenshotsDir, {
+        timeoutMs: budget.timeoutMs,
+        debugDir: session.debugDir,
+      });
     } catch (agentErr) {
       // AGENT_TIMEOUT / AGENT_OUTPUT_INVALID → partial 복구 시도
       const isRecoverableError =
@@ -339,7 +379,14 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     // M11: 녹화 중지 (에이전트 완료 후, 비차단)
     let videoFiles: string[] | undefined;
     if (recorder) {
-      videoFiles = await recorder.stop().catch(() => undefined);
+      videoFiles = await recorder.stop().catch((recErr) => {
+        if (debug) {
+          const msg = recErr instanceof Error ? recErr.message : String(recErr);
+          debugLog(debug, "teardown", `recorder.stop 실패: ${msg}`);
+          artifacts.append("teardown.log", `recorder.stop 실패: ${msg}`).catch(() => undefined);
+        }
+        return undefined;
+      });
     }
 
     const durationMs = Date.now() - startTime;
@@ -483,8 +530,13 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
 
     // 선택적 shutdown
     if (!keepBooted && deviceManager.shutdown) {
-      await deviceManager.shutdown(deviceInfo.id).catch(() => {
-        // 종료 실패는 무시
+      await deviceManager.shutdown(deviceInfo.id).catch((e) => {
+        // 종료 실패 — debug 시 teardown.log 기록, off 시 기존 침묵
+        if (debug) {
+          const msg = e instanceof Error ? e.message : String(e);
+          debugLog(debug, "teardown", `shutdown 실패: ${msg}`);
+          artifacts.append("teardown.log", `shutdown 실패: ${msg}`).catch(() => undefined);
+        }
       });
     }
 
@@ -509,13 +561,42 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     // 인프라 에러 → outcome: "error"로 리포트 작성
     const errResult = makeErrorResult(session, startTime, platform, agent, scenarioPath, e);
 
+    // debug 시 error.json 기록 (report.json 스키마 불변)
+    if (debug) {
+      const errorData: Record<string, unknown> = {};
+      if (e instanceof E2eError) {
+        errorData["code"] = e.code;
+        errorData["message"] = e.message;
+        if (e.details !== undefined) {
+          // details는 redactSecrets를 통해 저장됨 (createDebugArtifacts 내부 처리)
+          errorData["details"] = e.details;
+        }
+      } else if (e instanceof Error) {
+        errorData["message"] = e.message;
+        errorData["stack"] = e.stack;
+      } else {
+        errorData["raw"] = String(e);
+      }
+      await artifacts.writeJson("error.json", errorData);
+    }
+
     // recorder 프로세스 누수 방지 — 에러 경로에서도 반드시 정지
-    await recorder?.stop().catch(() => {});
+    await recorder?.stop().catch((recErr) => {
+      if (debug) {
+        const msg = recErr instanceof Error ? recErr.message : String(recErr);
+        debugLog(debug, "teardown", `recorder.stop 실패: ${msg}`);
+        artifacts.append("teardown.log", `recorder.stop 실패: ${msg}`).catch(() => undefined);
+      }
+    });
 
     // 선택적 shutdown (에러 경우에도)
     if (!keepBooted && deviceManager?.shutdown && deviceManager.platform === platform) {
-      await deviceManager.shutdown(deviceId ?? "").catch(() => {
-        // 무시
+      await deviceManager.shutdown(deviceId ?? "").catch((shutdownErr) => {
+        if (debug) {
+          const msg = shutdownErr instanceof Error ? shutdownErr.message : String(shutdownErr);
+          debugLog(debug, "teardown", `shutdown 실패 (error path): ${msg}`);
+          artifacts.append("teardown.log", `shutdown 실패 (error path): ${msg}`).catch(() => undefined);
+        }
       });
     }
 
@@ -524,6 +605,16 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
 }
 
 // ── 유틸 ──────────────────────────────────────────────────────────
+
+/**
+ * 절대 경로를 process.cwd() 기준 상대 경로로 변환한다.
+ * 상대 변환 결과가 ".."로 시작하거나 비어있으면 원본 절대 경로를 유지한다.
+ */
+function toRelativePath(p: string): string {
+  const rel = path.relative(process.cwd(), p);
+  if (!rel || rel.startsWith("..")) return p;
+  return rel;
+}
 
 function detectFrameworkFromPath(projectPath: string): "flutter" | "react-native" | "android" | "ios" {
   // pubspec.yaml → flutter

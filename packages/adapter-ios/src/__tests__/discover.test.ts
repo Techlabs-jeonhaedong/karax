@@ -4,10 +4,12 @@
  */
 
 import path from "path";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { buildSwiftSymbolTable } from "../parse/scanner.js";
 import { discoverSwiftRouteGraph } from "../discover/routeGraph.js";
 import { findSwiftHeuristicCandidates } from "../discover/heuristic.js";
+import { iosAdapter } from "../index.js";
+import type { DebugEvent } from "@karax/adapter-api";
 
 const FIXTURE = path.resolve("../../fixtures/ios-swiftui-basic");
 
@@ -111,5 +113,49 @@ describe("iosAdapter.discoverScreens — 엣지 케이스", () => {
     };
     const candidates = findSwiftHeuristicCandidates(emptyTable as any, new Set());
     expect(candidates).toHaveLength(0);
+  });
+});
+
+// ── onDebug 콜백 관측 테스트 ─────────────────────────────────────────────────
+
+describe("iosAdapter — onDebug 콜백", () => {
+  it("onDebug 없이도 discoverScreens가 정상 동작해야 한다 (하위호환)", async () => {
+    await expect(iosAdapter.discoverScreens({
+      projectPath: "/nonexistent/ios/project",
+    })).resolves.toBeDefined();
+  });
+
+  it("onDebug를 전달하면 이벤트를 받을 수 있다", async () => {
+    const events: DebugEvent[] = [];
+    const onDebug = vi.fn((e: DebugEvent) => events.push(e));
+
+    await expect(iosAdapter.discoverScreens({
+      projectPath: "/nonexistent/ios/project",
+      onDebug,
+    })).resolves.toBeDefined();
+
+    // 이벤트가 발생하면 올바른 구조를 가져야 한다
+    for (const event of events) {
+      expect(event.tag).toBeDefined();
+      expect(event.message).toBeDefined();
+    }
+  });
+
+  it("discoverSwiftUIScreens가 던진 에러는 호출자에게 전파되어야 한다 (silent-swallow 금지)", async () => {
+    // buildSwiftSymbolTable을 mock해서 강제로 에러를 던지게 만든다
+    const { buildSwiftSymbolTable } = await import("../parse/scanner.js");
+    const scannerMod = await import("../parse/scanner.js");
+    const original = scannerMod.buildSwiftSymbolTable;
+
+    // discoverSwiftUIScreens 내부에서 buildSwiftSymbolTable이 throw하면
+    // discoverScreens도 그대로 reject 해야 한다 (삼키면 안 됨)
+    const sentinel = new Error("sentinel-swiftui-fail");
+    vi.spyOn(scannerMod, "buildSwiftSymbolTable").mockRejectedValueOnce(sentinel);
+
+    await expect(
+      iosAdapter.discoverScreens({ projectPath: "/any/path" })
+    ).rejects.toThrow("sentinel-swiftui-fail");
+
+    vi.restoreAllMocks();
   });
 });
