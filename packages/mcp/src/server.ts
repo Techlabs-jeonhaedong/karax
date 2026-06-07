@@ -618,6 +618,25 @@ export function createMcpServer(): McpServer {
       try {
         validateProjectPath(projectPath);
 
+        // ── buildCommand 커맨드 인젝션 가드 ───────────────────────────
+        // MCP는 불특정 클라이언트에서 호출될 수 있으므로 buildCommand를 기본 비활성화한다.
+        // CLI 경로(karax test --build-command)는 사용자가 자기 머신에서 직접 실행하므로 건드리지 않는다.
+        if (buildCommand !== undefined) {
+          if (process.env["KARAX_MCP_ALLOW_BUILD_COMMAND"] !== "1") {
+            return errorContent(
+              "buildCommand는 MCP에서 기본 비활성화. " +
+              "KARAX_MCP_ALLOW_BUILD_COMMAND=1로 서버를 실행하면 허용됨."
+            );
+          }
+          // shell 메타문자 포함 시 거부 — 허용된 경우에도 인젝션 방지
+          const SHELL_META_RE = /[;&|`$<>\n\r]|\$\(|\$\{/;
+          if (SHELL_META_RE.test(buildCommand)) {
+            return errorContent(
+              "buildCommand에 shell 메타문자(; & | ` $ < > 개행 등)가 포함돼 있어 거부됐습니다."
+            );
+          }
+        }
+
         // scenarioPath가 디렉토리이면 runE2eSuite, 아니면 runE2eTest
         const scenarioIsDir =
           scenarioPath !== undefined &&
