@@ -74,10 +74,12 @@ export interface CacheEntry {
  *
  * - 빌드 산출물(build/, .gradle/, Pods/, node_modules/, DerivedData) 제외
  * - 파일 수 상한 20,000 초과 시 hash에 "overflow" 마커 포함
+ * - buildCommand가 지정된 경우 핑거프린트에 포함해 플레이버 빌드가 잘못 재사용되지 않게 한다
  */
 export function computeSourceFingerprint(
   projectPath: string,
-  framework: string
+  framework: string,
+  opts?: { buildCommand?: string }
 ): SourceFingerprint {
   const spec = getScanSpec(framework);
   const entries: Array<{ rel: string; size: number; mtimeMs: number }> = [];
@@ -110,11 +112,18 @@ export function computeSourceFingerprint(
   }
 
   if (overflowed) {
-    return { hash: "overflow", newestSourceMtimeMs: 0 };
+    const overflowBase = "overflow";
+    const overflowContent = opts?.buildCommand
+      ? `${overflowBase}\n[buildCommand]\n${opts.buildCommand}`
+      : overflowBase;
+    return { hash: crypto.createHash("sha256").update(overflowContent).digest("hex"), newestSourceMtimeMs: 0 };
   }
 
   if (entries.length === 0) {
-    return { hash: crypto.createHash("sha256").update("empty").digest("hex"), newestSourceMtimeMs: 0 };
+    // buildCommand를 빈 프로젝트 핑거프린트에도 반영
+    const base = "empty";
+    const content = opts?.buildCommand ? `${base}\n[buildCommand]\n${opts.buildCommand}` : base;
+    return { hash: crypto.createHash("sha256").update(content).digest("hex"), newestSourceMtimeMs: 0 };
   }
 
   // 정렬 결정론
@@ -122,7 +131,11 @@ export function computeSourceFingerprint(
 
   const newestSourceMtimeMs = Math.max(...entries.map((e) => e.mtimeMs));
 
-  const combined = entries.map((e) => `${e.rel}:${e.size}:${e.mtimeMs}`).join("\n");
+  // buildCommand가 있으면 핑거프린트에 포함 (플레이버 빌드 캐시 오염 방지)
+  const sourceLines = entries.map((e) => `${e.rel}:${e.size}:${e.mtimeMs}`).join("\n");
+  const combined = opts?.buildCommand
+    ? `${sourceLines}\n[buildCommand]\n${opts.buildCommand}`
+    : sourceLines;
   const hash = crypto.createHash("sha256").update(combined).digest("hex");
 
   return { hash, newestSourceMtimeMs };

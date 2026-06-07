@@ -182,7 +182,7 @@ describe("computeSourceFingerprint", () => {
     expect(fp1.hash).not.toBe(fp2.hash);
   });
 
-  it("파일 수 상한(20000) 초과 시 hash에 'overflow' 마커가 포함된다", () => {
+  it("파일 수 상한(20000) 초과 시 sha256 hash를 반환한다 (overflow 경로)", () => {
     // lib/ 존재, pubspec.yaml 없음 (단순화)
     mockFs.existsSync.mockImplementation((p: unknown) => String(p).endsWith("/lib"));
 
@@ -195,7 +195,68 @@ describe("computeSourceFingerprint", () => {
 
     const fp = computeSourceFingerprint("/project", "flutter");
 
-    expect(fp.hash).toContain("overflow");
+    expect(fp.hash).toMatch(/^[a-f0-9]{64}$/); // sha256 hex
+    expect(fp.newestSourceMtimeMs).toBe(0);
+  });
+
+  it("overflow 케이스 — buildCommand가 있으면 없을 때와 hash가 달라진다", () => {
+    // lib/ 아래 20001개 파일 → overflow
+    mockFs.existsSync.mockImplementation((p: unknown) => String(p).endsWith("/lib"));
+    const manyFiles = Array.from({ length: 20001 }, (_, i) =>
+      makeFakeDirent(`file${i}.dart`, false)
+    );
+    mockFs.readdirSync.mockReturnValueOnce(manyFiles as unknown as fs.Dirent[]);
+    mockFs.statSync.mockReturnValue(makeStatResult(100, 1000) as fs.Stats);
+    const fpNoCmd = computeSourceFingerprint("/project", "flutter");
+
+    vi.clearAllMocks();
+    mockFs.existsSync.mockImplementation((p: unknown) => String(p).endsWith("/lib"));
+    mockFs.readdirSync.mockReturnValueOnce(manyFiles as unknown as fs.Dirent[]);
+    mockFs.statSync.mockReturnValue(makeStatResult(100, 1000) as fs.Stats);
+    const fpWithCmd = computeSourceFingerprint("/project", "flutter", { buildCommand: "fvm flutter build apk" });
+
+    expect(fpNoCmd.hash).not.toBe(fpWithCmd.hash);
+  });
+
+  it("overflow 케이스 — buildCommand 미지정 시 기존 hash와 동일하다 (하위 호환)", () => {
+    // 두 번 모두 buildCommand 없음 → 같은 hash
+    mockFs.existsSync.mockImplementation((p: unknown) => String(p).endsWith("/lib"));
+    const manyFiles = Array.from({ length: 20001 }, (_, i) =>
+      makeFakeDirent(`file${i}.dart`, false)
+    );
+    mockFs.readdirSync.mockReturnValueOnce(manyFiles as unknown as fs.Dirent[]);
+    mockFs.statSync.mockReturnValue(makeStatResult(100, 1000) as fs.Stats);
+    const fp1 = computeSourceFingerprint("/project", "flutter");
+
+    vi.clearAllMocks();
+    mockFs.existsSync.mockImplementation((p: unknown) => String(p).endsWith("/lib"));
+    mockFs.readdirSync.mockReturnValueOnce(manyFiles as unknown as fs.Dirent[]);
+    mockFs.statSync.mockReturnValue(makeStatResult(100, 1000) as fs.Stats);
+    const fp2 = computeSourceFingerprint("/project", "flutter");
+
+    expect(fp1.hash).toBe(fp2.hash);
+  });
+
+  it("empty 케이스 — buildCommand가 있으면 없을 때와 hash가 달라진다", () => {
+    mockFs.existsSync.mockReturnValue(false);
+    const fpNoCmd = computeSourceFingerprint("/project", "flutter");
+
+    vi.clearAllMocks();
+    mockFs.existsSync.mockReturnValue(false);
+    const fpWithCmd = computeSourceFingerprint("/project", "flutter", { buildCommand: "fvm flutter build apk" });
+
+    expect(fpNoCmd.hash).not.toBe(fpWithCmd.hash);
+  });
+
+  it("empty 케이스 — buildCommand 미지정 시 기존 hash와 동일하다 (하위 호환)", () => {
+    mockFs.existsSync.mockReturnValue(false);
+    const fp1 = computeSourceFingerprint("/project", "flutter");
+
+    vi.clearAllMocks();
+    mockFs.existsSync.mockReturnValue(false);
+    const fp2 = computeSourceFingerprint("/project", "flutter");
+
+    expect(fp1.hash).toBe(fp2.hash);
   });
 
   it("소스 파일 없이 빈 프로젝트도 hash를 반환한다", () => {

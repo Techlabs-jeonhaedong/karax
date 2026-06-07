@@ -290,6 +290,8 @@ export interface TestArgs {
   recordVideo: boolean;
   /** Phase C: 디버그 모드 */
   debug: boolean;
+  /** 기본 빌드 커맨드 대신 실행할 사용자 정의 빌드 커맨드 */
+  buildCommand?: string;
 }
 
 const VALID_PLATFORMS: TestPlatform[] = ["android", "ios"];
@@ -315,6 +317,10 @@ export function parseTestArgs(argv: string[]): TestArgs {
   prog.option("--grant-permissions", "시나리오의 permissions[]를 자동으로 디바이스에 grant한다", false);
   prog.option("--record-video", "앱 실행 중 화면을 비디오로 녹화한다", false);
   prog.option("--debug", "디버그 모드 활성화", false);
+  prog.option(
+    "--build-command <cmd>",
+    '기본 빌드 커맨드 대신 실행할 사용자 정의 빌드 커맨드 (예: "fvm flutter build apk --debug --flavor dev")'
+  );
   prog.parse(["node", "test", ...argv]);
 
   const opts = prog.opts<{
@@ -334,6 +340,7 @@ export function parseTestArgs(argv: string[]): TestArgs {
     grantPermissions: boolean;
     recordVideo: boolean;
     debug: boolean;
+    buildCommand?: string;
   }>();
 
   if (!VALID_PLATFORMS.includes(opts.platform as TestPlatform)) {
@@ -345,6 +352,12 @@ export function parseTestArgs(argv: string[]): TestArgs {
   if (!VALID_AGENTS.includes(opts.agent as TestAgent)) {
     throw new Error(
       `잘못된 --agent 값: '${opts.agent}'. 허용: claude, codex, gemini`
+    );
+  }
+
+  if (opts.buildCommand !== undefined && opts.buildCommand.length > 4096) {
+    throw new Error(
+      `--build-command가 너무 깁니다 (${opts.buildCommand.length}자). 최대 4096자까지 허용합니다. (INVALID_ARGUMENT)`
     );
   }
 
@@ -366,5 +379,6 @@ export function parseTestArgs(argv: string[]): TestArgs {
     grantPermissions: opts.grantPermissions ?? false,
     recordVideo: opts.recordVideo ?? false,
     debug: opts.debug ?? false,
+    buildCommand: opts.buildCommand,
   };
 }

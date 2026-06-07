@@ -67,19 +67,26 @@ export function findApk(projectPath: string, appModule: string = "app"): string 
 
 /**
  * flutter/android APK 경로.
+ *
+ * 탐색 우선순위:
+ * 1. build/app/outputs/flutter-apk/app-debug.apk (기본 경로 — 최우선)
+ * 2. build/app/outputs/flutter-apk/*.apk (플레이버 빌드: app-dev-debug.apk 등)
+ * 3. build/app/outputs 아래 최신 mtime APK (최종 fallback)
  */
 export function findFlutterApk(projectPath: string): string | null {
-  const expected = path.join(
-    projectPath,
-    "build",
-    "app",
-    "outputs",
-    "flutter-apk",
-    "app-debug.apk"
-  );
-  if (fs.existsSync(expected)) return expected;
+  const flutterApkDir = path.join(projectPath, "build", "app", "outputs", "flutter-apk");
 
-  // fallback: build/app/outputs 아래 최신 mtime APK
+  // 1. 기본 경로 우선
+  const defaultApk = path.join(flutterApkDir, "app-debug.apk");
+  if (fs.existsSync(defaultApk)) return defaultApk;
+
+  // 2. flutter-apk 디렉토리 내 최신 mtime *.apk (플레이버 빌드 지원, 비결정론 방지)
+  if (fs.existsSync(flutterApkDir)) {
+    const apk = findNewestByExtension(flutterApkDir, ".apk");
+    if (apk) return apk;
+  }
+
+  // 3. fallback: build/app/outputs 아래 최신 mtime APK
   return findNewestByExtension(path.join(projectPath, "build", "app", "outputs"), ".apk");
 }
 
@@ -99,6 +106,29 @@ export function findDerivedDataApp(derivedDataPath: string): string | null {
   const buildDir = path.join(derivedDataPath, "Build", "Products");
   if (!fs.existsSync(buildDir)) return null;
   return findNewestByExtension(buildDir, ".app");
+}
+
+/**
+ * iOS 네이티브 표준 빌드 출력 경로에서 .app을 탐색한다.
+ * buildCommand 사용 시 derivedDataPath에 산출물이 없을 때 fallback으로 사용.
+ *
+ * 탐색 경로 (우선순위 순):
+ * 1. build/ios/iphonesimulator (Flutter 표준 — FlutterIosBuilder와 공유 가능)
+ * 2. ios/build/Build/Products (Xcode/RN iOS 표준 derivedData 위치)
+ */
+export function findIosStandardApp(projectPath: string): string | null {
+  const candidates = [
+    path.join(projectPath, "build", "ios", "iphonesimulator"),
+    path.join(projectPath, "ios", "build", "Build", "Products"),
+  ];
+
+  for (const dir of candidates) {
+    if (!fs.existsSync(dir)) continue;
+    const app = findNewestByExtension(dir, ".app");
+    if (app) return app;
+  }
+
+  return null;
 }
 
 // ── 내부 유틸 ────────────────────────────────────────────────────────────

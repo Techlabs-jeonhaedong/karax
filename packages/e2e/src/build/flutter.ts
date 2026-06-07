@@ -28,18 +28,30 @@ export class FlutterAndroidBuilder implements AppBuilder {
   readonly platform = "android" as const;
 
   async build(projectPath: string, ctx?: BuildContext): Promise<BuildResult> {
-    const flutterBin = await getFlutterExecutable(projectPath);
     const artifacts = createDebugArtifacts(ctx?.debug ? ctx.debugDir : undefined);
     const BUILD_5MB = 5 * 1024 * 1024;
+    const logFile = "build-flutter-android.log";
+    const errPrefix = "flutter build apk 실패";
 
     let stdout = "";
     let stderr = "";
     let exitCode = 0;
     try {
-      const result = await execa(flutterBin, ["build", "apk", "--debug"], {
-        cwd: projectPath,
-        timeout: BUILD_TIMEOUT,
-      });
+      let result;
+      if (ctx?.buildCommand) {
+        // 사용자 정의 빌드 커맨드: shell=true로 실행
+        result = await execa(ctx.buildCommand, [], {
+          shell: true,
+          cwd: projectPath,
+          timeout: BUILD_TIMEOUT,
+        });
+      } else {
+        const flutterBin = await getFlutterExecutable(projectPath);
+        result = await execa(flutterBin, ["build", "apk", "--debug"], {
+          cwd: projectPath,
+          timeout: BUILD_TIMEOUT,
+        });
+      }
       stdout = result.stdout ?? "";
       stderr = result.stderr ?? "";
       exitCode = result.exitCode ?? 0;
@@ -49,27 +61,26 @@ export class FlutterAndroidBuilder implements AppBuilder {
       stdout = err.stdout ?? "";
       stderr = err.stderr ?? "";
       exitCode = err.exitCode ?? 1;
-      // debug 시 빌드 로그 기록 (실패)
       await artifacts.write(
-        "build-flutter-android.log",
+        logFile,
         `[stdout]\n${stdout}\n\n[stderr]\n${stderr}\n\n[exitCode] ${exitCode}`,
         BUILD_5MB
       );
-      throw new E2eError("BUILD_FAILED", `flutter build apk 실패: ${redactSecrets(stderr)}`);
+      throw new E2eError("BUILD_FAILED", `${errPrefix}: ${redactSecrets(stderr)}`);
     }
 
     if (exitCode !== 0) {
       await artifacts.write(
-        "build-flutter-android.log",
+        logFile,
         `[stdout]\n${stdout}\n\n[stderr]\n${stderr}\n\n[exitCode] ${exitCode}`,
         BUILD_5MB
       );
-      throw new E2eError("BUILD_FAILED", `flutter build apk 실패: ${redactSecrets(stderr)}`);
+      throw new E2eError("BUILD_FAILED", `${errPrefix}: ${redactSecrets(stderr)}`);
     }
 
     // 성공 시에도 debug이면 로그 기록
     await artifacts.write(
-      "build-flutter-android.log",
+      logFile,
       `[stdout]\n${stdout}\n\n[stderr]\n${stderr}\n\n[exitCode] ${exitCode}`,
       BUILD_5MB
     );
@@ -90,19 +101,31 @@ export class FlutterIosBuilder implements AppBuilder {
   readonly platform = "ios" as const;
 
   async build(projectPath: string, ctx?: BuildContext): Promise<BuildResult> {
-    const flutterBin = await getFlutterExecutable(projectPath);
     const artifacts = createDebugArtifacts(ctx?.debug ? ctx.debugDir : undefined);
     const BUILD_5MB = 5 * 1024 * 1024;
+    const logFile = "build-flutter-ios.log";
+    const errPrefix = "flutter build ios 실패";
 
     let stdout = "";
     let stderr = "";
     let exitCode = 0;
     try {
-      const result = await execa(
-        flutterBin,
-        ["build", "ios", "--simulator", "--debug"],
-        { cwd: projectPath, timeout: BUILD_TIMEOUT }
-      );
+      let result;
+      if (ctx?.buildCommand) {
+        // 사용자 정의 빌드 커맨드: shell=true로 실행
+        result = await execa(ctx.buildCommand, [], {
+          shell: true,
+          cwd: projectPath,
+          timeout: BUILD_TIMEOUT,
+        });
+      } else {
+        const flutterBin = await getFlutterExecutable(projectPath);
+        result = await execa(
+          flutterBin,
+          ["build", "ios", "--simulator", "--debug"],
+          { cwd: projectPath, timeout: BUILD_TIMEOUT }
+        );
+      }
       stdout = result.stdout ?? "";
       stderr = result.stderr ?? "";
       exitCode = result.exitCode ?? 0;
@@ -112,24 +135,24 @@ export class FlutterIosBuilder implements AppBuilder {
       stderr = err.stderr ?? "";
       exitCode = err.exitCode ?? 1;
       await artifacts.write(
-        "build-flutter-ios.log",
+        logFile,
         `[stdout]\n${stdout}\n\n[stderr]\n${stderr}\n\n[exitCode] ${exitCode}`,
         BUILD_5MB
       );
-      throw new E2eError("BUILD_FAILED", `flutter build ios 실패: ${redactSecrets(stderr)}`);
+      throw new E2eError("BUILD_FAILED", `${errPrefix}: ${redactSecrets(stderr)}`);
     }
 
     if (exitCode !== 0) {
       await artifacts.write(
-        "build-flutter-ios.log",
+        logFile,
         `[stdout]\n${stdout}\n\n[stderr]\n${stderr}\n\n[exitCode] ${exitCode}`,
         BUILD_5MB
       );
-      throw new E2eError("BUILD_FAILED", `flutter build ios 실패: ${redactSecrets(stderr)}`);
+      throw new E2eError("BUILD_FAILED", `${errPrefix}: ${redactSecrets(stderr)}`);
     }
 
     await artifacts.write(
-      "build-flutter-ios.log",
+      logFile,
       `[stdout]\n${stdout}\n\n[stderr]\n${stderr}\n\n[exitCode] ${exitCode}`,
       BUILD_5MB
     );

@@ -386,6 +386,185 @@ describe("AndroidNativeBuilder", () => {
   });
 });
 
+// ── iOS buildCommand: KARAX_DERIVED_DATA_PATH 주입 + fallback ──────
+
+describe("IosNativeBuilder — buildCommand", () => {
+  it("buildCommand 실행 시 KARAX_DERIVED_DATA_PATH env가 주입된다", async () => {
+    fs.mkdirSync(path.join(tmpDir, "Pods"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "App.xcworkspace"));
+
+    const derivedDataPath = path.join(tmpDir, "custom-derived");
+    const appPath = path.join(derivedDataPath, "Build", "Products", "Debug-iphonesimulator", "App.app");
+    fs.mkdirSync(appPath, { recursive: true });
+    fs.writeFileSync(
+      path.join(appPath, "Info.plist"),
+      `<plist><dict><key>CFBundleIdentifier</key><string>com.test.ios</string></dict></plist>`
+    );
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+
+    const builder = new IosNativeBuilder(derivedDataPath);
+    await builder.build(tmpDir, { buildCommand: 'xcodebuild -derivedDataPath "$KARAX_DERIVED_DATA_PATH" build' });
+
+    const callArgs = mockExeca.mock.calls[0]!;
+    const opts = callArgs[2] as { env?: Record<string, string>; shell?: boolean };
+    expect(opts.env?.["KARAX_DERIVED_DATA_PATH"]).toBe(derivedDataPath);
+    expect(opts.shell).toBe(true);
+  });
+
+  it("buildCommand 시 derivedDataPath fallback: findDerivedDataApp 성공", async () => {
+    fs.mkdirSync(path.join(tmpDir, "Pods"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "App.xcworkspace"));
+
+    const derivedDataPath = path.join(tmpDir, "ios-derived");
+    const appPath = path.join(derivedDataPath, "Build", "Products", "Debug-iphonesimulator", "App.app");
+    fs.mkdirSync(appPath, { recursive: true });
+    fs.writeFileSync(
+      path.join(appPath, "Info.plist"),
+      `<plist><dict><key>CFBundleIdentifier</key><string>com.test.derived</string></dict></plist>`
+    );
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+
+    const builder = new IosNativeBuilder(derivedDataPath);
+    const result = await builder.build(tmpDir, { buildCommand: "custom-build.sh" });
+
+    expect(result.appId).toBe("com.test.derived");
+    expect(result.artifactPath).toBe(appPath);
+  });
+
+  it("buildCommand 시 derivedDataPath fallback 실패 → projectPath 하위 탐색 성공", async () => {
+    fs.mkdirSync(path.join(tmpDir, "Pods"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "App.xcworkspace"));
+
+    // derivedDataPath에는 .app 없음
+    const derivedDataPath = path.join(tmpDir, "empty-derived");
+    fs.mkdirSync(derivedDataPath, { recursive: true });
+
+    // projectPath/build/ios/iphonesimulator에 .app 배치
+    const simApp = path.join(tmpDir, "build", "ios", "iphonesimulator", "Runner.app");
+    fs.mkdirSync(simApp, { recursive: true });
+    fs.writeFileSync(
+      path.join(simApp, "Info.plist"),
+      `<plist><dict><key>CFBundleIdentifier</key><string>com.test.sim</string></dict></plist>`
+    );
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+
+    const builder = new IosNativeBuilder(derivedDataPath);
+    const result = await builder.build(tmpDir, { buildCommand: "custom-build.sh" });
+
+    expect(result.appId).toBe("com.test.sim");
+    expect(result.artifactPath).toBe(simApp);
+  });
+
+  it("buildCommand 시 모든 경로 탐색 실패 → ARTIFACT_NOT_FOUND (안내 메시지 포함)", async () => {
+    fs.mkdirSync(path.join(tmpDir, "Pods"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "App.xcworkspace"));
+
+    const derivedDataPath = path.join(tmpDir, "no-app-derived");
+    fs.mkdirSync(derivedDataPath, { recursive: true });
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+
+    const builder = new IosNativeBuilder(derivedDataPath);
+    const err = await builder
+      .build(tmpDir, { buildCommand: "custom-build.sh" })
+      .catch((e: unknown) => e as { code: string; message: string });
+
+    expect(err.code).toBe("ARTIFACT_NOT_FOUND");
+    expect(err.message).toMatch(/KARAX_DERIVED_DATA_PATH/);
+  });
+
+  it("buildCommand 실패 시 '사용자 빌드 커맨드 실패' 메시지를 포함한다", async () => {
+    fs.mkdirSync(path.join(tmpDir, "Pods"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "App.xcworkspace"));
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "custom build error", exitCode: 1 });
+
+    const builder = new IosNativeBuilder(path.join(tmpDir, "derived"));
+    const err = await builder
+      .build(tmpDir, { buildCommand: "custom-build.sh" })
+      .catch((e: unknown) => e as { code: string; message: string });
+
+    expect(err.code).toBe("BUILD_FAILED");
+    expect(err.message).toMatch(/사용자 빌드 커맨드 실패/);
+  });
+});
+
+describe("RnIosBuilder — buildCommand", () => {
+  it("buildCommand 실행 시 KARAX_DERIVED_DATA_PATH env가 주입된다", async () => {
+    const derivedDataPath = path.join(tmpDir, "rn-custom-derived");
+    const appPath = path.join(derivedDataPath, "Build", "Products", "Debug-iphonesimulator", "RNApp.app");
+    fs.mkdirSync(appPath, { recursive: true });
+    fs.writeFileSync(
+      path.join(appPath, "Info.plist"),
+      `<plist><dict><key>CFBundleIdentifier</key><string>com.test.rn</string></dict></plist>`
+    );
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+
+    const builder = new RnIosBuilder(derivedDataPath);
+    await builder.build(tmpDir, { buildCommand: "custom-rn-build.sh" });
+
+    const callArgs = mockExeca.mock.calls[0]!;
+    const opts = callArgs[2] as { env?: Record<string, string>; shell?: boolean };
+    expect(opts.env?.["KARAX_DERIVED_DATA_PATH"]).toBe(derivedDataPath);
+    expect(opts.shell).toBe(true);
+  });
+
+  it("buildCommand 시 derivedDataPath fallback 실패 → ios/build 탐색 성공", async () => {
+    const derivedDataPath = path.join(tmpDir, "rn-empty-derived");
+    fs.mkdirSync(derivedDataPath, { recursive: true });
+
+    // ios/build/Build/Products 경로에 .app 배치
+    const iosBuildApp = path.join(tmpDir, "ios", "build", "Build", "Products", "Debug-iphonesimulator", "App.app");
+    fs.mkdirSync(iosBuildApp, { recursive: true });
+    fs.writeFileSync(
+      path.join(iosBuildApp, "Info.plist"),
+      `<plist><dict><key>CFBundleIdentifier</key><string>com.test.rn.ios</string></dict></plist>`
+    );
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
+
+    const builder = new RnIosBuilder(derivedDataPath);
+    const result = await builder.build(tmpDir, { buildCommand: "custom-rn-build.sh" });
+
+    expect(result.appId).toBe("com.test.rn.ios");
+  });
+
+  it("buildCommand 실패 시 '사용자 빌드 커맨드 실패' 메시지를 포함한다", async () => {
+    const derivedDataPath = path.join(tmpDir, "rn-derived-fail");
+    fs.mkdirSync(derivedDataPath, { recursive: true });
+
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "rn build failed", exitCode: 1 });
+
+    const builder = new RnIosBuilder(derivedDataPath);
+    const err = await builder
+      .build(tmpDir, { buildCommand: "bad-cmd.sh" })
+      .catch((e: unknown) => e as { code: string; message: string });
+
+    expect(err.code).toBe("BUILD_FAILED");
+    expect(err.message).toMatch(/사용자 빌드 커맨드 실패/);
+  });
+});
+
+// ── RnAndroidBuilder: buildCommand 실패 에러 메시지 정확화 ───────────
+
+describe("RnAndroidBuilder — buildCommand 실패 에러 메시지", () => {
+  it("buildCommand 실패 시 '사용자 빌드 커맨드 실패' 메시지를 포함한다", async () => {
+    mockExeca.mockResolvedValueOnce({ stdout: "", stderr: "custom android error", exitCode: 1 });
+
+    const builder = new RnAndroidBuilder();
+    const err = await builder
+      .build(tmpDir, { buildCommand: "bad-android-cmd.sh" })
+      .catch((e: unknown) => e as { code: string; message: string });
+
+    expect(err.code).toBe("BUILD_FAILED");
+    expect(err.message).toMatch(/사용자 빌드 커맨드 실패/);
+  });
+});
+
 // ── selectBuilder 팩토리 ────────────────────────────────────────────
 
 describe("selectBuilder", () => {

@@ -81,6 +81,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     reuseBuild = false,
     noBuild = false,
     recordVideo = false,
+    buildCommand,
   } = opts;
 
   const debug = isDebug(opts.debug);
@@ -174,8 +175,11 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     // fp는 reuseBuild/noBuild 경로와 writeBuildCache 호출 모두에서 재사용
     let fp: import("./build/cache.js").SourceFingerprint | null = null;
 
+    // noBuild=true이면 buildCommand는 무시 (에러 아님)
+    const effectiveBuildCmd = noBuild ? undefined : buildCommand;
+
     if (reuseBuild || noBuild) {
-      fp = computeSourceFingerprint(projectPath, framework);
+      fp = computeSourceFingerprint(projectPath, framework, { buildCommand: effectiveBuildCmd });
       const cached = readBuildCache(projectPath, platform);
 
       const canReuse =
@@ -200,11 +204,19 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
         );
       } else {
         // reuseBuild이지만 불일치 → 자동 재빌드
-        buildResultPromise = builder.build(projectPath, { debug, debugDir: session.debugDir });
+        buildResultPromise = builder.build(projectPath, {
+          debug,
+          debugDir: session.debugDir,
+          buildCommand: effectiveBuildCmd,
+        });
       }
     } else {
       // 기본 경로: 항상 빌드
-      buildResultPromise = builder.build(projectPath, { debug, debugDir: session.debugDir });
+      buildResultPromise = builder.build(projectPath, {
+        debug,
+        debugDir: session.debugDir,
+        buildCommand: effectiveBuildCmd,
+      });
     }
 
     const [buildResult, sessionAppMap] = await Promise.all([
@@ -215,7 +227,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
     // M11: 빌드 성공 후 캐시 기록 (noBuild=true이면 이 분기 자체에 도달 불가 — 위에서 throw)
     if (!noBuild) {
       // fp가 이미 계산됐으면 재사용, 아니면 새로 계산
-      const fpForWrite = fp ?? computeSourceFingerprint(projectPath, framework);
+      const fpForWrite = fp ?? computeSourceFingerprint(projectPath, framework, { buildCommand: effectiveBuildCmd });
       try {
         writeBuildCache(projectPath, platform, {
           artifactPath: buildResult.artifactPath,
