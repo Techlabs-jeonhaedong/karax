@@ -69,6 +69,7 @@ import {
   runUiWhichScreen,
 } from "./commands/ui.js";
 import { resolveDebug, printError } from "./debug.js";
+import { LiveDashboard } from "./dashboard.js";
 import type { DeviceProfileId } from "@karax/sdk";
 
 // repo 루트: packages/cli/dist/bin.js → ../../../ (= repo root)
@@ -650,67 +651,17 @@ program
             }
           })();
 
-        // progress 이벤트 → stderr 출력 (--json 모드와 stdout 충돌 방지)
-        const stepStartTimes = new Map<string, number>();
-        const PHASE_LABELS: Record<string, string> = {
-          scenario: "시나리오 파싱",
-          detect: "프레임워크 감지",
-          device: "디바이스 부팅",
-          appmap: "AppMap 생성",
-          build: "앱 빌드",
-          install: "앱 설치",
-          launch: "앱 실행",
-          agent: "에이전트 실행",
-          "crash-scan": "크래시 분석",
-          report: "리포트 작성",
-        };
-        const PHASE_TOTAL = 10;
-        let phaseIndex = 0;
-        const seenPhases = new Set<string>();
-        // suite에서 stepIndex별 카운터 리셋을 위해 마지막으로 본 stepIndex 추적
-        let lastStepIndex: number | undefined = undefined;
+        // progress 이벤트 → LiveDashboard (TTY: 라이브 대시보드 / non-TTY: 기존 라인 방식)
+        const dashboard = new LiveDashboard({
+          projectPath: args.path,
+          platform: args.platform,
+          agent: args.agent,
+          buildCommand: args.buildCommand,
+        });
+        dashboard.start();
 
         const onProgress = (event: import("@karax/sdk").E2eProgressEvent) => {
-          const label = PHASE_LABELS[event.phase] ?? event.phase;
-          const key = `${event.stepIndex ?? ""}-${event.phase}`;
-
-          // suite 모드: stepIndex가 바뀌면 phaseIndex/seenPhases 리셋
-          if (event.stepIndex !== undefined && event.stepIndex !== lastStepIndex) {
-            lastStepIndex = event.stepIndex;
-            phaseIndex = 0;
-            seenPhases.clear();
-          }
-
-          // heartbeat: 단계 전환 없이 진행 중임을 알리는 keepalive — 타이머/카운터 갱신 없음
-          if (event.heartbeat === true) {
-            const startTime = stepStartTimes.get(key);
-            const elapsedStr = startTime !== undefined
-              ? ` (${((Date.now() - startTime) / 1000).toFixed(1)}s 경과)`
-              : "";
-            process.stderr.write(`${label} 진행 중${elapsedStr}\n`);
-            return;
-          }
-
-          if (event.status === "start") {
-            if (!seenPhases.has(event.phase)) {
-              phaseIndex++;
-              seenPhases.add(event.phase);
-            }
-            stepStartTimes.set(key, Date.now());
-            const suitePrefix = event.stepIndex !== undefined && event.totalSteps !== undefined
-              ? `[시나리오 ${event.stepIndex + 1}/${event.totalSteps}] `
-              : "";
-            const detail = event.detail ? ` — ${event.detail}` : "";
-            process.stderr.write(`${suitePrefix}[${phaseIndex}/${PHASE_TOTAL}] ${label} 시작${detail}\n`);
-          } else if (event.status === "done") {
-            const elapsed = stepStartTimes.has(key) ? ((Date.now() - stepStartTimes.get(key)!) / 1000).toFixed(1) : null;
-            const elapsedStr = elapsed !== null ? ` (${elapsed}s)` : "";
-            const detail = event.detail ? ` — ${event.detail}` : "";
-            process.stderr.write(`✓ ${label} 완료${elapsedStr}${detail}\n`);
-          } else if (event.status === "error") {
-            const detail = event.detail ? `: ${event.detail}` : "";
-            process.stderr.write(`✗ ${label} 오류${detail}\n`);
-          }
+          dashboard.handleEvent(event);
         };
 
         const commonOpts = {
@@ -739,12 +690,22 @@ program
 
         if (scenarioIsDir && args.scenario) {
           // 디렉토리 시나리오 → suite 실행
-          console.log(`\nE2E 테스트 스위트 시작: ${args.path} (시나리오 디렉토리: ${args.scenario}, 플랫폼: ${args.platform})\n`);
+          // 라이브 모드에서는 박스 안에 정보가 표시되므로 중복 console.log 생략
+          if (process.stderr.isTTY !== true || process.env.NO_COLOR) {
+            console.log(`\nE2E 테스트 스위트 시작: ${args.path} (시나리오 디렉토리: ${args.scenario}, 플랫폼: ${args.platform})\n`);
+          }
 
-          const suiteResult = await sdk.runE2eSuite({
-            ...commonOpts,
-            scenarioPath: args.scenario,
-          });
+          let suiteResult;
+          try {
+            suiteResult = await sdk.runE2eSuite({
+              ...commonOpts,
+              scenarioPath: args.scenario,
+            });
+            dashboard.stop();
+          } catch (e) {
+            dashboard.fail();
+            throw e;
+          }
 
           if (args.json) {
             console.log(JSON.stringify(suiteResult, null, 2));
@@ -772,12 +733,22 @@ program
           }
         } else {
           // 단일 파일 / 시나리오 없음 → 기존 runE2eTest
-          console.log(`\nE2E 테스트 시작: ${args.path} (플랫폼: ${args.platform}, 에이전트: ${args.agent})\n`);
+          // 라이브 모드에서는 박스 안에 정보가 표시되므로 중복 console.log 생략
+          if (process.stderr.isTTY !== true || process.env.NO_COLOR) {
+            console.log(`\nE2E 테스트 시작: ${args.path} (플랫폼: ${args.platform}, 에이전트: ${args.agent})\n`);
+          }
 
-          const result = await sdk.runE2eTest({
-            ...commonOpts,
-            scenarioPath: args.scenario,
-          });
+          let result;
+          try {
+            result = await sdk.runE2eTest({
+              ...commonOpts,
+              scenarioPath: args.scenario,
+            });
+            dashboard.stop();
+          } catch (e) {
+            dashboard.fail();
+            throw e;
+          }
 
           if (args.json) {
             console.log(JSON.stringify(result, null, 2));
