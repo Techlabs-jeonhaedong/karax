@@ -40,7 +40,7 @@ function makeGenerator(
 ): AppMapGenerator {
   return vi.fn().mockResolvedValue({
     appMap: MOCK_APP_MAP,
-    writtenPaths: ["/mock/appmap/mockapp_map_1.md"],
+    writtenPaths: [],    // generator는 outDir에 파일을 쓰지 않는 mock
     ...override,
   });
 }
@@ -138,25 +138,11 @@ describe("generateAppMapForSession", () => {
     expect(result.deviceProfileId).toBe("iphone-15");
   });
 
-  it("markdownIndexPath가 첫 번째 마크다운 파일 절대경로를 반환한다", async () => {
+  it("writtenPaths=[]이면 renderAppMapMarkdown으로 appMapDir에 마크다운을 직접 생성한다", async () => {
     const appMapDir = path.join(tmpDir, "appmap");
     fs.mkdirSync(appMapDir, { recursive: true });
 
-    const result = await generateAppMapForSession({
-      projectPath: tmpDir,
-      framework: "flutter",
-      platform: "android",
-      appMapDir,
-      generator: makeGenerator({ writtenPaths: ["/mock/appmap/mockapp_map_1.md"] }),
-    });
-
-    expect(result.markdownIndexPath).toBe("/mock/appmap/mockapp_map_1.md");
-  });
-
-  it("generator가 마크다운을 쓰지 않으면 markdownIndexPath는 null", async () => {
-    const appMapDir = path.join(tmpDir, "appmap");
-    fs.mkdirSync(appMapDir, { recursive: true });
-
+    // writtenPaths=[] → writeMarkdownToDir가 appMapDir에 마크다운 생성
     const result = await generateAppMapForSession({
       projectPath: tmpDir,
       framework: "flutter",
@@ -165,7 +151,29 @@ describe("generateAppMapForSession", () => {
       generator: makeGenerator({ writtenPaths: [] }),
     });
 
-    expect(result.markdownIndexPath).toBeNull();
+    // MOCK_APP_MAP에 screens가 있으므로 renderAppMapMarkdown이 문서를 생성해야 함
+    expect(result.markdownIndexPath).not.toBeNull();
+    expect(result.markdownIndexPath!.startsWith(appMapDir)).toBe(true);
+    expect(fs.existsSync(result.markdownIndexPath!)).toBe(true);
+  });
+
+  it("generator가 writtenPaths에 경로를 반환하면 그 경로를 markdownIndexPath로 사용한다", async () => {
+    const appMapDir = path.join(tmpDir, "appmap");
+    fs.mkdirSync(appMapDir, { recursive: true });
+
+    // generator가 appMapDir 내 실제 파일 경로를 반환하는 경우
+    const mdPath = path.join(appMapDir, "custom_map.md");
+    fs.writeFileSync(mdPath, "# AppMap", "utf-8");
+
+    const result = await generateAppMapForSession({
+      projectPath: tmpDir,
+      framework: "flutter",
+      platform: "android",
+      appMapDir,
+      generator: makeGenerator({ writtenPaths: [mdPath] }),
+    });
+
+    expect(result.markdownIndexPath).toBe(mdPath);
   });
 
   it("generator 실패 시 throw한다 (호출부에서 catch해야 함)", async () => {

@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "fs";
 import { resolve, join, basename } from "path";
 import type { IRDocument, IRNode } from "@karax/core";
-import { redactSecrets } from "@karax/core";
+import { redactSecrets, mapConcurrent } from "@karax/core";
 import { getDeviceProfile } from "../devices/profiles.js";
 import { irToHtml, irToHtmlWithIdx } from "../html/irToHtml.js";
 
@@ -381,8 +381,10 @@ export async function measureScreenLayouts(
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
 
+  // 최대 4개 동시성 제한으로 병렬 측정 (브라우저는 1회 launch 재사용, 결과 순서 보존)
+  const LAYOUT_MEASURE_CONCURRENCY = 4;
   try {
-    for (const ir of irs) {
+    const entries = await mapConcurrent(irs, LAYOUT_MEASURE_CONCURRENCY, async (ir) => {
       const deviceId = options?.device ?? ir.screen.device ?? "iphone-15";
       const profile = getDeviceProfile(deviceId);
       const html = irToHtmlWithIdx(ir, profile);
@@ -397,43 +399,49 @@ export async function measureScreenLayouts(
         viewport: { width: profile.width, height: profile.height },
         deviceScaleFactor: profile.deviceScaleFactor,
       });
-      const page = await context.newPage();
-      await page.setContent(html, { waitUntil: "networkidle" });
+      try {
+        const page = await context.newPage();
+        await page.setContent(html, { waitUntil: "networkidle" });
 
-      // page.evaluate로 DOM에서 idx+BoundingClientRect 수집
-      const domEntries = await page.evaluate(() => {
-        const els = document.querySelectorAll("[data-karax-idx]");
-        return Array.from(els).map((el) => {
-          const idxAttr = el.getAttribute("data-karax-idx");
-          const rect = el.getBoundingClientRect();
-          return {
-            idx: parseInt(idxAttr!, 10),
-            x: rect.x,
-            y: rect.y,
-            width: rect.width,
-            height: rect.height,
-          };
+        // page.evaluate로 DOM에서 idx+BoundingClientRect 수집
+        const domEntries = await page.evaluate(() => {
+          const els = document.querySelectorAll("[data-karax-idx]");
+          return Array.from(els).map((el) => {
+            const idxAttr = el.getAttribute("data-karax-idx");
+            const rect = el.getBoundingClientRect();
+            return {
+              idx: parseInt(idxAttr!, 10),
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+            };
+          });
         });
-      });
 
-      await context.close();
+        const rawBounds: MeasuredBounds[] = domEntries.map(({ idx, x, y, width, height }) => {
+          const node = nodesByIdx.get(idx);
+          const measured: MeasuredBounds = {
+            nodeType: node?.type ?? "Unknown",
+            x,
+            y,
+            width,
+            height,
+          };
+          if (node?.sourceRef) {
+            measured.sourceRef = node.sourceRef as MeasuredBounds["sourceRef"];
+          }
+          return measured;
+        });
 
-      const rawBounds: MeasuredBounds[] = domEntries.map(({ idx, x, y, width, height }) => {
-        const node = nodesByIdx.get(idx);
-        const measured: MeasuredBounds = {
-          nodeType: node?.type ?? "Unknown",
-          x,
-          y,
-          width,
-          height,
-        };
-        if (node?.sourceRef) {
-          measured.sourceRef = node.sourceRef as MeasuredBounds["sourceRef"];
-        }
-        return measured;
-      });
+        return { screenId: ir.screen.id, bounds: filterFiniteBounds(rawBounds) };
+      } finally {
+        await context.close();
+      }
+    });
 
-      resultMap.set(ir.screen.id, filterFiniteBounds(rawBounds));
+    for (const { screenId, bounds } of entries) {
+      resultMap.set(screenId, bounds);
     }
   } finally {
     await browser.close();

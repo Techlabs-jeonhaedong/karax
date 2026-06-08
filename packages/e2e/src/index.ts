@@ -189,6 +189,7 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
           platform,
           appMapDir: session.appMapDir,
           generator: opts.appMapGenerator,
+          reuseAppMap: opts.reuseAppMap,
         }).catch(() => null)
       : Promise.resolve(null);
 

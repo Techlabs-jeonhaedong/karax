@@ -314,6 +314,28 @@ describe("generateAppMap — measureScreenLayouts 실패 시 graceful degradatio
   );
 });
 
+// ── Android IR 병렬화 동시성 클램프 (항목 8) ─────────────────────────────────
+
+describe("generateAppMap — android IR 동시성 클램프 (항목 8)", () => {
+  it("android-compose-basic에서 generateAppMap이 정상 완료된다 (동시성 2 클램프)", async () => {
+    // android는 동시성 2로 클램프되어 메모리 스파이크를 방어한다.
+    // 결과 정확성은 클램프 전후 동일해야 한다.
+    const appMap = await generateAppMap({
+      projectPath: path.join(FIXTURES, "android-compose-basic"),
+      framework: "android",
+      includeLayout: false,
+    });
+    expect(appMap.schemaVersion).toBe("appmap/2");
+    expect(appMap.framework).toBe("android");
+    expect(Array.isArray(appMap.screens)).toBe(true);
+    expect(appMap.screens.length).toBeGreaterThan(0);
+    // 모든 화면에 elements 배열이 있어야 함 (IR 빌드 실패도 []로 처리됨)
+    for (const screen of appMap.screens) {
+      expect(Array.isArray(screen.elements)).toBe(true);
+    }
+  }, 60_000);
+});
+
 // ── flutter-getx — 풀 파이프 통합 (discover→nav→assemble→markdown) ───────────
 
 describe("generateAppMap — flutter-getx (GetX 실전 패턴)", () => {
