@@ -122,6 +122,114 @@ function colorize(text: string, ...codes: AnsiCode[]): string {
   return `${codes.join("")}${text}${ANSI_RESET}`;
 }
 
+// ─── displayWidth: East Asian Width 근사 ────────────────────────
+
+/**
+ * 문자열의 터미널 표시 폭을 반환한다 (East Asian Width 근사).
+ *
+ * - 전각(CJK·한글·이모지 등): 2칸
+ * - 결합 문자·NUL·제어문자: 0칸
+ * - 그 외: 1칸
+ *
+ * zero-dependency: string-width 같은 npm 패키지 없이 직접 구현.
+ * 박스 드로잉 문자(─│┃┏ 등), ✓, ▶, █, ░ 는 의도적으로 1칸 처리.
+ */
+export function displayWidth(str: string): number {
+  let width = 0;
+  for (const char of str) {
+    const cp = char.codePointAt(0);
+    if (cp === undefined) continue;
+    width += codePointWidth(cp);
+  }
+  return width;
+}
+
+function codePointWidth(cp: number): number {
+  // NUL
+  if (cp === 0x0000) return 0;
+  // 제어문자 (C0: 0x01-0x1F, DEL: 0x7F, C1: 0x80-0x9F)
+  if (cp <= 0x001f || cp === 0x007f || (cp >= 0x0080 && cp <= 0x009f)) return 0;
+  // 결합 문자 (대표 범위)
+  if (
+    (cp >= 0x0300 && cp <= 0x036f) || // Combining Diacritical Marks
+    (cp >= 0x0483 && cp <= 0x0489) || // Combining Cyrillic
+    (cp >= 0x0591 && cp <= 0x05bd) || // Hebrew combining
+    (cp >= 0x0610 && cp <= 0x061a) || // Arabic combining
+    (cp >= 0x064b && cp <= 0x065f) || // Arabic combining
+    (cp >= 0x1ab0 && cp <= 0x1aff) || // Combining Diacritical Marks Extended
+    (cp >= 0x1dc0 && cp <= 0x1dff) || // Combining Diacritical Marks Supplement
+    (cp >= 0x20d0 && cp <= 0x20ff) || // Combining Diacritical Marks for Symbols
+    (cp >= 0xfe20 && cp <= 0xfe2f)    // Combining Half Marks
+  ) return 0;
+  // Unicode variation selectors (폭 0으로 처리)
+  if ((cp >= 0xfe00 && cp <= 0xfe0f) || (cp >= 0xe0100 && cp <= 0xe01ef)) return 0;
+
+  // 전각 2칸 범위
+  if (
+    (cp >= 0x1100 && cp <= 0x115f) ||  // Hangul Jamo
+    (cp >= 0x2e80 && cp <= 0x303e) ||  // CJK Radicals ~ CJK Symbols
+    (cp >= 0x3041 && cp <= 0x33ff) ||  // Hiragana/Katakana/CJK Compat/CJK Unified Ideographs Ext A range
+    (cp >= 0x3400 && cp <= 0x4dbf) ||  // CJK Ext-A
+    (cp >= 0x4e00 && cp <= 0x9fff) ||  // CJK Unified
+    (cp >= 0xa000 && cp <= 0xa4cf) ||  // Yi
+    (cp >= 0xac00 && cp <= 0xd7a3) ||  // Hangul Syllables
+    (cp >= 0xf900 && cp <= 0xfaff) ||  // CJK Compat Ideographs
+    (cp >= 0xfe30 && cp <= 0xfe4f) ||  // CJK Compat Forms
+    (cp >= 0xff00 && cp <= 0xff60) ||  // Fullwidth Forms
+    (cp >= 0xffe0 && cp <= 0xffe6) ||  // Fullwidth Signs
+    (cp >= 0x1f300 && cp <= 0x1faff) || // Emoji
+    (cp >= 0x20000 && cp <= 0x3fffd)   // CJK Ext-B+
+  ) return 2;
+
+  return 1;
+}
+
+// ─── truncateToWidth: displayWidth 기준 truncate ─────────────────
+
+/**
+ * displayWidth 기준으로 문자열을 자른다.
+ * 잘리면 마지막에 `…`(폭1)을 붙이되 결과 displayWidth가 maxWidth를 넘지 않게 한다.
+ */
+export function truncateToWidth(text: string, maxWidth: number): string {
+  if (maxWidth <= 0) return "";
+  if (displayWidth(text) <= maxWidth) return text;
+
+  // 한 코드포인트씩 순회하며 maxWidth-1(ellipsis 여유) 내로 자름
+  const ellipsisWidth = 1; // "…"의 displayWidth
+  const budget = maxWidth - ellipsisWidth;
+  if (budget <= 0) return "…".slice(0, maxWidth > 0 ? 1 : 0);
+
+  let acc = 0;
+  let result = "";
+  for (const char of text) {
+    const cp = char.codePointAt(0);
+    const w = cp !== undefined ? codePointWidth(cp) : 1;
+    if (acc + w > budget) break;
+    acc += w;
+    result += char;
+  }
+  return result + "…";
+}
+
+// ─── physicalRows: 물리 행 수 계산 ───────────────────────────────
+
+/**
+ * 라인 배열에서 주어진 termWidth 기준 실제 물리 행 수의 합을 반환한다.
+ * 각 라인에 대해 Math.max(1, Math.ceil(displayWidth(stripAnsi(line)) / termWidth))를 합산.
+ * ANSI 코드는 strip 후 계산한다.
+ *
+ * @param termWidth 터미널 너비(열 수). **1 이상이어야 한다.**
+ *   0 이하이면 제수가 0이 돼 Infinity가 반환되므로, 안전하게 lines.length를 반환한다.
+ */
+export function physicalRows(lines: string[], termWidth: number): number {
+  if (lines.length === 0) return 0;
+  if (termWidth <= 0) return lines.length;
+  return lines.reduce((sum, line) => {
+    const w = displayWidth(stripAnsi(line));
+    return sum + Math.max(1, Math.ceil(w / termWidth));
+  }, 0);
+}
+
 /** ANSI 이스케이프 코드를 제거한다 (테스트 및 색상 strip용)
  *
  * 처리 대상:
@@ -297,21 +405,23 @@ export function renderDashboard(
   now: number,
 ): string[] {
   // 박스 내부 폭 계산 (┃ 양쪽 1자 + 공백 1자씩 = 4자 제외)
+  // 박스 테두리·진행바·라벨은 ASCII/박스문자라 폭1이므로 자 단위 계산 유지
   const boxWidth = Math.max(20, termWidth - 2);
   const innerWidth = boxWidth - 4; // "┃ " + " ┃"
 
-  // 텍스트 truncate 헬퍼
-  const truncate = (text: string, maxLen: number): string => {
-    if (text.length <= maxLen) return text;
-    return text.slice(0, maxLen - 1) + "…";
-  };
-
-  // 박스 라인 생성 헬퍼
+  // 박스 라인 생성 헬퍼 — displayWidth 기준으로 패딩 계산
   const boxLine = (content: string): string => {
-    const stripped = stripAnsi(content);
-    const padLen = Math.max(0, innerWidth - stripped.length);
+    const strippedWidth = displayWidth(stripAnsi(content));
+    const padLen = Math.max(0, innerWidth - strippedWidth);
     const padded = content + " ".repeat(padLen);
     return colorize("┃", ANSI_GRAY) + " " + padded + " " + colorize("┃", ANSI_GRAY);
+  };
+
+  // ANSI 포함 문자열을 displayWidth 기준으로 truncate (색상 손실 허용, 안전 폴백)
+  const truncateAnsi = (text: string, maxW: number): string => {
+    const stripped = stripAnsi(text);
+    if (displayWidth(stripped) <= maxW) return text;
+    return truncateToWidth(stripped, maxW);
   };
 
   const lines: string[] = [];
@@ -319,6 +429,7 @@ export function renderDashboard(
   // ─── 1. 상단 박스 ─────────────────────────────────────────────
 
   // 상단 테두리: ┏━ karax E2E ━━━━━━━━━━━┓
+  // titleText는 ASCII만이므로 displayWidth == .length
   const titleText = " karax E2E ";
   const titleInner = colorize(titleText, ANSI_BOLD, ANSI_CYAN);
   const titleRaw = titleText;
@@ -335,7 +446,7 @@ export function renderDashboard(
   const progressCount = state.phaseIndex;
   const progressRatio = PHASE_TOTAL > 0 ? progressCount / PHASE_TOTAL : 0;
   const progressPct = Math.round(progressRatio * 100);
-  const barWidth = Math.max(4, innerWidth - 12); // "X/10  100%" 부분 제외
+  const barWidth = Math.max(4, innerWidth - 12); // "X/10  100%" 부분 제외 (모두 ASCII → 자 단위)
   const bar = renderBar(progressRatio, barWidth);
   const progressLabel = ` ${progressCount}/${PHASE_TOTAL}  ${String(progressPct).padStart(3)}%`;
   const filledCount = Math.round(progressRatio * barWidth);
@@ -346,9 +457,11 @@ export function renderDashboard(
   lines.push(boxLine(barColored + colorize(progressLabel, ANSI_WHITE)));
 
   // 헤더 라인: projectPath · platform · agent · 총 경과시간
+  // projectPath에 한글이 있을 수 있으므로 displayWidth 기준으로 truncate
   const elapsed = formatDuration(now - state.sessionStartTime);
+  const pathBudget = Math.max(10, Math.floor(innerWidth * 0.4));
   let headerParts = [
-    truncate(state.projectPath, Math.max(10, Math.floor(innerWidth * 0.4))),
+    truncateToWidth(state.projectPath, pathBudget),
     state.platform,
     state.agent,
     elapsed,
@@ -363,7 +476,7 @@ export function renderDashboard(
   }
 
   const headerText = headerParts.join(" · ");
-  const headerTruncated = truncate(headerText, innerWidth);
+  const headerTruncated = truncateToWidth(headerText, innerWidth);
   lines.push(boxLine(colorize(headerTruncated, ANSI_DIM)));
 
   // 하단 테두리
@@ -382,14 +495,21 @@ export function renderDashboard(
     });
     const completedText = completedParts.join("  ");
     const completedStripped = completedParts.map(stripAnsi).join("  ");
-    lines.push(" " + (isColorEnabled() ? truncateWithAnsi(completedText, innerWidth) : truncate(completedStripped, innerWidth)));
+    // displayWidth 기준으로 truncate
+    const truncated = isColorEnabled()
+      ? truncateAnsi(completedText, innerWidth)
+      : truncateToWidth(completedStripped, innerWidth);
+    lines.push(" " + truncated);
   }
 
   // ─── 3. 에러 단계 ─────────────────────────────────────────────
 
   if (state.errorPhase !== null) {
     const label = PHASE_LABELS[state.errorPhase] ?? state.errorPhase;
-    lines.push(" " + colorize(`✗ ${label}`, ANSI_RED));
+    // "✗ <label>": label에 한글 있을 수 있으므로 전체 폭 체크
+    const errorText = `✗ ${label}`;
+    const truncated = truncateToWidth(errorText, termWidth - 1);
+    lines.push(" " + colorize(truncated, ANSI_RED));
   }
 
   // ─── 4. 현재 진행 단계 ────────────────────────────────────────
@@ -400,44 +520,46 @@ export function renderDashboard(
       ? formatDuration(now - state.phaseStartTime)
       : "0.0s";
     const spinner = SPINNER_FRAMES[state.spinnerFrame % SPINNER_FRAMES.length];
-    // indeterminate: 총 시간을 알 수 없는 단계 — 스피너 + 경과초만
+    // "▶ <label> <spinner> <elapsed>" — label에 한글 있을 수 있음
+    const currentRaw = `▶ ${label} ${spinner} ${phaseElapsed}`;
     const currentLine = `▶ ${label} ${colorize(spinner, ANSI_YELLOW)} ${phaseElapsed}`;
-    lines.push(" " + currentLine);
+    // displayWidth 기준 전체 폭 확인: 초과 시 label을 줄임
+    const currentWidth = displayWidth(currentRaw);
+    const maxCurrentWidth = termWidth - 1; // 앞 " " 1자 여유
+    if (currentWidth <= maxCurrentWidth) {
+      lines.push(" " + currentLine);
+    } else {
+      // label을 줄여서 fit
+      const overhead = displayWidth(`▶  ${spinner} ${phaseElapsed}`) + 2; // " ▶ " + " " + spinner + " " + elapsed
+      const labelBudget = Math.max(2, maxCurrentWidth - overhead);
+      const labelTruncated = truncateToWidth(label, labelBudget);
+      lines.push(" " + `▶ ${labelTruncated} ${colorize(spinner, ANSI_YELLOW)} ${phaseElapsed}`);
+    }
 
     // 빌드 커맨드 요약 (build 단계일 때) — sanitize 후 출력
     if (state.currentPhase === "build" && state.buildCommand !== undefined) {
       const cmdSafe = sanitizeForTerminal(state.buildCommand);
-      const cmdText = truncate(cmdSafe, Math.max(10, innerWidth - 4));
+      // "   " 접두사(3자) + cmd → 전체 termWidth 이하
+      const cmdText = truncateToWidth(cmdSafe, Math.max(4, termWidth - 3));
       lines.push("   " + colorize(cmdText, ANSI_DIM));
     }
   }
 
   // ─── 5. 구분선 ────────────────────────────────────────────────
-
-  lines.push(" " + colorize("─".repeat(Math.max(1, termWidth - 3)), ANSI_GRAY));
+  // "─" 은 박스 드로잉 → displayWidth 1, termWidth - 2 개 (앞 " " 포함 termWidth-1 이하)
+  lines.push(" " + colorize("─".repeat(Math.max(1, termWidth - 2)), ANSI_GRAY));
 
   // ─── 6. 최근 detail — sanitize 후 출력 ───────────────────────
 
   if (state.lastDetail !== null) {
     const detailSafe = sanitizeForTerminal(state.lastDetail);
-    const detailText = truncate(detailSafe, Math.max(10, termWidth - 10));
+    // "최근: " = 4글자(한글2×2+": ") = displayWidth 6; 앞 " " 포함 총 7
+    const prefixWidth = displayWidth("최근: ") + 1; // " " + "최근: "
+    const detailText = truncateToWidth(detailSafe, Math.max(4, termWidth - prefixWidth));
     lines.push(" " + colorize("최근: ", ANSI_DIM) + colorize(detailText, ANSI_GRAY));
   }
 
   return lines;
-}
-
-// ─── 내부 헬퍼: ANSI 포함 문자열 truncate ────────────────────────
-
-/**
- * ANSI 코드가 포함된 문자열을 시각적 폭 기준으로 truncate한다.
- * strip 후 길이로 판단하고, 너무 길면 앞부분만 남긴다.
- */
-function truncateWithAnsi(text: string, maxVisibleLen: number): string {
-  const stripped = stripAnsi(text);
-  if (stripped.length <= maxVisibleLen) return text;
-  // 간단하게: strip 후 잘라서 반환 (색상 코드 손실 허용, 안전한 폴백)
-  return stripped.slice(0, maxVisibleLen - 1) + "…";
 }
 
 // ─── LiveDashboard 클래스 (부수효과) ─────────────────────────────
@@ -450,7 +572,10 @@ function truncateWithAnsi(text: string, maxVisibleLen: number): string {
 export class LiveDashboard {
   private state: DashboardState;
   private timer: ReturnType<typeof setInterval> | null = null;
-  private lastLineCount = 0;
+  /** resize 이벤트 debounce 타이머 — 80ms 내 중복 resize를 단일 렌더로 합산 */
+  private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 마지막 렌더 라인 목록 — 물리행 계산에 사용 */
+  private lastLines: string[] = [];
   private readonly isLive: boolean;
   /** non-TTY 폴백에서 쓰는 stepStartTimes */
   private readonly stepStartTimes = new Map<string, number>();
@@ -490,8 +615,9 @@ export class LiveDashboard {
     // 커서 숨김
     process.stderr.write("\x1b[?25l");
 
-    // SIGINT 훅은 stop()에서 복원 — 이 시점에 등록
+    // SIGINT 훅 및 resize 리스너 등록
     process.on("SIGINT", this._onSigint);
+    process.stderr.on("resize", this._onResize);
 
     // 초기 렌더
     this._render();
@@ -551,7 +677,12 @@ export class LiveDashboard {
       clearInterval(this.timer);
       this.timer = null;
     }
+    if (this.resizeTimer !== null) {
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = null;
+    }
     process.removeListener("SIGINT", this._onSigint);
+    process.stderr.removeListener("resize", this._onResize);
     if (this.isLive) {
       // 커서 복원
       process.stderr.write("\x1b[?25h");
@@ -563,6 +694,24 @@ export class LiveDashboard {
     process.exit(130); // 128 + SIGINT(2)
   };
 
+  /** resize 이벤트 핸들러 — 80ms debounce 후 재렌더 (렌더 폭주 방지) */
+  private readonly _onResize = (): void => {
+    if (this.resizeTimer !== null) {
+      clearTimeout(this.resizeTimer);
+    }
+    this.resizeTimer = setTimeout(() => {
+      this.resizeTimer = null;
+      this._render();
+    }, 80);
+    // 프로세스 종료를 막지 않게
+    if (
+      this.resizeTimer !== null &&
+      typeof (this.resizeTimer as NodeJS.Timeout).unref === "function"
+    ) {
+      (this.resizeTimer as NodeJS.Timeout).unref();
+    }
+  };
+
   private _render(): void {
     if (!this.isLive) return;
 
@@ -570,16 +719,19 @@ export class LiveDashboard {
     const now = Date.now();
     const lines = renderDashboard(this.state, termWidth, now);
 
-    // 직전 라인을 덮어쓰기: 커서를 위로 올리고 지운다
-    if (this.lastLineCount > 0) {
+    // 직전 라인을 덮어쓰기: lastLines를 현재 termWidth로 물리행 수 계산 후 커서를 올린다.
+    // renderDashboard 불변식(모든 라인 displayWidth ≤ termWidth)이 보장되면
+    // 평상시엔 rows == lastLines.length이고, resize 시에도 정확히 지운다.
+    if (this.lastLines.length > 0) {
+      const rows = physicalRows(this.lastLines, termWidth);
       process.stderr.write(
-        `\x1b[${this.lastLineCount}A` + // 위로 이동
-        "\x1b[0J",                        // 아래 전체 지우기
+        `\x1b[${rows}A` + // 물리 행 수만큼 위로 이동
+        "\x1b[0J",        // 아래 전체 지우기
       );
     }
 
     process.stderr.write(lines.join("\n") + "\n");
-    this.lastLineCount = lines.length;
+    this.lastLines = lines;
   }
 
   /** non-TTY 폴백: 풀 라벨 + sanitize 적용 (CI 로그 형식 보존) */

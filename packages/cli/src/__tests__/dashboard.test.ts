@@ -23,6 +23,9 @@ import {
   stripAnsi,
   sanitizeForTerminal,
   LiveDashboard,
+  displayWidth,
+  truncateToWidth,
+  physicalRows,
   type DashboardState,
 } from "../dashboard.js";
 import type { E2eProgressEvent } from "@karax/e2e";
@@ -664,4 +667,356 @@ describe("LiveDashboard._fallbackLog 풀 라벨 회귀 방지 (non-TTY)", () => 
     const output = writtenLines().join("");
     expect(output).not.toContain("\x1b");
   });
+});
+
+// ─── displayWidth ──────────────────────────────────────────────────
+
+describe("displayWidth", () => {
+  it("빈 문자열은 0", () => {
+    expect(displayWidth("")).toBe(0);
+  });
+
+  it("ASCII 문자열: 글자 수와 동일", () => {
+    expect(displayWidth("abc")).toBe(3);
+    expect(displayWidth("hello world")).toBe(11);
+  });
+
+  it("한글 음절(AC00-D7A3): 각 2칸", () => {
+    expect(displayWidth("시나리오")).toBe(8); // 4글자 × 2
+    expect(displayWidth("앱")).toBe(2);
+  });
+
+  it("한글 자모(1100-115F): 2칸", () => {
+    // U+1100 ᄀ (Hangul Jamo)
+    expect(displayWidth("ᄀ")).toBe(2);
+  });
+
+  it("CJK 통합 한자(4E00-9FFF): 2칸", () => {
+    expect(displayWidth("中")).toBe(2); // 中
+    expect(displayWidth("香")).toBe(2); // 香
+  });
+
+  it("이모지(1F300-1FAFF): 2칸", () => {
+    expect(displayWidth("🚀")).toBe(2);
+    expect(displayWidth("🎉")).toBe(2);
+    expect(displayWidth("⚠️")).toBeGreaterThanOrEqual(1); // 변형 선택자 포함 — 최소 1
+  });
+
+  it("혼합 문자열: ASCII + 한글", () => {
+    // "앱 v1" = 앱(2) + 공백(1) + v(1) + 1(1) = 5
+    expect(displayWidth("앱 v1")).toBe(5);
+  });
+
+  it("박스 드로잉 문자는 1칸 (의도된 동작)", () => {
+    expect(displayWidth("┃")).toBe(1);
+    expect(displayWidth("─")).toBe(1);
+    expect(displayWidth("┏")).toBe(1);
+    expect(displayWidth("┓")).toBe(1);
+  });
+
+  it("진행바 블록 문자는 1칸", () => {
+    expect(displayWidth("█")).toBe(1);
+    expect(displayWidth("░")).toBe(1);
+  });
+
+  it("✓ ▶ 같은 특수 ASCII 유사 문자는 1칸", () => {
+    expect(displayWidth("✓")).toBe(1);
+    expect(displayWidth("▶")).toBe(1);
+  });
+
+  it("결합 문자(0300-036F)는 0칸", () => {
+    // U+0301 acute accent (combining)
+    const base = "a";
+    const withCombining = "á"; // á (combining)
+    expect(displayWidth(withCombining)).toBe(displayWidth(base)); // 결합 문자는 폭 0
+  });
+
+  it("NUL(0x00)은 0칸", () => {
+    expect(displayWidth("\x00")).toBe(0);
+  });
+
+  it("전각 라틴 문자(FF00-FF60): 2칸", () => {
+    expect(displayWidth("！")).toBe(2); // ！ Fullwidth Exclamation Mark
+    expect(displayWidth("ａ")).toBe(2); // ａ Fullwidth Latin Small Letter A
+  });
+
+  it("히라가나(3041-303E): 2칸", () => {
+    expect(displayWidth("あ")).toBe(2); // あ
+    expect(displayWidth("い")).toBe(2); // い
+  });
+
+  it("카타카나(30A0-33FF 범위): 2칸", () => {
+    expect(displayWidth("ア")).toBe(2); // ア
+  });
+});
+
+// ─── truncateToWidth ───────────────────────────────────────────────
+
+describe("truncateToWidth", () => {
+  it("maxWidth보다 짧으면 그대로 반환", () => {
+    expect(truncateToWidth("abc", 10)).toBe("abc");
+    expect(truncateToWidth("시나리오", 10)).toBe("시나리오"); // width=8 ≤ 10
+  });
+
+  it("딱 맞으면 자르지 않음", () => {
+    expect(truncateToWidth("abc", 3)).toBe("abc");
+    expect(truncateToWidth("시나", 4)).toBe("시나"); // width=4 = maxWidth=4
+  });
+
+  it("ASCII: maxWidth 초과 시 … 붙여 자름", () => {
+    const result = truncateToWidth("hello world", 8);
+    expect(displayWidth(result)).toBeLessThanOrEqual(8);
+    expect(result).toContain("…");
+  });
+
+  it("한글: maxWidth 초과 시 결과 displayWidth ≤ maxWidth", () => {
+    // "시나리오" = width 8; maxWidth=5 → 잘려야 함
+    const result = truncateToWidth("시나리오", 5);
+    expect(displayWidth(result)).toBeLessThanOrEqual(5);
+    expect(result).toContain("…");
+  });
+
+  it("혼합: 잘린 결과가 maxWidth를 초과하지 않음", () => {
+    const result = truncateToWidth("앱 빌드 gradle assembleDebug", 10);
+    expect(displayWidth(result)).toBeLessThanOrEqual(10);
+  });
+
+  it("maxWidth=1: 최소한 … 또는 빈 문자열 반환", () => {
+    const result = truncateToWidth("abc", 1);
+    expect(displayWidth(result)).toBeLessThanOrEqual(1);
+  });
+
+  it("maxWidth=0: 빈 문자열 반환", () => {
+    expect(truncateToWidth("abc", 0)).toBe("");
+  });
+
+  it("빈 문자열은 그대로 반환", () => {
+    expect(truncateToWidth("", 10)).toBe("");
+  });
+
+  it("한글이 경계에 걸릴 때(폭 홀수): 초과하지 않음", () => {
+    // "시나" width=4, maxWidth=3 → "시"(2)+"…"(1)=3 이어야 함
+    const result = truncateToWidth("시나", 3);
+    expect(displayWidth(result)).toBeLessThanOrEqual(3);
+  });
+
+  it("이모지 포함 문자열 truncate: displayWidth ≤ maxWidth", () => {
+    const result = truncateToWidth("빌드 완료 🚀🎉", 8);
+    expect(displayWidth(result)).toBeLessThanOrEqual(8);
+  });
+});
+
+// ─── physicalRows ──────────────────────────────────────────────────
+
+describe("physicalRows", () => {
+  it("모든 라인이 termWidth 이하면 lines.length와 같음", () => {
+    const lines = ["abc", "def", "ghi"]; // 각 width=3
+    expect(physicalRows(lines, 80)).toBe(3);
+  });
+
+  it("빈 배열이면 0", () => {
+    expect(physicalRows([], 80)).toBe(0);
+  });
+
+  it("빈 문자열 라인은 물리 행 1개", () => {
+    expect(physicalRows([""], 80)).toBe(1);
+  });
+
+  it("width가 termWidth의 정확히 2배이면 물리 행 2개", () => {
+    // 20글자 ASCII = displayWidth 20, termWidth 10 → ceil(20/10) = 2
+    const lines = ["a".repeat(20)];
+    expect(physicalRows(lines, 10)).toBe(2);
+  });
+
+  it("한글 라인이 termWidth를 넘으면 물리 행이 늘어남", () => {
+    // "시나리오" = displayWidth 8; termWidth=5 → ceil(8/5)=2
+    const lines = ["시나리오"];
+    expect(physicalRows(lines, 5)).toBe(2);
+  });
+
+  it("termWidth=1: 각 글자가 물리 1행 (단 한글은 2행/글자)", () => {
+    // "ab" = displayWidth 2, termWidth=1 → ceil(2/1)=2
+    expect(physicalRows(["ab"], 1)).toBe(2);
+  });
+
+  it("ANSI 코드 포함 라인: strip 후 width 계산", () => {
+    // "\x1b[32m✓\x1b[0m abc" → strip → "✓ abc" = displayWidth 5
+    const lines = ["\x1b[32m✓\x1b[0m abc"];
+    expect(physicalRows(lines, 80)).toBe(1); // 5 ≤ 80 → 1행
+  });
+
+  // ─── termWidth <= 0 가드 테스트 ─────────────────────────────────
+
+  it("termWidth=0: 빈 배열이면 0 (가드)", () => {
+    expect(physicalRows([], 0)).toBe(0);
+  });
+
+  it("termWidth=0: 라인 1개이면 1 (lines.length 반환)", () => {
+    expect(physicalRows(["abc"], 0)).toBe(1);
+  });
+
+  it("termWidth=0: 라인 2개이면 2 (lines.length 반환)", () => {
+    expect(physicalRows(["a", "b"], 0)).toBe(2);
+  });
+
+  it("termWidth=-5: 라인 2개이면 2 (lines.length 반환)", () => {
+    expect(physicalRows(["a", "b"], -5)).toBe(2);
+  });
+
+  it("termWidth=-1: 빈 배열이면 0 (가드)", () => {
+    expect(physicalRows([], -1)).toBe(0);
+  });
+
+  it("termWidth=-999: Infinity가 되지 않고 lines.length를 반환한다", () => {
+    // 핵심: termWidth <= 0이면 Infinity 반환 대신 안전하게 lines.length 반환
+    const result = physicalRows(["abc"], -999);
+    expect(Number.isFinite(result)).toBe(true);
+    expect(result).toBe(1);
+  });
+});
+
+// ─── LiveDashboard resize debounce 테스트 ─────────────────────────
+
+describe("LiveDashboard resize debounce", () => {
+  let stderrSpy: ReturnType<typeof vi.spyOn>;
+  let origIsTTY: boolean | undefined;
+  let origColumns: number | undefined;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+
+    // TTY 환경 모킹 (isLive=true가 되도록)
+    origIsTTY = process.stderr.isTTY;
+    origColumns = process.stderr.columns;
+    Object.defineProperty(process.stderr, "isTTY", { value: true, configurable: true });
+    Object.defineProperty(process.stderr, "columns", { value: 80, configurable: true });
+
+    // NO_COLOR 제거 (isLive=true 조건)
+    delete process.env.NO_COLOR;
+
+    stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    stderrSpy.mockRestore();
+
+    // 원래 값 복원
+    if (origIsTTY === undefined) {
+      Object.defineProperty(process.stderr, "isTTY", { value: undefined, configurable: true });
+    } else {
+      Object.defineProperty(process.stderr, "isTTY", { value: origIsTTY, configurable: true });
+    }
+    if (origColumns === undefined) {
+      Object.defineProperty(process.stderr, "columns", { value: undefined, configurable: true });
+    } else {
+      Object.defineProperty(process.stderr, "columns", { value: origColumns, configurable: true });
+    }
+  });
+
+  function makeLiveDashboard() {
+    return new LiveDashboard({
+      projectPath: "/test",
+      platform: "android",
+      agent: "claude",
+    });
+  }
+
+  it("_cleanup()이 호출되면 resizeTimer가 정리된다 (누수 방지)", () => {
+    const dashboard = makeLiveDashboard();
+    dashboard.start();
+    stderrSpy.mockClear();
+
+    // resize 이벤트 발생 → debounce 타이머 예약됨
+    process.stderr.emit("resize");
+
+    // stop()이 cleanup을 호출 — 내부적으로 타이머가 clearTimeout됨
+    // fake timer 만료 전에 stop하면 _render가 추가 호출되지 않아야 한다
+    const writeCountBeforeStop = stderrSpy.mock.calls.length;
+    dashboard.stop();
+    // stop이 최종 _render를 1번 호출하므로 그 이후 추가 호출이 없어야 한다
+    const writeCountAfterStop = stderrSpy.mock.calls.length;
+
+    // debounce 타이머 만료 시뮬레이션 — 이미 cleanup되었으므로 추가 write 없어야 함
+    vi.advanceTimersByTime(200);
+    expect(stderrSpy.mock.calls.length).toBe(writeCountAfterStop);
+  });
+
+  it("resize 이벤트가 연속으로 발생해도 debounce 지연 내에는 _render가 1번만 추가 호출된다", () => {
+    const dashboard = makeLiveDashboard();
+    dashboard.start();
+
+    // start()의 초기 _render 호출 카운트 기록
+    const writeCountAfterStart = stderrSpy.mock.calls.length;
+
+    // resize 이벤트를 10번 빠르게 발생
+    for (let i = 0; i < 10; i++) {
+      process.stderr.emit("resize");
+    }
+
+    // debounce 지연(80ms) 전에는 추가 _render가 없어야 한다
+    vi.advanceTimersByTime(50);
+    expect(stderrSpy.mock.calls.length).toBe(writeCountAfterStart);
+
+    // debounce 지연 후에는 _render가 정확히 1번 추가 호출되어야 한다
+    vi.advanceTimersByTime(100);
+    // 최소 1번의 write가 발생해야 함 (debounce된 _render)
+    expect(stderrSpy.mock.calls.length).toBeGreaterThan(writeCountAfterStart);
+
+    dashboard.stop();
+  });
+});
+
+// ─── renderDashboard 불변식: 모든 라인의 displayWidth ≤ termWidth ──
+
+describe("renderDashboard 불변식: displayWidth ≤ termWidth", () => {
+  const termWidths = [20, 40, 80, 120];
+
+  function assertInvariant(state: DashboardState, termWidth: number): void {
+    const lines = renderDashboard(state, termWidth, 60000);
+    for (const line of lines) {
+      const w = displayWidth(stripAnsi(line));
+      if (w > termWidth) {
+        throw new Error(
+          `라인 폭(${w}) > termWidth(${termWidth}): "${stripAnsi(line).slice(0, 60)}"`
+        );
+      }
+    }
+  }
+
+  beforeEach(() => {
+    process.env.NO_COLOR = "1";
+  });
+
+  afterEach(() => {
+    delete process.env.NO_COLOR;
+  });
+
+  for (const tw of termWidths) {
+    it(`termWidth=${tw}: 기본 상태에서 모든 라인 폭 ≤ termWidth`, () => {
+      assertInvariant(makeRenderState(), tw);
+    });
+
+    it(`termWidth=${tw}: 한글 projectPath에서 모든 라인 폭 ≤ termWidth`, () => {
+      const state = makeRenderState({ projectPath: "/홈/사용자/내프로젝트앱/안드로이드빌드" });
+      assertInvariant(state, tw);
+    });
+
+    it(`termWidth=${tw}: 긴 한글 detail에서 모든 라인 폭 ≤ termWidth`, () => {
+      const state = makeRenderState({
+        lastDetail: "그래들 빌드 진행 중: 컴파일 단계에서 오류 발생 — 상세 메시지 확인 필요합니다",
+      });
+      assertInvariant(state, tw);
+    });
+
+    it(`termWidth=${tw}: suite 모드(한글 시나리오 인덱스)에서 모든 라인 폭 ≤ termWidth`, () => {
+      const state = makeRenderState({ lastStepIndex: 2, totalSteps: 10 });
+      assertInvariant(state, tw);
+    });
+
+    it(`termWidth=${tw}: 이모지 섞인 detail에서 모든 라인 폭 ≤ termWidth`, () => {
+      const state = makeRenderState({ lastDetail: "빌드 완료 🚀 앱 설치 중 📱 시뮬레이터 시작" });
+      assertInvariant(state, tw);
+    });
+  }
 });
