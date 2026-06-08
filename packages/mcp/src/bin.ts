@@ -23,17 +23,52 @@
 
   if (needsRespawn) {
     const { spawnSync } = await import("node:child_process");
+    const { formatRespawnCrash } = await import("@karax/core");
+
     const result = spawnSync(
       process.execPath,
       [...WASM_FLAGS, process.argv[1], ...process.argv.slice(2)],
       {
         stdio: "inherit",
+        // env는 ...process.env 그대로 → KARAX_DEBUG 자동 전파
         env: { ...process.env, [WASM_MARKER_ENV]: "1" },
       }
     );
+
+    // respawn 크래시 감지 + stderr 보고
+    const crashMsg = formatRespawnCrash(result);
+    if (crashMsg !== null) {
+      process.stderr.write(`[karax/mcp] WASM respawn 크래시: ${crashMsg}\n`);
+    }
+
     process.exit(result.status ?? 1);
   }
 }
+// ─────────────────────────────────────────────────────────────────────
+
+// ─── 전역 unhandled 핸들러 (mcp bin.ts 진입점 한정) ──────────────────
+// MCP 서버는 JSON-RPC 채널(stdout)을 보호해야 하므로 stderr 전용으로만 출력.
+// KARAX_DEBUG=1일 때 full stack 추가.
+
+const _mcpDebug = process.env["KARAX_DEBUG"] === "1";
+
+process.on("unhandledRejection", (reason) => {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  process.stderr.write(`[karax/mcp] unhandledRejection: ${message}\n`);
+  if (_mcpDebug && reason instanceof Error && reason.stack) {
+    process.stderr.write(`${reason.stack}\n`);
+  }
+  process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+  process.stderr.write(`[karax/mcp] uncaughtException: ${err.message}\n`);
+  if (_mcpDebug && err.stack) {
+    process.stderr.write(`${err.stack}\n`);
+  }
+  process.exit(1);
+});
+
 // ─────────────────────────────────────────────────────────────────────
 
 import { startStdioServer } from "./server.js";

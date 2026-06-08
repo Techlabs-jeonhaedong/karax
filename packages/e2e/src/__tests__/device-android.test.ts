@@ -21,8 +21,12 @@ import { createAndroidDeviceManager } from "../device/android.js";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockExeca = execa as any as ReturnType<typeof vi.fn>;
 
+// process.kill mock (kill 호출 검증)
+const mockProcessKill = vi.spyOn(process, "kill").mockImplementation(() => true);
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mockProcessKill.mockClear();
 });
 
 describe("createAndroidDeviceManager", () => {
@@ -116,15 +120,7 @@ describe("createAndroidDeviceManager", () => {
     });
   });
 
-  describe("실기기 경로 (KARAX_E2E_REAL 가드)", () => {
-    it("KARAX_E2E_REAL 없으면 ensureBooted 테스트를 skip", () => {
-      if (process.env["KARAX_E2E_REAL"]) return;
-      // 실기기 없이는 ensureBooted 테스트 수행 안 함
-      expect(true).toBe(true);
-    });
-  });
-
-  // ── 인자 검증 (항목 8) ─────────────────────────────────────────────
+  // ── 인자 검증 ─────────────────────────────────────────────────────────────
 
   describe("인자 검증", () => {
     it("'-e' 로 시작하는 deviceId를 거부한다 (INVALID_ARGUMENT)", async () => {
@@ -172,22 +168,125 @@ describe("createAndroidDeviceManager", () => {
     it("유효한 deviceId/appId/artifactPath는 통과한다", async () => {
       mockExeca.mockResolvedValueOnce({ stdout: "Success", stderr: "", exitCode: 0 });
       const manager = createAndroidDeviceManager("/sdk");
-      // 예외 없이 통과해야 함
       await expect(manager.install("emulator-5554", "/tmp/app.apk")).resolves.toBeUndefined();
     });
   });
 
-  // ── ensureBooted 타임아웃 시 emulator 프로세스 kill (항목 10) ────────────
+  // ── M11: install opts.grantAllPermissions ─────────────────────────
 
-  describe("ensureBooted — 타임아웃 시 emulator kill", () => {
-    it("EMULATOR_BOOT_TIMEOUT 에러 코드가 E2eError로 정의됨", () => {
-      // 실제 타임아웃(180s)을 기다릴 수 없으므로 에러 코드 정의를 검증한다
-      const err = new E2eError("EMULATOR_BOOT_TIMEOUT", "부팅 타임아웃");
-      expect(err.code).toBe("EMULATOR_BOOT_TIMEOUT");
-      expect(err).toBeInstanceOf(Error);
+  describe("install(deviceId, artifactPath, { grantAllPermissions: true })", () => {
+    it("-g 플래그를 adb install 인자에 추가한다", async () => {
+      mockExeca.mockResolvedValueOnce({ stdout: "Success", stderr: "", exitCode: 0 });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.install("emulator-5554", "/tmp/app.apk", { grantAllPermissions: true });
+
+      expect(mockExeca).toHaveBeenCalledWith(
+        expect.stringContaining("adb"),
+        expect.arrayContaining(["-s", "emulator-5554", "install", "-g", "-r", "-t", "/tmp/app.apk"]),
+        expect.any(Object)
+      );
     });
 
-    it("ensureBooted: 부팅된 기기 없고 AVD도 없으면 NO_DEVICE_AVAILABLE", async () => {
+    it("grantAllPermissions=false 면 -g 없이 호출한다", async () => {
+      mockExeca.mockResolvedValueOnce({ stdout: "Success", stderr: "", exitCode: 0 });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.install("emulator-5554", "/tmp/app.apk", { grantAllPermissions: false });
+
+      const call = mockExeca.mock.calls[0]!;
+      expect(call[1]).not.toContain("-g");
+    });
+
+    it("opts 미전달 시 -g 없이 호출한다 (기본 동작 무변경)", async () => {
+      mockExeca.mockResolvedValueOnce({ stdout: "Success", stderr: "", exitCode: 0 });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.install("emulator-5554", "/tmp/app.apk");
+
+      const call = mockExeca.mock.calls[0]!;
+      expect(call[1]).not.toContain("-g");
+    });
+  });
+
+  // ── M11: grantPermissions ──────────────────────────────────────────
+
+  describe("grantPermissions(deviceId, appId, permissions)", () => {
+    it("각 권한에 adb shell pm grant 를 호출한다", async () => {
+      // pm grant 2번
+      mockExeca.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as unknown as ReturnType<typeof execa>);
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.grantPermissions!("emulator-5554", "com.example.app", [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+      ]);
+
+      expect(mockExeca).toHaveBeenCalledTimes(2);
+      expect(mockExeca).toHaveBeenCalledWith(
+        expect.stringContaining("adb"),
+        expect.arrayContaining([
+          "-s", "emulator-5554",
+          "shell", "pm", "grant", "com.example.app", "android.permission.CAMERA",
+        ]),
+        expect.any(Object)
+      );
+    });
+
+    it("'android.permission.' 접두 없는 권한명에 자동 부착한다", async () => {
+      mockExeca.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as unknown as ReturnType<typeof execa>);
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.grantPermissions!("emulator-5554", "com.example.app", ["CAMERA"]);
+
+      expect(mockExeca).toHaveBeenCalledWith(
+        expect.stringContaining("adb"),
+        expect.arrayContaining(["android.permission.CAMERA"]),
+        expect.any(Object)
+      );
+    });
+
+    it("권한명이 ^[A-Za-z0-9_.]+$ 패턴 위반 시 해당 권한을 스킵한다 (인젝션 방어)", async () => {
+      // 유효 1개 + 위반 1개
+      mockExeca.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as unknown as ReturnType<typeof execa>);
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.grantPermissions!("emulator-5554", "com.example.app", [
+        "CAMERA",           // 유효
+        "CAMERA; rm -rf /", // 인젝션 — 스킵
+      ]);
+
+      // 유효한 1개만 호출
+      expect(mockExeca).toHaveBeenCalledTimes(1);
+    });
+
+    it("빈 배열이면 execa 미호출", async () => {
+      const manager = createAndroidDeviceManager("/sdk");
+      await manager.grantPermissions!("emulator-5554", "com.example.app", []);
+
+      expect(mockExeca).not.toHaveBeenCalled();
+    });
+
+    it("개별 grant 실패는 무시하고 나머지를 계속 처리한다 (best-effort)", async () => {
+      // 첫 번째 실패, 두 번째 성공
+      mockExeca
+        .mockRejectedValueOnce(new Error("permission denied"))
+        .mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 } as unknown as ReturnType<typeof execa>);
+
+      const manager = createAndroidDeviceManager("/sdk");
+      // throw 없이 완료
+      await expect(
+        manager.grantPermissions!("emulator-5554", "com.example.app", ["CAMERA", "RECORD_AUDIO"])
+      ).resolves.toBeUndefined();
+
+      expect(mockExeca).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ── ensureBooted — 폴링 타임아웃 경로 (항목 D) ────────────────────────────
+
+  describe("ensureBooted — 폴링 타임아웃 경로", () => {
+    it("부팅된 기기 없고 AVD도 없으면 NO_DEVICE_AVAILABLE", async () => {
       // list → 빈 배열
       mockExeca.mockResolvedValueOnce({
         stdout: "List of devices attached\n",
@@ -205,6 +304,152 @@ describe("createAndroidDeviceManager", () => {
       await expect(manager.ensureBooted()).rejects.toMatchObject({
         code: "NO_DEVICE_AVAILABLE",
       });
+    });
+
+    it("폴링 deadline 만료 시 EMULATOR_BOOT_TIMEOUT을 던지고 emulator process.kill을 호출한다", async () => {
+      // list → 빈 배열 (부팅된 기기 없음)
+      mockExeca.mockResolvedValueOnce({
+        stdout: "List of devices attached\n",
+        stderr: "",
+        exitCode: 0,
+      });
+      // listAvds → AVD 있음
+      mockExeca.mockResolvedValueOnce({
+        stdout: "Pixel_8_API_34\n",
+        stderr: "",
+        exitCode: 0,
+      });
+      // emulator 시작 (detached) — pid를 돌려줄 mock
+      const mockEmulatorProc = {
+        pid: 99999,
+        unref: vi.fn(),
+      };
+      mockExeca.mockReturnValueOnce(mockEmulatorProc);
+
+      // 폴링 중 adb devices → 항상 빈 응답 (부팅 미완료)
+      // bootTimeoutMs=50ms, pollIntervalMs=0ms → 최대 수 회 폴링 후 deadline 만료
+      mockExeca.mockResolvedValue({
+        stdout: "List of devices attached\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const manager = createAndroidDeviceManager("/sdk", {
+        bootTimeoutMs: 50,
+        pollIntervalMs: 0,
+      });
+
+      await expect(manager.ensureBooted()).rejects.toMatchObject({
+        code: "EMULATOR_BOOT_TIMEOUT",
+      });
+
+      // best-effort process.kill 호출 확인
+      expect(mockProcessKill).toHaveBeenCalledWith(99999);
+    });
+
+    it("폴링 도중 sys.boot_completed=1 확인 시 정상 DeviceInfo 반환", async () => {
+      // list → 빈 배열 (처음에 부팅된 기기 없음)
+      mockExeca.mockResolvedValueOnce({
+        stdout: "List of devices attached\n",
+        stderr: "",
+        exitCode: 0,
+      });
+      // listAvds → AVD 있음
+      mockExeca.mockResolvedValueOnce({
+        stdout: "Pixel_8_API_34\n",
+        stderr: "",
+        exitCode: 0,
+      });
+      // emulator 시작 (detached)
+      const mockEmulatorProc = {
+        pid: 12345,
+        unref: vi.fn(),
+      };
+      mockExeca.mockReturnValueOnce(mockEmulatorProc);
+
+      // 첫 번째 폴링 adb devices → 에뮬레이터 등장
+      mockExeca.mockResolvedValueOnce({
+        stdout: "List of devices attached\nemulator-5554\tdevice\n",
+        stderr: "",
+        exitCode: 0,
+      });
+      // getprop sys.boot_completed → 1
+      mockExeca.mockResolvedValueOnce({
+        stdout: "1",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const manager = createAndroidDeviceManager("/sdk", {
+        bootTimeoutMs: 5000,
+        pollIntervalMs: 0,
+      });
+
+      const device = await manager.ensureBooted();
+      expect(device.id).toBe("emulator-5554");
+      expect(device.isBooted).toBe(true);
+      expect(device.platform).toBe("android");
+      // 정상 완료 시 process.kill 미호출
+      expect(mockProcessKill).not.toHaveBeenCalled();
+    });
+
+    it("ensureBooted — preferredId에 셸 메타문자 포함 시 INVALID_ARGUMENT", async () => {
+      // 이미 부팅된 기기 있는 상태에서 preferredId 검증
+      mockExeca.mockResolvedValueOnce({
+        stdout: "List of devices attached\nemulator-5554\tdevice\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.ensureBooted("emulator-5554; rm -rf /")).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    });
+
+    it("ensureBooted — preferredId에 공백 포함 시 INVALID_ARGUMENT", async () => {
+      mockExeca.mockResolvedValueOnce({
+        stdout: "List of devices attached\nemulator-5554\tdevice\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.ensureBooted("emulator 5554")).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    });
+
+    it("ensureBooted — preferredId에 백틱 포함 시 INVALID_ARGUMENT", async () => {
+      mockExeca.mockResolvedValueOnce({
+        stdout: "List of devices attached\nemulator-5554\tdevice\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const manager = createAndroidDeviceManager("/sdk");
+      await expect(manager.ensureBooted("emulator`evil`")).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    });
+
+    it("이미 부팅된 기기가 있으면 에뮬레이터를 새로 시작하지 않는다", async () => {
+      // list → 이미 부팅된 기기 있음
+      mockExeca.mockResolvedValueOnce({
+        stdout: "List of devices attached\nemulator-5554\tdevice\n",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      const manager = createAndroidDeviceManager("/sdk", {
+        bootTimeoutMs: 50,
+        pollIntervalMs: 0,
+      });
+
+      const device = await manager.ensureBooted();
+      expect(device.id).toBe("emulator-5554");
+      // emulator 시작 mock 호출 없음 (execa 1회만 호출)
+      expect(mockExeca).toHaveBeenCalledTimes(1);
     });
   });
 });

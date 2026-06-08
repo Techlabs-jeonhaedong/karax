@@ -464,13 +464,14 @@ function resolveTo(
       ],
     };
   }
+  // routeRaw만 있는 케이스 = 변수/표현식 등 동적 인자 → DYNAMIC_NAV
   return {
     to: null,
     ...(call.routeRaw ? { toRouteName: call.routeRaw } : {}),
     conf: 0.3,
     diagnostics: [
       {
-        code: "UNRESOLVED_NAV",
+        code: "DYNAMIC_NAV",
         message: `동적 라우트 인자를 해석할 수 없음${call.routeRaw ? `: ${call.routeRaw}` : ""}`,
       },
     ],

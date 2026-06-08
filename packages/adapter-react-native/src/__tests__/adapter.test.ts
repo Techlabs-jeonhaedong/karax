@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import path from "path";
 import { fileURLToPath } from "url";
 import { reactNativeAdapter } from "../index.js";
+import type { DebugEvent } from "@karax/adapter-api";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.resolve(__dirname, "../../../..", "fixtures/react-native-basic");
@@ -72,5 +73,33 @@ describe("reactNativeAdapter.discoverScreens()", () => {
     const home = screens.find(s => s.id === "HomeScreen");
     expect(home?.sourceRef?.file).toContain("HomeScreen");
     expect(home?.sourceRef?.line).toBeGreaterThan(0);
+  });
+});
+
+// ── onDebug 콜백 관측 테스트 ─────────────────────────────────────────────────
+
+describe("reactNativeAdapter — onDebug 콜백", () => {
+  it("onDebug 없이도 discoverScreens가 정상 동작해야 한다 (하위호환)", async () => {
+    await expect(reactNativeAdapter.discoverScreens({
+      projectPath: FIXTURE_PATH,
+      includeCandidates: true,
+    })).resolves.toBeDefined();
+  });
+
+  it("onDebug를 전달하면 이벤트를 수신할 수 있다", async () => {
+    const events: DebugEvent[] = [];
+    const onDebug = vi.fn((e: DebugEvent) => events.push(e));
+
+    await expect(reactNativeAdapter.discoverScreens({
+      projectPath: FIXTURE_PATH,
+      includeCandidates: true,
+      onDebug,
+    })).resolves.toBeDefined();
+
+    // 이벤트가 발생하면 올바른 구조를 가져야 한다
+    for (const event of events) {
+      expect(event.tag).toBeDefined();
+      expect(event.message).toBeDefined();
+    }
   });
 });

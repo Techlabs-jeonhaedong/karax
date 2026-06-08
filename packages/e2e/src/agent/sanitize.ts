@@ -1,21 +1,17 @@
 /**
- * agent/sanitize.ts — 에이전트 stderr/에러 메시지에서 API 키를 redact한다.
+ * agent/sanitize.ts — @karax/core redactSecrets의 re-export shim.
+ *
+ * 기존 export 시그니처(`sanitizeStderr`)를 유지한 채
+ * 내부 구현을 @karax/core의 redactSecrets로 위임한다.
+ * importer(agent/runner.ts, crash/detect.ts)는 변경 없이 동작한다.
  */
 
-const REDACT_PATTERNS: RegExp[] = [
-  // KEY=value 형태의 환경변수 값
-  /(ANTHROPIC|OPENAI|GEMINI)_API_KEY=\S+/g,
-  // sk- 형태의 API 키 (8자 이상)
-  /sk-[A-Za-z0-9\-_]{8,}/g,
-];
+import { redactSecrets } from "@karax/core";
 
 /**
  * stderr 문자열에서 API 키 패턴을 [REDACTED]로 치환한다.
+ * @karax/core redactSecrets에 위임한다.
  */
 export function sanitizeStderr(stderr: string): string {
-  let result = stderr;
-  for (const pattern of REDACT_PATTERNS) {
-    result = result.replace(pattern, "[REDACTED]");
-  }
-  return result;
+  return redactSecrets(stderr);
 }

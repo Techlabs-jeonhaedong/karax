@@ -207,6 +207,126 @@ describe("parseTestArgs", () => {
     const result = parseTestArgs(["/proj", "--platform", "android", "--json"]);
     expect(result.json).toBe(true);
   });
+
+  // ── M11 플래그 ────────────────────────────────────────────────────
+
+  it("기본값: noBuild=false (--no-build 미지정 시)", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.noBuild).toBe(false);
+  });
+
+  it("--no-build 지정 시 noBuild=true", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--no-build"]);
+    expect(result.noBuild).toBe(true);
+  });
+
+  it("기본값: reuseBuild=false", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.reuseBuild).toBe(false);
+  });
+
+  it("--reuse-build 지정 시 reuseBuild=true", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--reuse-build"]);
+    expect(result.reuseBuild).toBe(true);
+  });
+
+  it("기본값: grantPermissions=false", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.grantPermissions).toBe(false);
+  });
+
+  it("--grant-permissions 지정 시 grantPermissions=true", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--grant-permissions"]);
+    expect(result.grantPermissions).toBe(true);
+  });
+
+  it("기본값: recordVideo=false", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.recordVideo).toBe(false);
+  });
+
+  it("--record-video 지정 시 recordVideo=true", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--record-video"]);
+    expect(result.recordVideo).toBe(true);
+  });
+
+  it("4개 M11 플래그 동시 지정", () => {
+    const result = parseTestArgs([
+      "/proj", "--platform", "android",
+      "--reuse-build", "--no-build", "--grant-permissions", "--record-video",
+    ]);
+    expect(result.reuseBuild).toBe(true);
+    expect(result.noBuild).toBe(true);
+    expect(result.grantPermissions).toBe(true);
+    expect(result.recordVideo).toBe(true);
+  });
+
+  // ── --no-fail-on-crash ─────────────────────────────────────────────
+
+  it("기본값: failOnCrash=true (--no-fail-on-crash 미지정 시)", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.failOnCrash).toBe(true);
+  });
+
+  it("--no-fail-on-crash 지정 시 failOnCrash=false", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--no-fail-on-crash"]);
+    expect(result.failOnCrash).toBe(false);
+  });
+
+  it("--no-fail-on-crash와 다른 플래그 동시 지정", () => {
+    const result = parseTestArgs([
+      "/proj", "--platform", "android",
+      "--no-fail-on-crash", "--keep-booted", "--json",
+    ]);
+    expect(result.failOnCrash).toBe(false);
+    expect(result.keepBooted).toBe(true);
+    expect(result.json).toBe(true);
+  });
+
+  // ── --build-command ────────────────────────────────────────────────
+
+  it("기본값: buildCommand=undefined (--build-command 미지정 시)", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.buildCommand).toBeUndefined();
+  });
+
+  it("--build-command 지정 시 buildCommand에 값이 담긴다", () => {
+    const result = parseTestArgs([
+      "/proj", "--platform", "android",
+      "--build-command", "fvm flutter build apk --debug --flavor dev",
+    ]);
+    expect(result.buildCommand).toBe("fvm flutter build apk --debug --flavor dev");
+  });
+
+  it("--build-command와 --reuse-build 동시 지정", () => {
+    const result = parseTestArgs([
+      "/proj", "--platform", "android",
+      "--reuse-build",
+      "--build-command", "fvm flutter build apk --debug --flavor dev",
+    ]);
+    expect(result.reuseBuild).toBe(true);
+    expect(result.buildCommand).toBe("fvm flutter build apk --debug --flavor dev");
+  });
+
+  it("--build-command 4096자 초과 시 에러를 던진다 (INVALID_ARGUMENT)", () => {
+    const longCmd = "a".repeat(4097);
+    expect(() => parseTestArgs(["/proj", "--platform", "android", "--build-command", longCmd])).toThrow(
+      /4096|INVALID_ARGUMENT/
+    );
+  });
+
+  it("--build-command 정확히 4096자이면 허용된다", () => {
+    const maxCmd = "a".repeat(4096);
+    const result = parseTestArgs(["/proj", "--platform", "android", "--build-command", maxCmd]);
+    expect(result.buildCommand?.length).toBe(4096);
+  });
+
+  it("--build-command 빈 문자열이면 undefined로 처리된다 (commander 동작)", () => {
+    // commander는 빈 문자열 인수를 ""로 전달하므로 길이 0은 에러 없이 통과
+    // (MCP 측에서 .min(1) 검증, CLI는 길이 상한만 체크)
+    const result = parseTestArgs(["/proj", "--platform", "android", "--build-command", ""]);
+    expect(result.buildCommand).toBe("");
+  });
 });
 
 // ─── map ───────────────────────────────────────────────────────────
@@ -281,6 +401,51 @@ describe("parseMapArgs", () => {
     expect(result.layout).toBe(false);
     expect(result.json).toBe(true);
   });
+
+  // ── [작업 C-2] --framework / --stdout 옵션 ────────────────────────
+
+  it("--framework flutter 옵션을 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--framework", "flutter"]);
+    expect(result.framework).toBe("flutter");
+  });
+
+  it("--framework react-native 옵션을 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--framework", "react-native"]);
+    expect(result.framework).toBe("react-native");
+  });
+
+  it("--framework android 옵션을 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--framework", "android"]);
+    expect(result.framework).toBe("android");
+  });
+
+  it("--framework ios 옵션을 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--framework", "ios"]);
+    expect(result.framework).toBe("ios");
+  });
+
+  it("잘못된 --framework 값이면 에러를 던진다", () => {
+    expect(() => parseMapArgs(["/p", "--framework", "xamarin"])).toThrow(/framework/);
+  });
+
+  it("--stdout 플래그를 파싱한다", () => {
+    const result = parseMapArgs(["/p", "--stdout"]);
+    expect(result.stdout).toBe(true);
+  });
+
+  it("--stdout 미지정 시 false", () => {
+    const result = parseMapArgs(["/p"]);
+    expect(result.stdout).toBe(false);
+  });
+
+  it("framework 미지정 시 undefined", () => {
+    const result = parseMapArgs(["/p"]);
+    expect(result.framework).toBeUndefined();
+  });
+
+  it("--stdout과 --out 동시 지정 시 에러를 던진다", () => {
+    expect(() => parseMapArgs(["/p", "--stdout", "--out", "/tmp/out"])).toThrow(/stdout.*out|out.*stdout/i);
+  });
 });
 
 // ─── EXIT_CODES ────────────────────────────────────────────────────
@@ -289,4 +454,78 @@ describe("EXIT_CODES", () => {
   it("성공은 0", () => expect(EXIT_CODES.SUCCESS).toBe(0));
   it("부분 실패는 2", () => expect(EXIT_CODES.PARTIAL_FAILURE).toBe(2));
   it("실패는 1", () => expect(EXIT_CODES.FAILURE).toBe(1));
+});
+
+// ─── --debug 옵션 (Phase C-2) ────────────────────────────────────────
+
+describe("parseDetectArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseDetectArgs(["/some/project"]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseDetectArgs(["/some/project", "--debug"]);
+    expect(result.debug).toBe(true);
+  });
+});
+
+describe("parseDoctorArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseDoctorArgs([]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseDoctorArgs(["--debug"]);
+    expect(result.debug).toBe(true);
+  });
+});
+
+describe("parseListArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseListArgs(["/p"]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseListArgs(["/p", "--debug"]);
+    expect(result.debug).toBe(true);
+  });
+});
+
+describe("parseCaptureArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseCaptureArgs(["/p"]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseCaptureArgs(["/p", "--debug"]);
+    expect(result.debug).toBe(true);
+  });
+});
+
+describe("parseMapArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseMapArgs(["/p"]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseMapArgs(["/p", "--debug"]);
+    expect(result.debug).toBe(true);
+  });
+});
+
+describe("parseTestArgs — --debug 옵션", () => {
+  it("--debug 미지정 시 debug=false", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android"]);
+    expect(result.debug).toBe(false);
+  });
+
+  it("--debug 지정 시 debug=true", () => {
+    const result = parseTestArgs(["/proj", "--platform", "android", "--debug"]);
+    expect(result.debug).toBe(true);
+  });
 });

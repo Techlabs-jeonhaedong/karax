@@ -19,16 +19,29 @@
   // child_process와 wasmFlags를 인라인으로 가져온다.
   const { spawnSync } = await import("node:child_process");
   const { shouldRespawn, WASM_FLAGS, WASM_MARKER_ENV } = await import("./wasmFlags.js");
+  const { formatRespawnCrash } = await import("@karax/core");
 
-  if (shouldRespawn(process.execArgv, process.env)) {
+  // `karax ui` 서브커맨드는 정적 분석(tree-sitter WASM) 불필요 → respawn 건너뜀
+  // 에이전트가 매 탭마다 호출하므로 기동 비용 절감
+  const isUiSubcommand = process.argv[2] === "ui";
+
+  if (!isUiSubcommand && shouldRespawn(process.execArgv, process.env)) {
     const result = spawnSync(
       process.execPath,
       [...WASM_FLAGS, process.argv[1], ...process.argv.slice(2)],
       {
         stdio: "inherit",
+        // env는 ...process.env 그대로 → KARAX_DEBUG 자동 전파
         env: { ...process.env, [WASM_MARKER_ENV]: "1" },
       }
     );
+
+    // respawn 크래시 감지 + stderr 보고
+    const crashMsg = formatRespawnCrash(result);
+    if (crashMsg !== null) {
+      process.stderr.write(`[karax/cli] WASM respawn 크래시: ${crashMsg}\n`);
+    }
+
     process.exit(result.status ?? 1);
   }
 }
@@ -48,6 +61,14 @@ import {
   parseMcpConfigArgs,
   parseTestArgs,
 } from "./commands.js";
+import { stripControls } from "./sanitize.js";
+import {
+  parseUiArgs,
+  runUiDump,
+  runUiLocate,
+  runUiWhichScreen,
+} from "./commands/ui.js";
+import { resolveDebug, printError } from "./debug.js";
 import type { DeviceProfileId } from "@karax/sdk";
 
 // repo 루트: packages/cli/dist/bin.js → ../../../ (= repo root)
@@ -59,6 +80,31 @@ const REPO_ROOT = resolve(dirname(__filename), "../../..");
 
 const VERSION = "0.0.1";
 
+// ─── 전역 unhandled 핸들러 (bin.ts 진입점 한정) ──────────────────────
+// 평소: 1줄 요약만 stderr, debug 시 full stack도 stderr
+// 두 핸들러 모두 그 후 exit 1
+
+const _globalDebug = resolveDebug(undefined, process.env);
+
+process.on("unhandledRejection", (reason) => {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  process.stderr.write(`[karax/cli] unhandledRejection: ${message}\n`);
+  if (_globalDebug && reason instanceof Error && reason.stack) {
+    process.stderr.write(`${reason.stack}\n`);
+  }
+  process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+  process.stderr.write(`[karax/cli] uncaughtException: ${err.message}\n`);
+  if (_globalDebug && err.stack) {
+    process.stderr.write(`${err.stack}\n`);
+  }
+  process.exit(1);
+});
+
+// ─────────────────────────────────────────────────────────────────────
+
 const program = new Command("karax");
 program.version(VERSION, "-V, --version", "버전 출력");
 program.description("소스코드 기반 앱 스크린샷 추출 도구");
@@ -68,9 +114,11 @@ program.description("소스코드 기반 앱 스크린샷 추출 도구");
 program
   .command("detect <path>")
   .description("프로젝트의 프레임워크 후보를 감지해 테이블로 출력한다")
-  .action(async (pathArg: string) => {
+  .option("--debug", "디버그 모드 활성화", false)
+  .action(async (pathArg: string, cmdOpts: { debug: boolean }) => {
+    const debug = resolveDebug(cmdOpts.debug || undefined, process.env);
     try {
-      parseDetectArgs([pathArg]); // 파싱 검증용
+      parseDetectArgs([pathArg, ...(debug ? ["--debug"] : [])]); // 파싱 검증용
       const { detectFramework } = await import("@karax/sdk");
       const result = await detectFramework(pathArg);
 
@@ -98,7 +146,7 @@ program
       console.log("");
       process.exit(EXIT_CODES.SUCCESS);
     } catch (e) {
-      console.error("오류:", e instanceof Error ? e.message : String(e));
+      printError(e, debug);
       process.exit(EXIT_CODES.FAILURE);
     }
   });
@@ -109,7 +157,9 @@ program
   .command("doctor [path]")
   .description("환경을 진단하고 프레임워크별 가용 티어를 출력한다")
   .option("--fix", "설치 가능한 의존성을 자동 설치", false)
-  .action(async (pathArg: string | undefined, opts: { fix: boolean }) => {
+  .option("--debug", "디버그 모드 활성화", false)
+  .action(async (pathArg: string | undefined, opts: { fix: boolean; debug: boolean }) => {
+    const debug = resolveDebug(opts.debug || undefined, process.env);
     try {
       const { doctor, doctorFix } = await import("@karax/sdk");
       const report = opts.fix
@@ -144,7 +194,7 @@ program
         report.overallOk ? EXIT_CODES.SUCCESS : EXIT_CODES.PARTIAL_FAILURE
       );
     } catch (e) {
-      console.error("오류:", e instanceof Error ? e.message : String(e));
+      printError(e, debug);
       process.exit(EXIT_CODES.FAILURE);
     }
   });
@@ -157,23 +207,33 @@ program
   .option("--include-candidates", "라우트 미연결 후보 화면 포함 (기본 on)")
   .option("--no-candidates", "후보 화면 제외")
   .option("--json", "JSON 형식으로 출력", false)
+  .option("--debug", "디버그 모드 활성화", false)
   .action(
     async (
       pathArg: string,
-      opts: { includeCandidates?: boolean; candidates?: boolean; json: boolean }
+      opts: { includeCandidates?: boolean; candidates?: boolean; json: boolean; debug: boolean }
     ) => {
+      const debug = resolveDebug(opts.debug || undefined, process.env);
       try {
         const listOpts = parseListArgs([
           pathArg,
           ...(opts.candidates === false ? ["--no-candidates"] : []),
           ...(opts.includeCandidates === true ? ["--include-candidates"] : []),
           ...(opts.json ? ["--json"] : []),
+          ...(debug ? ["--debug"] : []),
         ]);
 
         const { listScreens } = await import("@karax/sdk");
+        const onDebug = debug
+          ? (e: import("@karax/sdk").DebugEvent) => {
+              process.stderr.write(`[karax/debug] [${e.tag}] ${e.message}${e.detail ? `\n  detail: ${e.detail}` : ""}\n`);
+            }
+          : undefined;
+
         const screens = await listScreens({
           projectPath: listOpts.path,
           includeCandidates: listOpts.includeCandidates,
+          onDebug,
         });
 
         if (listOpts.json) {
@@ -202,7 +262,7 @@ program
 
         process.exit(EXIT_CODES.SUCCESS);
       } catch (e) {
-        console.error("오류:", e instanceof Error ? e.message : String(e));
+        printError(e, debug);
         process.exit(EXIT_CODES.FAILURE);
       }
     }
@@ -221,6 +281,7 @@ program
   .option("--json", "JSON 형식으로 출력", false)
   .option("--variants", "Branch 분기별 variant PNG 추가 생성 (Tier 2 전용)", false)
   .option("--overlay", "confidence < 0.5 노드 오버레이 PNG 추가 생성", false)
+  .option("--debug", "디버그 모드 활성화", false)
   .action(
     async (
       pathArg: string,
@@ -233,8 +294,10 @@ program
         json: boolean;
         variants: boolean;
         overlay: boolean;
+        debug: boolean;
       }
     ) => {
+      const debug = resolveDebug(opts.debug || undefined, process.env);
       try {
         // 파싱 검증 (mode 유효성 포함)
         const args = parseCaptureArgs([
@@ -249,10 +312,17 @@ program
           ...(opts.json ? ["--json"] : []),
           ...(opts.variants ? ["--variants"] : []),
           ...(opts.overlay ? ["--overlay"] : []),
+          ...(debug ? ["--debug"] : []),
         ]);
 
         const { captureScreen, captureAll } = await import("@karax/sdk");
         const outDir = args.out ?? "/tmp/karax-out";
+
+        const onDebug = debug
+          ? (e: import("@karax/sdk").DebugEvent) => {
+              process.stderr.write(`[karax/debug] [${e.tag}] ${e.message}${e.detail ? `\n  detail: ${e.detail}` : ""}\n`);
+            }
+          : undefined;
 
         if (args.screen) {
           // 단일 화면 캡처
@@ -265,6 +335,8 @@ program
             mockSeed: args.seed,
             variants: args.variants,
             overlay: args.overlay ? "confidence" : undefined,
+            debug,
+            onDebug,
           });
 
           if (args.json) {
@@ -290,6 +362,8 @@ program
             includeCandidates: true,
             variants: args.variants,
             overlay: args.overlay ? "confidence" : undefined,
+            debug,
+            onDebug,
           });
 
           // 실제 캡처 실패가 있을 때만 PARTIAL_FAILURE (exit 2)
@@ -339,7 +413,7 @@ program
           process.exit(exitCode);
         }
       } catch (e) {
-        console.error("오류:", e instanceof Error ? e.message : String(e));
+        printError(e, debug);
         process.exit(EXIT_CODES.FAILURE);
       }
     }
@@ -354,11 +428,23 @@ program
   .option("--max-chars <n>", "문서 분할 기준 최대 글자 수")
   .option("--json", "JSON 형식으로 AppMap 출력", false)
   .option("--no-layout", "정적 좌표 측정 비활성화 (Chromium 미사용)")
+  .option("--framework <id>", "프레임워크 강제 지정: flutter|react-native|android|ios")
+  .option("--stdout", "파일 저장 없이 마크다운을 stdout으로 출력", false)
+  .option("--debug", "디버그 모드 활성화", false)
   .action(
     async (
       pathArg: string,
-      opts: { out?: string; maxChars?: string; json: boolean; layout: boolean }
+      opts: {
+        out?: string;
+        maxChars?: string;
+        json: boolean;
+        layout: boolean;
+        framework?: string;
+        stdout: boolean;
+        debug: boolean;
+      }
     ) => {
+      const debug = resolveDebug(opts.debug || undefined, process.env);
       try {
         const args = parseMapArgs([
           pathArg,
@@ -366,49 +452,66 @@ program
           ...(opts.maxChars ? ["--max-chars", opts.maxChars] : []),
           ...(opts.json ? ["--json"] : []),
           ...(opts.layout === false ? ["--no-layout"] : []),
+          ...(opts.framework ? ["--framework", opts.framework] : []),
+          ...(opts.stdout ? ["--stdout"] : []),
+          ...(debug ? ["--debug"] : []),
         ]);
 
-        const { generateAppMap } = await import("@karax/sdk");
-        const appMap = await generateAppMap({ projectPath: args.path, includeLayout: args.layout });
+        const { generateAppMap, renderAppMapMarkdown, writeAppMapDocuments } =
+          await import("@karax/sdk");
+
+        const onDebug = debug
+          ? (e: import("@karax/sdk").DebugEvent) => {
+              process.stderr.write(`[karax/debug] [${e.tag}] ${e.message}${e.detail ? `\n  detail: ${e.detail}` : ""}\n`);
+            }
+          : undefined;
+
+        const generateOpts = {
+          projectPath: args.path,
+          includeLayout: args.layout,
+          ...(args.framework ? { framework: args.framework } : {}),
+          onDebug,
+        };
 
         if (args.json) {
+          // JSON 출력: AppMap 직접 반환 (기존 오버로드)
+          const appMap = await generateAppMap(generateOpts);
           console.log(JSON.stringify(appMap, null, 2));
           process.exit(EXIT_CODES.SUCCESS);
           return;
         }
 
-        // 마크다운 렌더링 후 파일 저장
-        const { renderAppMapMarkdown } = await import("@karax/core");
-        const { mkdir, writeFile } = await import("fs/promises");
-        const path = await import("path");
-        const outDir = args.out ?? ".";
+        if (args.stdout) {
+          // --stdout: 파일 저장 없이 마크다운 본문을 stdout으로 출력
+          const appMap = await generateAppMap(generateOpts);
+          const docs = renderAppMapMarkdown(appMap, {
+            ...(args.maxChars !== undefined ? { maxChars: args.maxChars } : {}),
+          });
+          const separator = "\n\n---\n\n";
+          console.log(docs.map((d) => d.content).join(separator));
+          process.exit(EXIT_CODES.SUCCESS);
+          return;
+        }
 
-        const docs = renderAppMapMarkdown(appMap, {
-          ...(args.maxChars !== undefined ? { maxChars: args.maxChars } : {}),
+        // 파일 저장: SDK write 오버로드 사용 (중복 로직 제거)
+        const outDir = args.out ?? ".";
+        const result = await generateAppMap({
+          ...generateOpts,
+          write: true,
+          outDir,
+          ...(args.maxChars !== undefined ? { maxCharsPerDoc: args.maxChars } : {}),
         });
 
-        await mkdir(outDir, { recursive: true });
-
-        const resolvedOutDir = path.resolve(outDir);
-
-        for (const doc of docs) {
-          // path.basename으로 경로 탈출 방어 — doc.fileName은 항상 단순 파일명이어야 함
-          const safeFileName = path.basename(doc.fileName);
-          const filePath = path.resolve(resolvedOutDir, safeFileName);
-          // outDir 내부인지 검증
-          if (!filePath.startsWith(resolvedOutDir + path.sep) && filePath !== resolvedOutDir) {
-            throw new Error(`경로 탈출 감지: ${doc.fileName}`);
-          }
-          await writeFile(filePath, doc.content, "utf-8");
-          console.log(`생성됨: ${filePath}`);
+        for (const p of result.writtenPaths) {
+          console.log(`생성됨: ${p}`);
         }
 
         console.log(
-          `\n앱 지도 생성 완료 (${docs.length}개 파일, confidence: ${(appMap.overallConfidence * 100).toFixed(1)}%)\n`
+          `\n앱 지도 생성 완료 (${result.writtenPaths.length}개 파일, confidence: ${(result.appMap.overallConfidence * 100).toFixed(1)}%)\n`
         );
         process.exit(EXIT_CODES.SUCCESS);
       } catch (e) {
-        console.error("오류:", e instanceof Error ? e.message : String(e));
+        printError(e, debug);
         process.exit(EXIT_CODES.FAILURE);
       }
     }
@@ -437,10 +540,11 @@ program
   .command("mcp-config")
   .description("MCP 클라이언트 설정 스니펫(JSON)을 출력한다")
   .action(() => {
+    const debug = resolveDebug(undefined, process.env);
     try {
       runMcpConfig();
     } catch (e) {
-      console.error("오류:", e instanceof Error ? e.message : String(e));
+      printError(e, debug);
       process.exit(EXIT_CODES.FAILURE);
     }
   });
@@ -451,10 +555,11 @@ mcpCmd
   .command("install-config")
   .description("MCP 클라이언트 설정 스니펫(JSON)을 출력한다 (karax mcp-config의 별칭)")
   .action(() => {
+    const debug = resolveDebug(undefined, process.env);
     try {
       runMcpConfig();
     } catch (e) {
-      console.error("오류:", e instanceof Error ? e.message : String(e));
+      printError(e, debug);
       process.exit(EXIT_CODES.FAILURE);
     }
   });
@@ -474,6 +579,16 @@ program
   .option("--max-steps <n>", "에이전트 최대 스텝 수", "20")
   .option("--json", "JSON 형식으로 출력", false)
   .option("--keep-booted", "테스트 후 디바이스를 종료하지 않음", false)
+  .option("--no-fail-on-crash", "크래시 감지 시 fail 강등을 비활성화한다")
+  .option("--reuse-build", "소스 핑거프린트 일치 시 이전 빌드를 재사용한다", false)
+  .option("--no-build", "빌드를 수행하지 않고 캐시 artifact만 사용한다 (없으면 에러)")
+  .option("--grant-permissions", "시나리오의 permissions[]를 자동으로 디바이스에 grant한다", false)
+  .option("--record-video", "앱 실행 중 화면을 비디오로 녹화한다", false)
+  .option("--debug", "디버그 모드 활성화", false)
+  .option(
+    "--build-command <cmd>",
+    '기본 빌드 커맨드 대신 실행할 사용자 정의 빌드 커맨드 (예: "fvm flutter build apk --debug --flavor dev")'
+  )
   .action(
     async (
       pathArg: string,
@@ -488,8 +603,16 @@ program
         maxSteps: string;
         json: boolean;
         keepBooted: boolean;
+        failOnCrash: boolean; // --no-fail-on-crash → opts.failOnCrash = false
+        reuseBuild: boolean;
+        build: boolean; // --no-build → opts.build = false
+        grantPermissions: boolean;
+        recordVideo: boolean;
+        debug: boolean;
+        buildCommand?: string;
       }
     ) => {
+      const debug = resolveDebug(opts.debug || undefined, process.env);
       try {
         const args = parseTestArgs([
           pathArg,
@@ -503,16 +626,96 @@ program
           "--max-steps", opts.maxSteps,
           ...(opts.json ? ["--json"] : []),
           ...(opts.keepBooted ? ["--keep-booted"] : []),
+          ...(opts.failOnCrash === false ? ["--no-fail-on-crash"] : []),
+          ...(opts.reuseBuild ? ["--reuse-build"] : []),
+          ...(opts.build === false ? ["--no-build"] : []),
+          ...(opts.grantPermissions ? ["--grant-permissions"] : []),
+          ...(opts.recordVideo ? ["--record-video"] : []),
+          ...(debug ? ["--debug"] : []),
+          ...(opts.buildCommand ? ["--build-command", opts.buildCommand] : []),
         ]);
 
-        const { runE2eTest } = await import("@karax/e2e");
+        // SDK 단일 진입점 원칙 — @karax/sdk의 runE2eTest/runE2eSuite가 기본 AppMapGenerator를 주입한다
+        const sdk = await import("@karax/sdk");
 
-        console.log(`\nE2E 테스트 시작: ${args.path} (플랫폼: ${args.platform}, 에이전트: ${args.agent})\n`);
+        // --scenario가 디렉토리이면 runE2eSuite, 파일이면 runE2eTest
+        const { statSync } = await import("node:fs");
+        const scenarioIsDir =
+          args.scenario !== undefined &&
+          (() => {
+            try {
+              return statSync(args.scenario!).isDirectory();
+            } catch {
+              return false;
+            }
+          })();
 
-        const result = await runE2eTest({
+        // progress 이벤트 → stderr 출력 (--json 모드와 stdout 충돌 방지)
+        const stepStartTimes = new Map<string, number>();
+        const PHASE_LABELS: Record<string, string> = {
+          scenario: "시나리오 파싱",
+          detect: "프레임워크 감지",
+          device: "디바이스 부팅",
+          appmap: "AppMap 생성",
+          build: "앱 빌드",
+          install: "앱 설치",
+          launch: "앱 실행",
+          agent: "에이전트 실행",
+          "crash-scan": "크래시 분석",
+          report: "리포트 작성",
+        };
+        const PHASE_TOTAL = 10;
+        let phaseIndex = 0;
+        const seenPhases = new Set<string>();
+        // suite에서 stepIndex별 카운터 리셋을 위해 마지막으로 본 stepIndex 추적
+        let lastStepIndex: number | undefined = undefined;
+
+        const onProgress = (event: import("@karax/sdk").E2eProgressEvent) => {
+          const label = PHASE_LABELS[event.phase] ?? event.phase;
+          const key = `${event.stepIndex ?? ""}-${event.phase}`;
+
+          // suite 모드: stepIndex가 바뀌면 phaseIndex/seenPhases 리셋
+          if (event.stepIndex !== undefined && event.stepIndex !== lastStepIndex) {
+            lastStepIndex = event.stepIndex;
+            phaseIndex = 0;
+            seenPhases.clear();
+          }
+
+          // heartbeat: 단계 전환 없이 진행 중임을 알리는 keepalive — 타이머/카운터 갱신 없음
+          if (event.heartbeat === true) {
+            const startTime = stepStartTimes.get(key);
+            const elapsedStr = startTime !== undefined
+              ? ` (${((Date.now() - startTime) / 1000).toFixed(1)}s 경과)`
+              : "";
+            process.stderr.write(`${label} 진행 중${elapsedStr}\n`);
+            return;
+          }
+
+          if (event.status === "start") {
+            if (!seenPhases.has(event.phase)) {
+              phaseIndex++;
+              seenPhases.add(event.phase);
+            }
+            stepStartTimes.set(key, Date.now());
+            const suitePrefix = event.stepIndex !== undefined && event.totalSteps !== undefined
+              ? `[시나리오 ${event.stepIndex + 1}/${event.totalSteps}] `
+              : "";
+            const detail = event.detail ? ` — ${event.detail}` : "";
+            process.stderr.write(`${suitePrefix}[${phaseIndex}/${PHASE_TOTAL}] ${label} 시작${detail}\n`);
+          } else if (event.status === "done") {
+            const elapsed = stepStartTimes.has(key) ? ((Date.now() - stepStartTimes.get(key)!) / 1000).toFixed(1) : null;
+            const elapsedStr = elapsed !== null ? ` (${elapsed}s)` : "";
+            const detail = event.detail ? ` — ${event.detail}` : "";
+            process.stderr.write(`✓ ${label} 완료${elapsedStr}${detail}\n`);
+          } else if (event.status === "error") {
+            const detail = event.detail ? `: ${event.detail}` : "";
+            process.stderr.write(`✗ ${label} 오류${detail}\n`);
+          }
+        };
+
+        const commonOpts = {
           projectPath: args.path,
           platform: args.platform,
-          scenarioPath: args.scenario,
           agent: args.agent,
           apiKey: args.apiKey,
           deviceId: args.device,
@@ -520,35 +723,187 @@ program
           timeoutMs: args.timeout,
           maxSteps: args.maxSteps,
           keepBooted: args.keepBooted,
-        });
+          failOnCrash: args.failOnCrash,
+          // M11: 운영 품질 옵션
+          reuseBuild: args.reuseBuild,
+          noBuild: args.noBuild,
+          grantPermissions: args.grantPermissions || undefined,
+          recordVideo: args.recordVideo,
+          // Phase C: debug 전파
+          debug,
+          // 사용자 정의 빌드 커맨드
+          buildCommand: args.buildCommand,
+          // progress 콜백
+          onProgress,
+        };
 
-        if (args.json) {
-          console.log(JSON.stringify(result, null, 2));
-        } else {
-          const outcomeIcon = result.outcome === "pass" ? "✓" : result.outcome === "fail" ? "✗" : "!";
-          console.log(`\nE2E 테스트 ${result.outcome === "pass" ? "통과" : result.outcome === "fail" ? "실패" : "오류"}:\n`);
-          console.log(`  결과:       ${outcomeIcon} ${result.outcome}`);
-          console.log(`  요약:       ${result.summary}`);
-          console.log(`  리포트:     ${result.reportJsonPath}`);
-          console.log(`  스크린샷:   ${result.screenshotsDir}`);
-          console.log(`  스텝 수:    ${result.steps.length}\n`);
-        }
+        if (scenarioIsDir && args.scenario) {
+          // 디렉토리 시나리오 → suite 실행
+          console.log(`\nE2E 테스트 스위트 시작: ${args.path} (시나리오 디렉토리: ${args.scenario}, 플랫폼: ${args.platform})\n`);
 
-        // 종료 코드 매핑
-        // pass → 0, fail → 2 (PARTIAL_FAILURE), error → 1 (FAILURE)
-        if (result.outcome === "pass") {
-          process.exit(EXIT_CODES.SUCCESS);
-        } else if (result.outcome === "fail") {
-          process.exit(EXIT_CODES.PARTIAL_FAILURE);
+          const suiteResult = await sdk.runE2eSuite({
+            ...commonOpts,
+            scenarioPath: args.scenario,
+          });
+
+          if (args.json) {
+            console.log(JSON.stringify(suiteResult, null, 2));
+          } else {
+            console.log(`\n스위트 결과:\n`);
+            console.log(`  전체:       ${suiteResult.outcome}`);
+            console.log(`  요약:       ${stripControls(suiteResult.summary)}`);
+            for (const r of suiteResult.results) {
+              const icon =
+                r.result.outcome === "pass" ? "✓" :
+                r.result.outcome === "fail" ? "✗" :
+                r.result.outcome === "partial" ? "~" : "!";
+              console.log(`  ${icon} ${stripControls(r.scenarioPath)} — ${r.result.outcome}`);
+            }
+            console.log("");
+          }
+
+          if (suiteResult.outcome === "pass") {
+            process.exit(EXIT_CODES.SUCCESS);
+          } else if (suiteResult.outcome === "fail" || suiteResult.outcome === "partial") {
+            // partial → exit 2 (PARTIAL_FAILURE), fail과 동일 코드
+            process.exit(EXIT_CODES.PARTIAL_FAILURE);
+          } else {
+            process.exit(EXIT_CODES.FAILURE);
+          }
         } else {
-          process.exit(EXIT_CODES.FAILURE);
+          // 단일 파일 / 시나리오 없음 → 기존 runE2eTest
+          console.log(`\nE2E 테스트 시작: ${args.path} (플랫폼: ${args.platform}, 에이전트: ${args.agent})\n`);
+
+          const result = await sdk.runE2eTest({
+            ...commonOpts,
+            scenarioPath: args.scenario,
+          });
+
+          if (args.json) {
+            console.log(JSON.stringify(result, null, 2));
+          } else {
+            const outcomeIcon =
+              result.outcome === "pass" ? "✓" :
+              result.outcome === "fail" ? "✗" :
+              result.outcome === "partial" ? "~" : "!";
+            const outcomeLabel =
+              result.outcome === "pass" ? "통과" :
+              result.outcome === "fail" ? "실패" :
+              result.outcome === "partial" ? "부분 완료" : "오류";
+            console.log(`\nE2E 테스트 ${outcomeLabel}:\n`);
+            console.log(`  결과:       ${outcomeIcon} ${result.outcome}`);
+            console.log(`  요약:       ${result.summary}`);
+            console.log(`  리포트:     ${result.reportJsonPath}`);
+            console.log(`  스크린샷:   ${result.screenshotsDir}`);
+            console.log(`  스텝 수:    ${result.steps.length}`);
+            if (result.findings && result.findings.length > 0) {
+              console.log(`  발견사항:   ${result.findings.length}건`);
+            }
+            if (result.coverage) {
+              const pct = (result.coverage.coverageRatio * 100).toFixed(0);
+              console.log(`  커버리지:   ${result.coverage.visitedScreens}/${result.coverage.totalScreens} (${pct}%)`);
+            }
+            if (result.crashes && result.crashes.length > 0) {
+              console.log(`  크래시:     ${result.crashes.length}건 감지`);
+            }
+            console.log("");
+          }
+
+          if (result.outcome === "pass") {
+            process.exit(EXIT_CODES.SUCCESS);
+          } else if (result.outcome === "fail" || result.outcome === "partial") {
+            // M8: partial→2 (fail과 동일한 exit code)
+            process.exit(EXIT_CODES.PARTIAL_FAILURE);
+          } else {
+            process.exit(EXIT_CODES.FAILURE);
+          }
         }
       } catch (e) {
-        console.error("오류:", e instanceof Error ? e.message : String(e));
+        printError(e, debug);
         process.exit(EXIT_CODES.FAILURE);
       }
     }
   );
+
+// ─── ui ───────────────────────────────────────────────────────────
+// 에이전트용 결정론 헬퍼 — dump/locate/which-screen
+// stdout에는 JSON 한 덩어리만 출력. 진단·로그는 stderr.
+
+const uiCmd = program.command("ui").description("에이전트용 런타임 UI 헬퍼 (dump|locate|which-screen)");
+uiCmd
+  .argument("[subcommand]", "서브커맨드: dump | locate | which-screen")
+  .allowUnknownOption(true)
+  .allowExcessArguments(true)
+  .action(async (_sub: string | undefined) => {
+    // commander에서 나머지 argv를 수동으로 파싱
+    const rawArgs = process.argv.slice(3); // ["dump", "--device", "emulator-5554", ...]
+    const debug = resolveDebug(
+      rawArgs.includes("--debug") ? true : undefined,
+      process.env
+    );
+    try {
+      const args = parseUiArgs(rawArgs);
+
+      let result: unknown;
+
+      // iOS 전용: idb 가용 여부를 1회 probe한다 (android는 probe 불필요).
+      // M4 교훈: 단위 테스트만으론 와이어링 버그를 못 잡으므로 bin.ts에서 직접 주입.
+      let idbAvailable: boolean | undefined;
+      if (args.platform === "ios") {
+        const { isIdbAvailable } = await import("@karax/e2e");
+        idbAvailable = await isIdbAvailable();
+      }
+
+      if (args.subcommand === "dump") {
+        result = await runUiDump({ device: args.device, platform: args.platform, idbAvailable });
+      } else if (args.subcommand === "locate") {
+        result = await runUiLocate({
+          device: args.device,
+          platform: args.platform,
+          label: args.label ?? "",
+          appmap: args.appmap,
+          screen: args.screen,
+          idbAvailable,
+        });
+      } else {
+        // which-screen
+        result = await runUiWhichScreen({
+          device: args.device,
+          platform: args.platform,
+          appmap: args.appmap,
+          idbAvailable,
+        });
+      }
+
+      const json = result as { ok: boolean; found?: boolean };
+
+      // stdout: JSON 한 덩어리 (계약 불변)
+      console.log(JSON.stringify(result));
+
+      // exit code
+      if (!json.ok) {
+        process.exit(EXIT_CODES.FAILURE);
+      } else if (json.ok && json.found === false) {
+        // locate: 미발견 → exit 2
+        process.exit(EXIT_CODES.PARTIAL_FAILURE);
+      } else {
+        process.exit(EXIT_CODES.SUCCESS);
+      }
+    } catch (e) {
+      // ui catch: stdout JSON 계약 유지 (기존 errorResult 그대로)
+      const errorResult = {
+        ok: false,
+        error: "INVALID_ARGUMENT",
+        message: e instanceof Error ? e.message : String(e),
+      };
+      console.log(JSON.stringify(errorResult));
+      // debug 시 stderr로만 stack 추가 (stdout 불변)
+      if (debug && e instanceof Error && e.stack) {
+        process.stderr.write(`[karax/debug] ui error stack: ${e.stack}\n`);
+      }
+      process.exit(EXIT_CODES.FAILURE);
+    }
+  });
 
 // ─── 알 수 없는 커맨드 처리 ───────────────────────────────────────
 
@@ -561,6 +916,7 @@ program.on("command:*", () => {
 // ─── 실행 ─────────────────────────────────────────────────────────
 
 program.parseAsync(process.argv).catch((e) => {
-  console.error("오류:", e instanceof Error ? e.message : String(e));
+  const debug = resolveDebug(undefined, process.env);
+  printError(e, debug);
   process.exit(EXIT_CODES.FAILURE);
 });

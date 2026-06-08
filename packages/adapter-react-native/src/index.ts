@@ -60,7 +60,7 @@ async function detect(projectPath: string): Promise<{
       });
     }
   } catch {
-    // index.js 없어도 react-native가 있으면 RN 프로젝트
+    // index.js 없어도 react-native가 있으면 RN 프로젝트 — 관측 불필요 (detect 단계라 ctx 없음)
   }
 
   const confidence = evidence.length >= 2 ? 0.95 : 0.8;

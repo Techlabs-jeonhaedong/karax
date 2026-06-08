@@ -48,7 +48,7 @@ export const iosSimulatorBackend: CompileBackend = {
     opts: CaptureOptions
   ): Promise<CaptureResult> {
     const { projectPath } = ctx;
-    const { outDir, device = "iphone-15", mockSeed = 42 } = opts;
+    const { outDir, device = "iphone-15", mockSeed = 42, keepWorkDir = false } = opts;
 
     // 시뮬레이터 선택
     const simulator = await detectAvailableSimulator();
@@ -76,7 +76,7 @@ export const iosSimulatorBackend: CompileBackend = {
       outDir: path.resolve(outDir),
       simulator,
       timeoutMs: 600_000,
-      keepWorkDir: false,
+      keepWorkDir,
     });
 
     return {

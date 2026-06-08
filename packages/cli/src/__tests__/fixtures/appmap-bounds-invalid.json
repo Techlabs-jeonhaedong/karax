@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "appmap/2",
+  "appName": "TestApp",
+  "framework": "ios",
+  "entryScreenId": "TestScreen",
+  "screens": [
+    {
+      "id": "TestScreen",
+      "title": "테스트",
+      "discovery": "route",
+      "isEntry": true,
+      "confidence": 0.9,
+      "elements": [
+        {
+          "type": "Button",
+          "label": "음수좌표버튼",
+          "bounds": { "x": -10, "y": 100, "width": 200, "height": 50 }
+        },
+        {
+          "type": "Button",
+          "label": "거대bounds버튼",
+          "bounds": { "x": 100, "y": 100, "width": 5100, "height": 50 }
+        },
+        {
+          "type": "Button",
+          "label": "거대Y bounds버튼",
+          "bounds": { "x": 100, "y": 200, "width": 200, "height": 5100 }
+        },
+        {
+          "type": "Button",
+          "label": "유효한버튼",
+          "bounds": { "x": 50, "y": 300, "width": 200, "height": 50 }
+        }
+      ],
+      "outgoing": []
+    }
+  ],
+  "edges": [],
+  "diagnostics": [],
+  "overallConfidence": 0.9
+}

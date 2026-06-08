@@ -18,8 +18,10 @@
   },
   "dependencies": {
     "@karax/adapter-api": "workspace:*",
+    "@karax/core": "workspace:*",
     "@karax/doctor": "workspace:*",
     "execa": "^9.0.0",
+    "yaml": "^2.4.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {

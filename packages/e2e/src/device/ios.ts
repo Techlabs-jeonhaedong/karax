@@ -10,13 +10,53 @@ import path from "path";
 import { execa } from "execa";
 import { E2eError } from "../types.js";
 import { parseSimctlDevices, selectBestSimulator } from "./parse.js";
-import type { DeviceManager, DeviceInfo } from "./types.js";
+import type { DeviceManager, DeviceInfo, InstallOptions } from "./types.js";
 
 const SIMCTL_TIMEOUT = 60_000;
-const BOOT_TIMEOUT = 120_000;
-const BOOT_POLL_INTERVAL = 2_000;
+const BOOT_TIMEOUT_DEFAULT = 120_000;
+const BOOT_POLL_INTERVAL_DEFAULT = 2_000;
 
-export function createIosDeviceManager(): DeviceManager {
+// ── 인자 검증 ────────────────────────────────────────────────────────────
+
+/**
+ * iOS 시뮬레이터 UDID/deviceId 유효성: 영숫자, '-' 허용. '-'로 시작 금지.
+ * UDID 형식(xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)과 일반 숫자 ID를 모두 허용.
+ */
+const DEVICE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9\-]*$/;
+
+function validateDeviceId(deviceId: string): void {
+  if (!DEVICE_ID_RE.test(deviceId)) {
+    throw new E2eError(
+      "INVALID_ARGUMENT",
+      `유효하지 않은 deviceId: "${deviceId}". 영숫자·'-'만 허용, '-'로 시작 불가.`
+    );
+  }
+}
+
+/** iOS 앱 Bundle ID 유효성: 영문자 시작, 영숫자·'_'·'.' 허용 (Android와 대칭). */
+const APP_ID_RE = /^[A-Za-z][A-Za-z0-9_.]*$/;
+
+function validateAppId(appId: string): void {
+  if (!APP_ID_RE.test(appId)) {
+    throw new E2eError(
+      "INVALID_ARGUMENT",
+      `유효하지 않은 appId: "${appId}". 영문자 시작, 영숫자·'_'·'.'만 허용.`
+    );
+  }
+}
+
+// ── 옵션 타입 ────────────────────────────────────────────────────────────
+
+export interface IosDeviceManagerOptions {
+  /** 시뮬레이터 부팅 폴링 타임아웃 (ms). 기본값: 120000 */
+  bootTimeoutMs?: number;
+  /** 부팅 폴링 간격 (ms). 기본값: 2000 */
+  pollIntervalMs?: number;
+}
+
+export function createIosDeviceManager(options: IosDeviceManagerOptions = {}): DeviceManager {
+  const bootTimeoutMs = options.bootTimeoutMs ?? BOOT_TIMEOUT_DEFAULT;
+  const pollIntervalMs = options.pollIntervalMs ?? BOOT_POLL_INTERVAL_DEFAULT;
   return {
     platform: "ios",
 
@@ -35,6 +75,8 @@ export function createIosDeviceManager(): DeviceManager {
     },
 
     async ensureBooted(preferredId?: string): Promise<DeviceInfo> {
+      // preferredId가 지정된 경우 먼저 검증 (xcrun simctl 인자로 흘러가므로)
+      if (preferredId !== undefined) validateDeviceId(preferredId);
       // 이미 Booted인 시뮬레이터 재사용
       const all = await this.list();
       const booted = all.filter((d) => d.isBooted);
@@ -72,13 +114,18 @@ export function createIosDeviceManager(): DeviceManager {
       // bootstatus -b 로 부팅 완료 대기
       try {
         await execa("xcrun", ["simctl", "bootstatus", targetUdid, "-b"], {
-          timeout: BOOT_TIMEOUT,
+          timeout: bootTimeoutMs,
         });
       } catch {
-        // bootstatus 실패 시 폴링으로 fallback
-        const deadline = Date.now() + BOOT_TIMEOUT;
+        // bootstatus 실패 시 폴링으로 fallback.
+        // 수정 의도: 기존에는 타임아웃인데도 throw 없이 통과하던 거짓 성공(false positive)이
+        // 있었음. 이 폴링은 계획의 EMULATOR_BOOT_TIMEOUT 계약 — 폴링 데드라인 만료 시 반드시
+        // throw — 을 이행한다. bootConfirmed가 false인 채로 루프를 탈출하면 항상 throw.
+        const deadline = Date.now() + bootTimeoutMs;
+        let bootConfirmed = false;
+
         while (Date.now() < deadline) {
-          await sleep(BOOT_POLL_INTERVAL);
+          await sleep(pollIntervalMs);
           const listResult = await execa("xcrun", ["simctl", "list", "devices", "available"], {
             timeout: SIMCTL_TIMEOUT,
           }).catch(() => null);
@@ -86,14 +133,17 @@ export function createIosDeviceManager(): DeviceManager {
 
           const entries = parseSimctlDevices(String(listResult.stdout));
           const booted = entries.find((e) => e.udid === targetUdid && e.state === "Booted");
-          if (booted) break;
-
-          if (Date.now() >= deadline) {
-            throw new E2eError(
-              "EMULATOR_BOOT_TIMEOUT",
-              `iOS 시뮬레이터 부팅 타임아웃 (${BOOT_TIMEOUT / 1000}s)`
-            );
+          if (booted) {
+            bootConfirmed = true;
+            break;
           }
+        }
+
+        if (!bootConfirmed) {
+          throw new E2eError(
+            "EMULATOR_BOOT_TIMEOUT",
+            `iOS 시뮬레이터 부팅 타임아웃 (${bootTimeoutMs / 1000}s)`
+          );
         }
       }
 
@@ -106,7 +156,9 @@ export function createIosDeviceManager(): DeviceManager {
       };
     },
 
-    async install(deviceId: string, artifactPath: string): Promise<void> {
+    // M11: opts 파라미터 추가 (iOS는 grantAllPermissions 무시 — simctl install 미지원)
+    async install(deviceId: string, artifactPath: string, _opts?: InstallOptions): Promise<void> {
+      validateDeviceId(deviceId);
       const result = await execa(
         "xcrun",
         ["simctl", "install", deviceId, artifactPath],
@@ -122,6 +174,7 @@ export function createIosDeviceManager(): DeviceManager {
     },
 
     async launch(deviceId: string, appId: string): Promise<void> {
+      validateDeviceId(deviceId);
       const result = await execa(
         "xcrun",
         ["simctl", "launch", deviceId, appId],
@@ -137,6 +190,7 @@ export function createIosDeviceManager(): DeviceManager {
     },
 
     async screenshot(deviceId: string, destPngPath: string): Promise<void> {
+      validateDeviceId(deviceId);
       fs.mkdirSync(path.dirname(destPngPath), { recursive: true });
       const result = await execa(
         "xcrun",
@@ -153,14 +207,60 @@ export function createIosDeviceManager(): DeviceManager {
     },
 
     async shutdown(deviceId: string): Promise<void> {
+      validateDeviceId(deviceId);
       await execa("xcrun", ["simctl", "shutdown", deviceId], {
         timeout: SIMCTL_TIMEOUT,
       }).catch(() => {
         // 종료 실패 무시
       });
     },
+
+    async grantPermissions(deviceId: string, appId: string, permissions: string[]): Promise<void> {
+      validateDeviceId(deviceId);
+      validateAppId(appId);
+
+      for (const rawPerm of permissions) {
+        const service = IOS_PERMISSION_MAP[rawPerm.toLowerCase()];
+        if (!service) {
+          process.stderr.write(
+            `[karax/e2e] iOS simctl privacy 매핑 없음, 스킵: "${rawPerm}"\n`
+          );
+          continue;
+        }
+
+        try {
+          await execa(
+            "xcrun",
+            ["simctl", "privacy", deviceId, "grant", service, appId],
+            { timeout: SIMCTL_TIMEOUT }
+          );
+        } catch (e) {
+          // 개별 실패 무시 — stderr 경고
+          const msg = e instanceof Error ? e.message : String(e);
+          process.stderr.write(
+            `[karax/e2e] simctl privacy grant ${service} 실패 (무시): ${msg}\n`
+          );
+        }
+      }
+    },
   };
 }
+
+/**
+ * M11: iOS 권한명 → simctl service 매핑 테이블
+ * 미지원 권한은 스킵 경고.
+ */
+const IOS_PERMISSION_MAP: Record<string, string> = {
+  camera: "camera",
+  photos: "photos",
+  location: "location",
+  microphone: "microphone",
+  contacts: "contacts",
+  calendar: "calendar",
+  // android.permission.* 접두 케이스도 허용
+  "android.permission.camera": "camera",
+  "android.permission.record_audio": "microphone",
+};
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

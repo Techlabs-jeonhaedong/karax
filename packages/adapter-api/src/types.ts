@@ -50,6 +50,15 @@ export interface DetectResult {
   }>;
 }
 
+// ── DebugEvent ──────────────────────────────────────────────────
+
+/** 디버그 관찰 이벤트. onDebug 콜백을 통해 SDK→CLI로 전달된다. */
+export interface DebugEvent {
+  tag: string;
+  message: string;
+  detail?: string;
+}
+
 // ── Adapter Context ─────────────────────────────────────────────
 
 export interface AdapterContext {
@@ -60,6 +69,8 @@ export interface AdapterContext {
   maxInlineDepth?: number;
   mockSeed?: number;
   includeCandidates?: boolean;
+  /** 디버그 이벤트 수신 콜백. SDK가 주입하고 CLI가 stderr로 출력한다. */
+  onDebug?: (e: DebugEvent) => void;
 }
 
 // ── CaptureResult ───────────────────────────────────────────────
@@ -125,6 +136,13 @@ export interface CaptureOptions {
   outDir: string;
   device?: DeviceProfileId;
   mockSeed?: number;
+  /** 디버그 이벤트 수신 콜백. off 시 undefined. */
+  onDebug?: (e: DebugEvent) => void;
+  /**
+   * debug=true 시 compile backend의 임시 작업 디렉토리를 보존한다.
+   * false(기본)이면 캡처 완료/실패 후 삭제한다.
+   */
+  keepWorkDir?: boolean;
 }
 
 export interface CompileBackend {

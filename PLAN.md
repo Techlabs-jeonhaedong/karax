@@ -5,6 +5,27 @@
 
 ---
 
+## 제품 비전 업데이트 (2026-06-06)
+
+**최종 목표 재정의**: karax의 최종 목표는 **모바일 앱 테스트 자동화 도구**다. 사용자가 시나리오를 주면 Android 에뮬레이터/iOS 시뮬레이터에서 완전 자동으로 테스트하고 보고서를 작성한다. 시나리오가 없으면 앱을 자유 탐색하며 부자연스러운 점을 보고한다.
+
+기존의 "빌드 없이 스크린샷 추출"과 "AppMap(프로그램 지도)"은 이 목표를 위한 **하부 기능**이다 — 지도를 미리 만들어두면 자동 테스터가 버튼을 찾느라 시간을 쓰지 않고, 광고처럼 매번 변하는 UI도 정확히 식별한다.
+
+**karax-total 브랜치 구현 완료 목록 (M1~M11)**:
+- AppMap이 E2E 에이전트 프롬프트에 자동 주입 (세션마다 자동 생성, 3단계 압축, 광고 영역 `role:"ad"` 태깅)
+- `karax ui dump|locate|which-screen` — 에이전트용 결정론 헬퍼 (uiautomator/idb 런타임 매칭, 좌표 즉답)
+- 에이전트 시각 능력(claude 스코프 Read), AppMap 화면 수 기반 budget 자동 조정
+- 시나리오 v2: frontmatter에 `title`/`mode`/`preconditions`/`testData`/`steps(action+expect)`/`permissions`, 디렉토리 일괄 실행(`runE2eSuite`)
+- 자유 탐색 고도화: anomaly taxonomy 10종, findings(severity/category/evidence/reproSteps), 커버리지 목표
+- 신뢰성: 크래시 감지(logcat), 부분 복구(`outcome: partial`), report v2(findings/coverage/crashes/videos/qualityWarnings 섹션)
+- doctor: ios-simulator·ios-idb 체크, ensureIdb(brew)
+- iOS 입력: idb 옵트인(있으면 tap/swipe/text, 없으면 관찰+좌표 추정)
+- 운영: 빌드 캐싱(`--reuse-build`/`--no-build`), 권한 자동 grant(`--grant-permissions`, 시나리오 선언 시 개별 grant), 비디오 녹화(`--record-video`)
+
+상세 구현 계획: `plans/karax-total_plan.md` 참조.
+
+---
+
 ## 1. 제품 정의
 
 **소스코드를 분석해서, 앱을 직접 빌드하지 않고도 화면 스크린샷을 추출하는 프로그램.**

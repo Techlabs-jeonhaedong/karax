@@ -80,7 +80,7 @@ export const androidPaparazziBackend: CompileBackend = {
     opts: CaptureOptions
   ): Promise<CaptureResult> {
     const { projectPath } = ctx;
-    const { outDir, device = "pixel-8", mockSeed = 42 } = opts;
+    const { outDir, device = "pixel-8", mockSeed = 42, keepWorkDir = false } = opts;
 
     // SDK 감지
     const sdkPath = await detectAndroidSdk();
@@ -109,7 +109,7 @@ export const androidPaparazziBackend: CompileBackend = {
         outDir: path.resolve(outDir),
         androidSdkPath: sdkPath,
         timeoutMs: 600_000,
-        keepWorkDir: false,
+        keepWorkDir,
       });
 
       return {

@@ -11,3 +11,5 @@ export { checkAndroidSdk, detectAndroidSdkPath } from "./androidSdk.js";
 export { checkAdb } from "./adb.js";
 export { checkEmulator } from "./emulator.js";
 export { checkAgentClis } from "./agentClis.js";
+export { checkIosSimulator } from "./iosSimulator.js";
+export { checkIosIdb } from "./iosIdb.js";

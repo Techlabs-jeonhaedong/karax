@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import path from "path";
+import os from "os";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { discoverFlutterNavGraph } from "../discover/navGraph.js";
 import { buildSymbolTable } from "../parse/scanner.js";
@@ -142,5 +144,95 @@ describe("GetX 네비게이션 — flutter-getx 픽스처", () => {
     for (const edge of graph.edges) {
       expect(edge.fromRef?.file).toBeTruthy();
     }
+  });
+});
+
+// ── DYNAMIC_NAV vs UNRESOLVED_NAV 분리 — 합성 임시 픽스처 ───────────────────
+
+describe("Flutter navGraph — DYNAMIC_NAV vs UNRESOLVED_NAV 진단 코드 분리", () => {
+  let tmpDir: string;
+
+  function mkProject(files: Record<string, string>): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "karax-flutter-nav-"));
+    for (const [relPath, content] of Object.entries(files)) {
+      const abs = path.join(dir, relPath);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, content, "utf8");
+    }
+    return dir;
+  }
+
+  afterAll(() => {
+    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("routeRaw만 있는 동적 인자 케이스는 DYNAMIC_NAV(conf 0.3)를 emit한다", async () => {
+    // Navigator.pushNamed(context, dynamicRoute) — 변수 표현식이라 routeRaw만 남음
+    tmpDir = mkProject({
+      "pubspec.yaml": "name: test_app\nflutter:\n  uses-material-design: true\n",
+      "lib/screens/home_screen.dart": `
+import 'package:flutter/material.dart';
+class HomeScreen extends StatelessWidget {
+  final String dynamicRoute;
+  const HomeScreen({required this.dynamicRoute, super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: ElevatedButton(
+        onPressed: () {
+          Navigator.pushNamed(context, dynamicRoute);
+        },
+        child: const Text('Go Dynamic'),
+      ),
+    );
+  }
+}
+`,
+    });
+    const symbolTable = await buildSymbolTable(tmpDir, "test_app");
+    const graph = await discoverFlutterNavGraph(tmpDir, symbolTable);
+
+    // routeRaw가 있는 엣지: DYNAMIC_NAV이어야 한다 (현재는 UNRESOLVED_NAV — Red)
+    const dynEdge = graph.edges.find((e) => e.from === "HomeScreen");
+    expect(dynEdge).toBeDefined();
+    const dynDiag = dynEdge!.diagnostics.find((d) => d.code === "DYNAMIC_NAV");
+    expect(dynDiag).toBeDefined();
+    expect(dynEdge!.confidence).toBe(0.3);
+    // UNRESOLVED_NAV는 없어야 한다
+    const unresDiag = dynEdge!.diagnostics.find((d) => d.code === "UNRESOLVED_NAV");
+    expect(unresDiag).toBeUndefined();
+  });
+
+  it("named 라우트 테이블 미스는 UNRESOLVED_NAV(conf 0.6)를 emit한다 (변경 없음)", async () => {
+    const dir = mkProject({
+      "pubspec.yaml": "name: test_app\nflutter:\n  uses-material-design: true\n",
+      "lib/screens/home_screen.dart": `
+import 'package:flutter/material.dart';
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: ElevatedButton(
+        onPressed: () {
+          Navigator.pushNamed(context, '/unknown_route');
+        },
+        child: const Text('Go Unknown'),
+      ),
+    );
+  }
+}
+`,
+    });
+    const symbolTable = await buildSymbolTable(dir, "test_app");
+    const graph = await discoverFlutterNavGraph(dir, symbolTable);
+
+    const edge = graph.edges.find((e) => e.from === "HomeScreen");
+    expect(edge).toBeDefined();
+    const unresDiag = edge!.diagnostics.find((d) => d.code === "UNRESOLVED_NAV");
+    expect(unresDiag).toBeDefined();
+    expect(edge!.confidence).toBe(0.6);
+
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });

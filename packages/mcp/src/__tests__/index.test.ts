@@ -10,6 +10,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createMcpServer } from "../server.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FLUTTER_FIXTURE = path.resolve(__dirname, "../../../../fixtures/flutter-basic");
@@ -502,7 +504,7 @@ describe("MCP 서버 — generate_app_map tool (includeLayout 옵션)", () => {
 
     const parsed = JSON.parse(summaryText!.text);
     expect(parsed.appMap).toBeDefined();
-    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+    expect(parsed.appMap.schemaVersion).toBe("appmap/2");
 
     // includeLayout=false → 모든 element에 bounds가 없어야 한다
     for (const screen of parsed.appMap.screens) {
@@ -524,7 +526,7 @@ describe("MCP 서버 — generate_app_map tool (includeLayout 옵션)", () => {
 
     const contents = result.content as Array<{ type: string; text: string }>;
     const parsed = JSON.parse(contents[0]!.text);
-    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+    expect(parsed.appMap.schemaVersion).toBe("appmap/2");
   }, 60_000);
 
   it("includeLayout 미전달 시 AppMap 반환 (기본 동작)", async () => {
@@ -536,7 +538,7 @@ describe("MCP 서버 — generate_app_map tool (includeLayout 옵션)", () => {
     expect(result.isError).toBeFalsy();
     const contents = result.content as Array<{ type: string; text: string }>;
     const parsed = JSON.parse(contents[0]!.text);
-    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+    expect(parsed.appMap.schemaVersion).toBe("appmap/2");
   }, 60_000);
 });
 
@@ -570,7 +572,7 @@ describe("MCP 서버 — generate_app_map tool", () => {
 
     const parsed = JSON.parse(summaryText!.text);
     expect(parsed.appMap).toBeDefined();
-    expect(parsed.appMap.schemaVersion).toBe("appmap/1");
+    expect(parsed.appMap.schemaVersion).toBe("appmap/2");
     expect(Array.isArray(parsed.appMap.screens)).toBe(true);
     expect(parsed.appMap.screens.length).toBeGreaterThan(0);
     expect(typeof parsed.documentCount).toBe("number");
@@ -1104,4 +1106,219 @@ describe("MCP 서버 — run_e2e_test screenshot path traversal 방어", () => {
       await srv.close();
     }
   });
+});
+
+// ── [작업 C-3] generate_app_map — maxCharsPerDoc / write / outDir 파라미터 ─
+
+// ─── KARAX_DEBUG 환경변수 — stdout 계약 불변 검증 ─────────────────────────────
+// KARAX_DEBUG=1 설정 시 tool 에러 응답의 errorContent 형태가
+// KARAX_DEBUG 미설정 시와 동일해야 한다 (stdout 계약 불변).
+// 디버그 추가 정보는 stderr 전용 (MCP JSON-RPC 채널 보호).
+
+describe("MCP 서버 — KARAX_DEBUG=1 시 errorContent 형태 불변", () => {
+  afterEach(() => {
+    vi.resetModules();
+    vi.restoreAllMocks();
+    delete process.env["KARAX_DEBUG"];
+  });
+
+  it("KARAX_DEBUG=1 설정 후 detect_framework 에러 응답이 KARAX_DEBUG 없을 때와 형태 동일", async () => {
+    // 1. KARAX_DEBUG 없이 에러 응답 수집
+    process.env.KARAX_SKIP_ENSURE = "1";
+    const { client: cli1, server: srv1 } = await makeClientServer();
+    const resultWithout = await cli1.callTool({
+      name: "detect_framework",
+      arguments: { projectPath: "/tmp/nonexistent-karax-debug-test" },
+    });
+    await cli1.close();
+    await srv1.close();
+
+    // 2. KARAX_DEBUG=1 설정 후 동일 에러 응답 수집
+    process.env["KARAX_DEBUG"] = "1";
+    const { client: cli2, server: srv2 } = await makeClientServer();
+    const resultWith = await cli2.callTool({
+      name: "detect_framework",
+      arguments: { projectPath: "/tmp/nonexistent-karax-debug-test" },
+    });
+    await cli2.close();
+    await srv2.close();
+
+    // isError 형태 동일
+    expect(resultWith.isError).toBe(resultWithout.isError);
+    expect(resultWith.isError).toBe(true);
+
+    // content 구조 동일: [{ type: "text", text: string }]
+    const contentsWithout = resultWithout.content as Array<{ type: string; text?: string }>;
+    const contentsWith = resultWith.content as Array<{ type: string; text?: string }>;
+
+    expect(contentsWith.length).toBe(contentsWithout.length);
+    expect(contentsWith[0]?.type).toBe("text");
+    expect(contentsWith[0]?.type).toBe(contentsWithout[0]?.type);
+
+    // text 필드가 string이어야 한다 (내용은 다를 수 있지만 타입은 동일)
+    expect(typeof contentsWith[0]?.text).toBe("string");
+    expect(typeof contentsWithout[0]?.text).toBe("string");
+
+    // 정리
+    delete process.env["KARAX_DEBUG"];
+  });
+
+  it("KARAX_DEBUG=1 설정 시 에러 발생 tool의 stderr에 추가 진단이 기록된다", async () => {
+    process.env.KARAX_SKIP_ENSURE = "1";
+    process.env["KARAX_DEBUG"] = "1";
+
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    try {
+      vi.resetModules();
+      vi.doMock("@karax/sdk", async () => {
+        const actual = await vi.importActual<typeof import("@karax/sdk")>("@karax/sdk");
+        return {
+          ...actual,
+          detectFramework: vi.fn().mockRejectedValue(new Error("MOCK: 테스트 오류 — stack 포함")),
+        };
+      });
+
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const { createMcpServer: freshServer } = await import("../server.js");
+      const srv = freshServer();
+      await srv.connect(serverTransport);
+      const cli = new Client({ name: "test", version: "0.0.1" }, { capabilities: {} });
+      await cli.connect(clientTransport);
+
+      try {
+        const result = await cli.callTool({
+          name: "detect_framework",
+          arguments: { projectPath: FLUTTER_FIXTURE },
+        });
+
+        // isError: true, content 형태는 기존과 동일
+        expect(result.isError).toBe(true);
+        const contents = result.content as Array<{ type: string; text?: string }>;
+        expect(contents[0]?.type).toBe("text");
+        expect(typeof contents[0]?.text).toBe("string");
+
+        // KARAX_DEBUG=1이므로 stderr에 추가 진단이 기록됐어야 한다
+        const stderrOutput = (stderrSpy.mock.calls as unknown[][])
+          .map((args) => String(args[0]))
+          .join("");
+        expect(stderrOutput).toContain("[karax/debug]");
+      } finally {
+        await cli.close();
+        await srv.close();
+      }
+    } finally {
+      stderrSpy.mockRestore();
+      delete process.env["KARAX_DEBUG"];
+    }
+  });
+});
+
+describe("MCP 서버 — generate_app_map 신규 파라미터 (작업 C-3)", () => {
+  let client: Client;
+  let server: Awaited<ReturnType<typeof makeClientServer>>["server"];
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    ({ client, server } = await makeClientServer());
+    tmpDir = await mkdtemp(path.join(tmpdir(), "karax-mcp-test-"));
+  });
+
+  afterEach(async () => {
+    await client.close();
+    await server.close();
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("maxCharsPerDoc 전달 → AppMap 반환 (에러 없음)", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: {
+        projectPath: FLUTTER_FIXTURE,
+        includeLayout: false,
+        maxCharsPerDoc: 1000,
+      },
+    }, undefined, { timeout: 30_000 });
+
+    expect(result.isError).toBeFalsy();
+    const contents = result.content as Array<{ type: string; text: string }>;
+    const parsed = JSON.parse(contents[0]!.text);
+    expect(parsed.appMap.schemaVersion).toBe("appmap/2");
+  }, 30_000);
+
+  it("write=true + outDir → writtenPaths 반환, 문서 본문 미포함", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: {
+        projectPath: FLUTTER_FIXTURE,
+        includeLayout: false,
+        write: true,
+        outDir: tmpDir,
+      },
+    }, undefined, { timeout: 30_000 });
+
+    expect(result.isError).toBeFalsy();
+    const contents = result.content as Array<{ type: string; text: string }>;
+    // write=true → 단 1개의 content (요약만, 문서 본문 없음)
+    expect(contents).toHaveLength(1);
+    const parsed = JSON.parse(contents[0]!.text);
+    expect(parsed.writtenPaths).toBeDefined();
+    expect(Array.isArray(parsed.writtenPaths)).toBe(true);
+    expect(parsed.writtenPaths.length).toBeGreaterThanOrEqual(1);
+    // 문서 본문은 포함되지 않아야 함
+    expect(parsed.documents).toBeUndefined();
+  }, 30_000);
+
+  it("write=true + outDir + maxCharsPerDoc → 파일 분할 후 writtenPaths 반환", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: {
+        projectPath: FLUTTER_FIXTURE,
+        includeLayout: false,
+        write: true,
+        outDir: tmpDir,
+        maxCharsPerDoc: 500,
+      },
+    }, undefined, { timeout: 30_000 });
+
+    expect(result.isError).toBeFalsy();
+    const contents = result.content as Array<{ type: string; text: string }>;
+    const parsed = JSON.parse(contents[0]!.text);
+    expect(Array.isArray(parsed.writtenPaths)).toBe(true);
+    expect(parsed.writtenPaths.length).toBeGreaterThanOrEqual(1);
+  }, 30_000);
+
+  it("write=true인데 outDir 누락 → isError 응답", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: {
+        projectPath: FLUTTER_FIXTURE,
+        includeLayout: false,
+        write: true,
+        // outDir 누락
+      },
+    }, undefined, { timeout: 30_000 });
+
+    expect(result.isError).toBe(true);
+    const contents = result.content as Array<{ type: string; text: string }>;
+    const errorText = contents[0]!.text;
+    expect(errorText).toMatch(/outDir/i);
+  }, 30_000);
+
+  it("write=false (기본) → 기존 동작 유지 (문서 본문 반환)", async () => {
+    const result = await client.callTool({
+      name: "generate_app_map",
+      arguments: {
+        projectPath: FLUTTER_FIXTURE,
+        includeLayout: false,
+      },
+    }, undefined, { timeout: 30_000 });
+
+    expect(result.isError).toBeFalsy();
+    const contents = result.content as Array<{ type: string; text: string }>;
+    // write 안 함 → 문서 content가 2개 이상 (요약 + 마크다운)
+    expect(contents.length).toBeGreaterThanOrEqual(2);
+    const combined = contents.map((c) => c.text).join("\n");
+    expect(combined).toContain("```mermaid");
+  }, 30_000);
 });

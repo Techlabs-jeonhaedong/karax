@@ -1,5 +1,6 @@
 import type { AppMap, NavigationGraph, NavigationEdge, ScreenNode, MapElement, TriggerInfo, ElementStyle } from "./schema.js";
 import type { IRDocument, IRNode } from "../ir/schema.js";
+import { classifyElementRole } from "./adDetection.js";
 
 // ── 외부 의존 없이 사용할 수 있는 최소 타입 재정의 ─────────────────────
 
@@ -21,7 +22,7 @@ export interface AssembleOptions {
 
 // ── IR에서 상호작용 요소(Button/Input/List 등) BFS 수집 ───────────────
 
-const INTERACTIVE_TYPES = new Set<IRNode["type"]>([
+export const INTERACTIVE_TYPES = new Set<IRNode["type"]>([
   "Button", "Input", "List", "Image", "Icon",
 ]);
 
@@ -87,11 +88,23 @@ export function extractElementStyle(node: IRNode): ElementStyle | undefined {
  * 2순위: trigger.label === element.label 인 첫 요소 (fallback)
  * 실패 시: undefined
  */
+/**
+ * 트리거 매칭 후보에서 광고/Unknown 노드를 제외한다.
+ * 광고·동적 노드는 네비게이션 트리거가 될 수 없다.
+ */
+function isMatchableElement(el: MapElement): boolean {
+  if (el.dynamic === true) return false;
+  if (el.type === "Unknown") return false;
+  return true;
+}
+
 export function matchElement(
   trigger: TriggerInfo,
   elements: MapElement[],
 ): MapElement | undefined {
   const eRef = trigger.elementRef;
+  // 광고·Unknown 노드는 매칭 후보에서 제외
+  const candidates = elements.filter(isMatchableElement);
 
   // 1순위: elementRef line 기반 근접 매칭
   if (eRef?.file && eRef.line !== undefined) {
@@ -99,7 +112,7 @@ export function matchElement(
     let bestElement: MapElement | undefined;
     let bestDiff = Infinity;
 
-    for (const el of elements) {
+    for (const el of candidates) {
       if (el.sourceRef?.file !== eRef.file) continue;
       if (el.sourceRef?.line === undefined) continue;
       const diff = Math.abs(el.sourceRef.line - triggerLine);
@@ -114,7 +127,7 @@ export function matchElement(
 
   // 2순위: label fallback
   if (trigger.label) {
-    return elements.find((el) => el.label === trigger.label);
+    return candidates.find((el) => el.label === trigger.label);
   }
 
   return undefined;
@@ -127,7 +140,11 @@ function collectElements(root: IRNode): MapElement[] {
   while (queue.length > 0) {
     const node = queue.shift()!;
 
-    if (INTERACTIVE_TYPES.has(node.type)) {
+    const adInfo = classifyElementRole({ type: node.type, role: node.role ?? null });
+    const isInteractive = INTERACTIVE_TYPES.has(node.type);
+
+    // INTERACTIVE 타입이거나 광고/동적 노드면 수집
+    if (isInteractive || adInfo !== null) {
       const label = node.text?.value ?? node.text?.token ?? findChildTextLabel(node);
       const style = extractElementStyle(node);
       results.push({
@@ -135,6 +152,9 @@ function collectElements(root: IRNode): MapElement[] {
         ...(label ? { label } : {}),
         ...(node.sourceRef ? { sourceRef: node.sourceRef as MapElement["sourceRef"] } : {}),
         ...(style ? { style } : {}),
+        ...(adInfo?.dynamic !== undefined ? { dynamic: adInfo.dynamic } : {}),
+        ...(adInfo?.role !== undefined ? { role: adInfo.role } : {}),
+        ...(adInfo?.dynamicSource !== undefined ? { dynamicSource: adInfo.dynamicSource } : {}),
       });
     }
 
@@ -238,7 +258,7 @@ export function assembleAppMap(opts: AssembleOptions): AppMap {
   }
 
   return {
-    schemaVersion: "appmap/1",
+    schemaVersion: "appmap/2",
     appName,
     framework,
     entryScreenId: navGraph.entryScreenId,

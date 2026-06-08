@@ -1,6 +1,7 @@
-import { mkdirSync } from "fs";
-import { resolve } from "path";
+import { mkdirSync, writeFileSync } from "fs";
+import { resolve, join, basename } from "path";
 import type { IRDocument, IRNode } from "@karax/core";
+import { redactSecrets, mapConcurrent } from "@karax/core";
 import { getDeviceProfile } from "../devices/profiles.js";
 import { irToHtml, irToHtmlWithIdx } from "../html/irToHtml.js";
 
@@ -26,6 +27,12 @@ export interface RenderOptions {
    * 출력: <이름>__overlay.png (원본 PNG와 별도)
    */
   overlay?: "confidence";
+  /**
+   * 디버그 모드. true이면 page console 메시지를 수집하고,
+   * setContent/screenshot 실패 시 outDir/debug/에 HTML과 콘솔 로그를 덤프 후 rethrow.
+   * headless 유지, browser.close() finally 불변.
+   */
+  debug?: boolean;
 }
 
 export interface RenderResult {
@@ -186,6 +193,22 @@ async function applyConfidenceOverlay(
   }, nodeInfos);
 }
 
+// ── screenId 정규화 ──────────────────────────────────────────────
+
+/**
+ * screenId를 파일명으로 안전하게 정규화한다.
+ * - path.basename으로 경로 구분자 제거
+ * - 허용 문자 이외([^A-Za-z0-9._-])는 _로 치환 (..·경로구분자·널문자 제거 포함)
+ * - 빈 문자열이 되면 "unknown"으로 대체
+ *
+ * @public 테스트에서 직접 검증 가능하도록 export한다.
+ */
+export function sanitizeScreenId(screenId: string): string {
+  const base = basename(screenId);
+  const sanitized = base.replace(/[^A-Za-z0-9._-]/g, "_");
+  return sanitized.length > 0 ? sanitized : "unknown";
+}
+
 // ── renderScreenshot ──────────────────────────────────────────────
 
 export async function renderScreenshot(
@@ -195,6 +218,7 @@ export async function renderScreenshot(
   const deviceId = options.device ?? ir.screen.device ?? "iphone-15";
   const profile = getDeviceProfile(deviceId);
   const html = irToHtml(ir, profile);
+  const debugMode = options.debug === true;
 
   const { chromium } = await import("playwright");
 
@@ -212,21 +236,64 @@ export async function renderScreenshot(
 
     const page = await context.newPage();
 
-    await page.setContent(html, { waitUntil: "networkidle" });
+    // debug 시 page console 메시지 수집
+    const consoleLogs: string[] = [];
+    if (debugMode) {
+      page.on("console", (msg) => {
+        consoleLogs.push(`[${msg.type()}] ${msg.text()}`);
+      });
+    }
 
-    const pngFilename = `${ir.screen.id}_${deviceId}.png`;
+    // screenId를 파일명으로 안전하게 정규화 (경로 주입 방어)
+    const safeScreenId = sanitizeScreenId(ir.screen.id);
+    const debugDir = join(options.outDir, "debug");
+
+    try {
+      await page.setContent(html, { waitUntil: "networkidle" });
+    } catch (err) {
+      // setContent 실패 시 debug 덤프 후 rethrow
+      if (debugMode) {
+        try {
+          mkdirSync(debugDir, { recursive: true });
+          // redact 적용 후 덤프
+          writeFileSync(join(debugDir, `render-${safeScreenId}.html`), redactSecrets(html), "utf-8");
+          writeFileSync(join(debugDir, `render-${safeScreenId}.console.log`), redactSecrets(consoleLogs.join("\n")), "utf-8");
+        } catch {
+          // 덤프 실패는 무시하고 원본 에러를 rethrow
+        }
+      }
+      throw err;
+    }
+
+    const pngFilename = `${safeScreenId}_${deviceId}.png`;
     const pngPath = resolve(options.outDir, pngFilename);
 
-    await page.screenshot({
-      path: pngPath,
-      fullPage: false,
-      clip: {
-        x: 0,
-        y: 0,
-        width: profile.width,
-        height: profile.height,
-      },
-    });
+    try {
+      await page.screenshot({
+        path: pngPath,
+        fullPage: false,
+        clip: {
+          x: 0,
+          y: 0,
+          width: profile.width,
+          height: profile.height,
+        },
+      });
+    } catch (err) {
+      // screenshot 실패 시 debug 덤프 후 rethrow
+      if (debugMode) {
+        try {
+          mkdirSync(debugDir, { recursive: true });
+          const pageContent = await page.content().catch(() => html);
+          // redact 적용 후 덤프
+          writeFileSync(join(debugDir, `render-${safeScreenId}.html`), redactSecrets(pageContent), "utf-8");
+          writeFileSync(join(debugDir, `render-${safeScreenId}.console.log`), redactSecrets(consoleLogs.join("\n")), "utf-8");
+        } catch {
+          // 덤프 실패는 무시하고 원본 에러를 rethrow
+        }
+      }
+      throw err;
+    }
 
     await context.close();
 
@@ -314,8 +381,10 @@ export async function measureScreenLayouts(
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
 
+  // 최대 4개 동시성 제한으로 병렬 측정 (브라우저는 1회 launch 재사용, 결과 순서 보존)
+  const LAYOUT_MEASURE_CONCURRENCY = 4;
   try {
-    for (const ir of irs) {
+    const entries = await mapConcurrent(irs, LAYOUT_MEASURE_CONCURRENCY, async (ir) => {
       const deviceId = options?.device ?? ir.screen.device ?? "iphone-15";
       const profile = getDeviceProfile(deviceId);
       const html = irToHtmlWithIdx(ir, profile);
@@ -330,43 +399,49 @@ export async function measureScreenLayouts(
         viewport: { width: profile.width, height: profile.height },
         deviceScaleFactor: profile.deviceScaleFactor,
       });
-      const page = await context.newPage();
-      await page.setContent(html, { waitUntil: "networkidle" });
+      try {
+        const page = await context.newPage();
+        await page.setContent(html, { waitUntil: "networkidle" });
 
-      // page.evaluate로 DOM에서 idx+BoundingClientRect 수집
-      const domEntries = await page.evaluate(() => {
-        const els = document.querySelectorAll("[data-karax-idx]");
-        return Array.from(els).map((el) => {
-          const idxAttr = el.getAttribute("data-karax-idx");
-          const rect = el.getBoundingClientRect();
-          return {
-            idx: parseInt(idxAttr!, 10),
-            x: rect.x,
-            y: rect.y,
-            width: rect.width,
-            height: rect.height,
-          };
+        // page.evaluate로 DOM에서 idx+BoundingClientRect 수집
+        const domEntries = await page.evaluate(() => {
+          const els = document.querySelectorAll("[data-karax-idx]");
+          return Array.from(els).map((el) => {
+            const idxAttr = el.getAttribute("data-karax-idx");
+            const rect = el.getBoundingClientRect();
+            return {
+              idx: parseInt(idxAttr!, 10),
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+            };
+          });
         });
-      });
 
-      await context.close();
+        const rawBounds: MeasuredBounds[] = domEntries.map(({ idx, x, y, width, height }) => {
+          const node = nodesByIdx.get(idx);
+          const measured: MeasuredBounds = {
+            nodeType: node?.type ?? "Unknown",
+            x,
+            y,
+            width,
+            height,
+          };
+          if (node?.sourceRef) {
+            measured.sourceRef = node.sourceRef as MeasuredBounds["sourceRef"];
+          }
+          return measured;
+        });
 
-      const rawBounds: MeasuredBounds[] = domEntries.map(({ idx, x, y, width, height }) => {
-        const node = nodesByIdx.get(idx);
-        const measured: MeasuredBounds = {
-          nodeType: node?.type ?? "Unknown",
-          x,
-          y,
-          width,
-          height,
-        };
-        if (node?.sourceRef) {
-          measured.sourceRef = node.sourceRef as MeasuredBounds["sourceRef"];
-        }
-        return measured;
-      });
+        return { screenId: ir.screen.id, bounds: filterFiniteBounds(rawBounds) };
+      } finally {
+        await context.close();
+      }
+    });
 
-      resultMap.set(ir.screen.id, filterFiniteBounds(rawBounds));
+    for (const { screenId, bounds } of entries) {
+      resultMap.set(screenId, bounds);
     }
   } finally {
     await browser.close();

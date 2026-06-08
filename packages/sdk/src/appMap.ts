@@ -6,13 +6,15 @@
  */
 
 import path from "path";
+import { mkdir, writeFile } from "fs/promises";
 import type {
   FrameworkId,
   AdapterContext,
   FrameworkAdapter,
+  DebugEvent,
 } from "@karax/adapter-api";
 import { detectFramework as coreDetectFramework } from "@karax/core";
-import { assembleAppMap, sanitizeAppName, renderAppMapMarkdown, matchElement, AppMapSchema } from "@karax/core";
+import { assembleAppMap, sanitizeAppName, renderAppMapMarkdown, matchElement, AppMapSchema, mapConcurrent } from "@karax/core";
 import type { AppMap, AppMapDocument, AppMapRenderOptions, IRDocument } from "@karax/core";
 
 export { renderAppMapMarkdown };
@@ -27,6 +29,41 @@ export interface GenerateAppMapOptions {
   includeLayout?: boolean;
   /** 레이아웃 측정 시 사용할 디바이스 프로파일 ID */
   device?: string;
+  /** 디버그 이벤트 수신 콜백. off 시 undefined. */
+  onDebug?: (e: DebugEvent) => void;
+}
+
+/** write: true 오버로드 시 반환 타입 */
+export interface GenerateAppMapResult {
+  appMap: AppMap;
+  documents: AppMapDocument[];
+  writtenPaths: string[];
+}
+
+/**
+ * outDir에 문서를 파일로 기록한다.
+ * CLI bin.ts 경로 탈출 방어 로직과 동일하게 구현 (커밋 10ef7c5 패턴).
+ */
+export async function writeAppMapDocuments(
+  docs: AppMapDocument[],
+  outDir: string
+): Promise<string[]> {
+  const resolvedOutDir = path.resolve(outDir);
+  await mkdir(resolvedOutDir, { recursive: true });
+
+  const writtenPaths: string[] = [];
+  for (const doc of docs) {
+    // path.basename으로 경로 탈출 방어 — doc.fileName은 항상 단순 파일명이어야 함
+    const safeFileName = path.basename(doc.fileName);
+    const filePath = path.resolve(resolvedOutDir, safeFileName);
+    // outDir 내부인지 검증
+    if (!filePath.startsWith(resolvedOutDir + path.sep) && filePath !== resolvedOutDir) {
+      throw new Error(`경로 탈출 감지: ${doc.fileName}`);
+    }
+    await writeFile(filePath, doc.content, "utf-8");
+    writtenPaths.push(filePath);
+  }
+  return writtenPaths;
 }
 
 /** lazy 어댑터 로더 (doctor/renderer 없이) */
@@ -72,12 +109,21 @@ async function resolveFrameworkId(opts: GenerateAppMapOptions): Promise<Framewor
 /**
  * 프로젝트의 화면 구조와 네비게이션 그래프를 분석해 AppMap을 생성한다.
  *
+ * 오버로드 1 (기존, 하위호환): write/outDir 없이 호출 → AppMap 반환
+ * 오버로드 2 (신규): write: true + outDir 지정 → { appMap, documents, writtenPaths } 반환
+ *
  * - discoverNavigation이 없는 어댑터: 빈 edges + NAV_UNSUPPORTED 진단
  * - readAppName이 없는 어댑터: basename(projectPath) fallback
  */
 export async function generateAppMap(
+  opts: GenerateAppMapOptions & { write: true; outDir: string; maxCharsPerDoc?: number }
+): Promise<GenerateAppMapResult>;
+export async function generateAppMap(
   opts: GenerateAppMapOptions
-): Promise<AppMap> {
+): Promise<AppMap>;
+export async function generateAppMap(
+  opts: GenerateAppMapOptions & { write?: boolean; outDir?: string; maxCharsPerDoc?: number }
+): Promise<AppMap | GenerateAppMapResult> {
   const frameworkId = await resolveFrameworkId(opts);
   const adapter = await loadAdapter(frameworkId);
 
@@ -86,6 +132,7 @@ export async function generateAppMap(
     framework: frameworkId,
     mockSeed: opts.mockSeed,
     includeCandidates: opts.includeCandidates ?? true,
+    onDebug: opts.onDebug,
   };
 
   const screens = await adapter.discoverScreens(ctx);
@@ -114,15 +161,28 @@ export async function generateAppMap(
 
   // 각 화면의 IR을 빌드해 elements를 채운다.
   // 화면 하나의 실패가 전체를 중단시키지 않도록 try/catch로 건너뜀.
-  const irDocs: IRDocument[] = [];
-  for (const screen of screens) {
+  // 최대 4개 동시성 제한으로 병렬화 (결과 순서 보존).
+  //
+  // Android 동시성 클램프 (항목 8):
+  // android buildScreenIR는 화면마다 buildSymbolTable로 Kotlin 전체를 파싱한다.
+  // 동시성 4 × 대형 프로젝트 = 메모리 스파이크 위험이 있으므로 2로 제한한다.
+  // (심볼테이블 공유로 근본 해결 가능하나 어댑터 인터페이스 큰 변경이 필요해
+  //  이번 방어적 클램프로 대체한다.)
+  const IR_BUILD_CONCURRENCY = frameworkId === "android" ? 2 : 4;
+  const irResults = await mapConcurrent(screens, IR_BUILD_CONCURRENCY, async (screen) => {
     try {
-      const irDoc = await adapter.buildScreenIR(ctx, screen.id);
-      irDocs.push(irDoc);
-    } catch {
+      return await adapter.buildScreenIR(ctx, screen.id);
+    } catch (e) {
       // IR 빌드 실패 — 해당 화면은 elements=[]로 처리 (계속 진행)
+      opts.onDebug?.({
+        tag: "appmap-ir-failed",
+        message: `${screen.id}: IR 빌드 실패, elements=[]로 처리`,
+        detail: e instanceof Error ? e.stack : String(e),
+      });
+      return null;
     }
-  }
+  });
+  const irDocs: IRDocument[] = irResults.filter((doc): doc is IRDocument => doc !== null);
 
   const appMap = assembleAppMap({
     appName,
@@ -193,5 +253,18 @@ export async function generateAppMap(
   }
 
   // 최종 스키마 재검증
-  return AppMapSchema.parse(appMap);
+  const validatedAppMap = AppMapSchema.parse(appMap);
+
+  // write 오버로드: 파일 기록 후 GenerateAppMapResult 반환
+  if ((opts as { write?: boolean }).write === true) {
+    const outDir = (opts as { outDir?: string }).outDir!;
+    const maxChars = (opts as { maxCharsPerDoc?: number }).maxCharsPerDoc;
+    const documents = renderAppMapMarkdown(validatedAppMap, {
+      ...(maxChars !== undefined ? { maxChars } : {}),
+    });
+    const writtenPaths = await writeAppMapDocuments(documents, outDir);
+    return { appMap: validatedAppMap, documents, writtenPaths };
+  }
+
+  return validatedAppMap;
 }

@@ -2,7 +2,10 @@
   "mcpServers": {
     "karax": {
       "command": "node",
-      "args": ["scripts/mcp-launcher.mjs"]
+      "args": ["scripts/mcp-launcher.mjs"],
+      "env": {
+        "KARAX_MCP_ALLOW_BUILD_COMMAND": "1"
+      }
     }
   }
 }

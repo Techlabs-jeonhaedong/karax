@@ -21,6 +21,14 @@ interface LocalCaptureOptions {
   outDir: string;
   device?: DeviceProfileId;
   mockSeed?: number;
+  keepWorkDir?: boolean;
+  onDebug?: (e: LocalDebugEvent) => void;
+}
+
+interface LocalDebugEvent {
+  tag: string;
+  message: string;
+  detail?: string;
 }
 
 interface LocalAdapterContext {
@@ -28,6 +36,8 @@ interface LocalAdapterContext {
   device?: DeviceProfileId;
   mockSeed?: number;
   includeCandidates?: boolean;
+  /** 디버그 이벤트 콜백 — adapter-api와 구조적으로 동기화 (드리프트 금지) */
+  onDebug?: (e: LocalDebugEvent) => void;
 }
 
 interface LocalCaptureResult {
@@ -68,6 +78,10 @@ export interface CaptureEngineOptions {
   mockSeed?: number;
   /** ISO 8601 타임스탬프 반환 함수 (테스트 결정론) */
   clock?: () => string;
+  /** 디버그 이벤트 콜백. CLI에서 주입, off 시 undefined. */
+  onDebug?: (e: LocalDebugEvent) => void;
+  /** compile 백엔드 workDir 보존 여부 (debug 모드 시 true). */
+  keepWorkDir?: boolean;
 }
 
 export interface CaptureEngineDiagnostic {
@@ -124,13 +138,14 @@ async function captureStaticTier(
   opts: CaptureEngineOptions & { device: DeviceProfileId; mockSeed: number }
 ): Promise<{ pngPath: string; width: number; height: number; confidence: number }> {
   const { adapter, renderScreenshot } = deps;
-  const { projectPath, screen, outDir, device, mockSeed } = opts;
+  const { projectPath, screen, outDir, device, mockSeed, onDebug } = opts;
 
   const adapterCtx: LocalAdapterContext = {
     projectPath,
     device,
     mockSeed,
     includeCandidates: true,
+    onDebug,
   };
 
   const ir = await adapter.buildScreenIR(adapterCtx, screen.id);
@@ -155,9 +170,9 @@ async function captureCompileTier(
     throw new Error("captureMode=compile 이지만 compileBackend가 제공되지 않았습니다");
   }
 
-  const { screen, outDir, device, mockSeed, projectPath } = opts;
-  const captureOpts: LocalCaptureOptions = { outDir, device, mockSeed };
-  const ctx: LocalAdapterContext = { projectPath, device, mockSeed };
+  const { screen, outDir, device, mockSeed, projectPath, onDebug, keepWorkDir } = opts;
+  const captureOpts: LocalCaptureOptions = { outDir, device, mockSeed, keepWorkDir, onDebug };
+  const ctx: LocalAdapterContext = { projectPath, device, mockSeed, onDebug };
 
   const result = await compileBackend.capture(ctx, screen, captureOpts);
 
@@ -186,9 +201,10 @@ export async function captureScreenWithTiers(
     device = "iphone-15",
     mockSeed = 0,
     clock = () => new Date().toISOString(),
+    onDebug,
   } = opts;
 
-  const fullOpts = { ...opts, device, mockSeed };
+  const fullOpts = { ...opts, device, mockSeed, onDebug };
   const diagnostics: CaptureEngineDiagnostic[] = [];
 
   let pngPath: string;
@@ -229,6 +245,12 @@ export async function captureScreenWithTiers(
           if (isCompileCaptureError(e)) {
             usedTier2 = true;
             fallbackReason = (e as Error).message;
+            // onDebug: 원본 CompileCaptureError를 debug 이벤트로 전달
+            onDebug?.({
+              tag: "compile-fallback",
+              message: `Tier 1 캡처 실패 (${screen.id}): ${(e as Error).message}`,
+              detail: (e as Error).stack,
+            });
           } else {
             throw e;
           }

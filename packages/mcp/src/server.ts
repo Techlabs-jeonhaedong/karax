@@ -7,6 +7,8 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
+import type { ServerRequest, ServerNotification } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
@@ -20,10 +22,10 @@ import {
   captureAll,
   ensureDependencies,
   generateAppMap,
+  renderAppMapMarkdown,
   resetParserState,
 } from "@karax/sdk";
-import { renderAppMapMarkdown } from "@karax/core";
-import type { FrameworkId, DeviceProfileId, CaptureMode } from "@karax/sdk";
+import type { FrameworkId, DeviceProfileId, CaptureMode, E2eProgressEvent } from "@karax/sdk";
 
 // ── 입력 스키마 (zod) ────────────────────────────────────────────────
 
@@ -47,6 +49,24 @@ function errorContent(message: string) {
 function wrapError(e: unknown): string {
   if (e instanceof Error) return e.message;
   return String(e);
+}
+
+/**
+ * KARAX_DEBUG=1일 때 에러 상세를 stderr로 추가 기록한다.
+ * errorContent의 message는 기존 그대로 유지 (JSON-RPC 채널 불변).
+ */
+function debugLogError(e: unknown, toolName: string): void {
+  if (process.env["KARAX_DEBUG"] !== "1") return;
+  const lines: string[] = [`[karax/debug] [mcp:${toolName}]`];
+  if (e instanceof Error) {
+    if (e.stack) lines.push(`  stack: ${e.stack}`);
+    const asE2e = e as { code?: unknown; details?: unknown };
+    if (asE2e.code !== undefined) lines.push(`  code: ${String(asE2e.code)}`);
+    if (asE2e.details !== undefined) lines.push(`  details: ${String(asE2e.details)}`);
+  } else {
+    lines.push(`  raw: ${String(e)}`);
+  }
+  process.stderr.write(lines.join("\n") + "\n");
 }
 
 /**
@@ -91,6 +111,8 @@ function isWasmAbortedError(e: unknown): boolean {
  * 재초기화 성공/실패를 구분해 정직하게 보고한다.
  */
 async function handleWasmError(e: unknown, toolName: string): Promise<string> {
+  // debug 시 stderr에 추가 기록 (errorContent message는 불변)
+  debugLogError(e, toolName);
   const base = wrapError(e);
   if (isWasmAbortedError(e)) {
     let resetResult: "success" | "failure" = "success";
@@ -163,13 +185,16 @@ export function createMcpServer(): McpServer {
     {
       capabilities: { tools: {} },
       instructions:
-        "소스코드를 분석해 앱 화면 스크린샷을 추출하는 MCP 서버. " +
+        "모바일 앱 테스트 자동화 MCP 서버. " +
+        "최종 목표: 사용자가 시나리오를 주면 Android 에뮬레이터/iOS 시뮬레이터에서 완전 자동으로 E2E 테스트를 수행하고 보고서를 작성한다. " +
+        "시나리오가 없으면 앱을 자유 탐색하며 anomaly 10종 taxonomy로 findings를 보고한다. " +
         "Flutter/React Native/Android Compose/iOS SwiftUI 4개 프레임워크를 지원한다. " +
-        "2-티어 캡처(Tier 1: 부분 컴파일, Tier 2: 정적 IR→Chromium) 전략으로 동작하며, " +
-        "captureMode(auto/compile/static), variant 전개, overlay(confidence 시각화), " +
-        "enrich(LLM 보강) 옵션을 제공한다. " +
-        "generate_app_map으로 화면 구조·네비게이션 그래프를 AppMap으로 추출하고, " +
-        "run_e2e_test로 에뮬레이터/시뮬레이터에서 LLM 에이전트 기반 E2E 테스트를 실행할 수 있다.",
+        "run_e2e_test: scenarioPath(파일 또는 디렉토리)를 전달하면 에뮬레이터/시뮬레이터에서 LLM 에이전트가 E2E 테스트를 실행한다. " +
+        "세션 시작 시 AppMap을 자동 생성해 에이전트 프롬프트에 주입하므로 에이전트가 버튼 위치를 찾는 시간을 줄인다. " +
+        "generate_app_map: 화면 구조·네비게이션 그래프를 AppMap(appmap/2 스키마)으로 추출한다. 광고 영역은 role:\"ad\"로 태깅된다. " +
+        "capture_screen / capture_all: 2-티어 캡처(Tier 1: 부분 컴파일, Tier 2: 정적 IR→Chromium)로 화면 스크린샷을 추출한다. " +
+        "이 기능은 AppMap 생성의 기반이 되는 하부 기능이다. " +
+        "doctor: 환경 진단 — emulator/simulator/idb/agent CLI 체크 후 필요 항목 자동 설치(fix=true).",
     }
   );
 
@@ -189,6 +214,7 @@ export function createMcpServer(): McpServer {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         };
       } catch (e) {
+        debugLogError(e, "detect_framework");
         return errorContent(wrapError(e));
       }
     }
@@ -215,6 +241,7 @@ export function createMcpServer(): McpServer {
           content: [{ type: "text", text: JSON.stringify(report, null, 2) }],
         };
       } catch (e) {
+        debugLogError(e, "doctor");
         return errorContent(wrapError(e));
       }
     }
@@ -457,6 +484,7 @@ export function createMcpServer(): McpServer {
           content: [{ type: "text", text: JSON.stringify(report, null, 2) }],
         };
       } catch (e) {
+        debugLogError(e, "get_analysis_report");
         return errorContent(wrapError(e));
       }
     }
@@ -467,22 +495,64 @@ export function createMcpServer(): McpServer {
   server.tool(
     "generate_app_map",
     "프로젝트의 화면 구조와 네비게이션 그래프를 분석해 AppMap을 반환한다. " +
-    "includeLayout=false로 Chromium 기반 좌표 측정을 비활성화할 수 있다 (기본 true).",
+    "includeLayout=false로 Chromium 기반 좌표 측정을 비활성화할 수 있다 (기본 true). " +
+    "write=true + outDir 지정 시 파일로 저장하고 writtenPaths만 반환한다 (응답 크기 절약).",
     {
       projectPath: z.string().min(1),
       framework: z.enum(["flutter", "react-native", "ios", "android"]).optional(),
       includeLayout: z.boolean().optional(),
+      maxCharsPerDoc: z.number().int().positive().optional(),
+      write: z.boolean().optional(),
+      outDir: z.string().optional(),
     },
-    async ({ projectPath, framework, includeLayout }) => {
+    async ({ projectPath, framework, includeLayout, maxCharsPerDoc, write, outDir }) => {
       try {
         validateProjectPath(projectPath);
+
+        // write=true인데 outDir 누락
+        if (write === true && !outDir) {
+          return errorContent("write=true로 파일을 저장하려면 outDir을 지정해야 합니다.");
+        }
+
+        if (write === true && outDir) {
+          // write 오버로드: 파일 저장 후 writtenPaths + 요약만 반환 (문서 본문 미포함)
+          const result = await generateAppMap({
+            projectPath,
+            ...(framework ? { framework: framework as FrameworkId } : {}),
+            ...(includeLayout !== undefined ? { includeLayout } : {}),
+            write: true,
+            outDir,
+            ...(maxCharsPerDoc !== undefined ? { maxCharsPerDoc } : {}),
+          });
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(
+                  {
+                    appMap: result.appMap,
+                    writtenPaths: result.writtenPaths,
+                    fileCount: result.writtenPaths.length,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        }
+
+        // 기존 동작: AppMap + 문서 본문 모두 반환
         const appMap = await generateAppMap({
           projectPath,
           ...(framework ? { framework: framework as FrameworkId } : {}),
           ...(includeLayout !== undefined ? { includeLayout } : {}),
         });
 
-        const docs = renderAppMapMarkdown(appMap);
+        const docs = renderAppMapMarkdown(appMap, {
+          ...(maxCharsPerDoc !== undefined ? { maxChars: maxCharsPerDoc } : {}),
+        });
         const summaryContent = {
           type: "text" as const,
           text: JSON.stringify(
@@ -514,7 +584,9 @@ export function createMcpServer(): McpServer {
   server.tool(
     "run_e2e_test",
     "Android 에뮬레이터 / iOS 시뮬레이터에서 LLM 에이전트로 E2E 테스트를 실행한다. " +
-    "에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요될 수 있습니다.",
+    "에뮬레이터 부팅 + 앱 빌드 + 에이전트 실행으로 수 분~수십 분 소요될 수 있습니다. " +
+    "scenarioPath에 디렉토리를 전달하면 *.md 파일을 일괄 실행(suite)한다. " +
+    "보안 주의: buildCommand는 호스트 머신에서 셸로 그대로 실행됩니다. 신뢰할 수 있는 사용자 입력만 전달하세요.",
     {
       projectPath: z.string().min(1),
       platform: z.enum(["android", "ios"]),
@@ -526,34 +598,199 @@ export function createMcpServer(): McpServer {
       timeoutMs: z.number().int().positive().optional(),
       maxSteps: z.number().int().positive().optional(),
       keepBooted: z.boolean().optional().default(false),
+      /** M8: 크래시 감지 시 fail 강등 여부 (기본 true) */
+      failOnCrash: z.boolean().optional().default(true),
+      /** M11: 이전 빌드 캐시 재사용 */
+      reuseBuild: z.boolean().optional().default(false),
+      /** M11: 빌드 없이 캐시 artifact만 사용 */
+      noBuild: z.boolean().optional().default(false),
+      /** M11: 시나리오 permissions 자동 grant */
+      grantPermissions: z.boolean().optional(),
+      /** M11: 비디오 녹화 */
+      recordVideo: z.boolean().optional().default(false),
+      /**
+       * 기본 빌드 커맨드 대신 실행할 사용자 정의 빌드 커맨드.
+       * 경고: buildCommand는 호스트 머신에서 셸로 그대로 실행됩니다. 신뢰할 수 있는 사용자 입력만 전달하세요.
+       */
+      buildCommand: z.string().min(1).max(4096).optional(),
     },
-    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted }) => {
+    async ({ projectPath, platform, agent, scenarioPath, apiKey, deviceId, outDir, timeoutMs, maxSteps, keepBooted, failOnCrash, reuseBuild, noBuild, grantPermissions, recordVideo, buildCommand }, extra: RequestHandlerExtra<ServerRequest, ServerNotification>) => {
       try {
         validateProjectPath(projectPath);
 
-        const { runE2eTest } = await import("@karax/e2e");
+        // ── buildCommand 커맨드 인젝션 가드 ───────────────────────────
+        // MCP는 불특정 클라이언트에서 호출될 수 있으므로 buildCommand를 기본 비활성화한다.
+        // CLI 경로(karax test --build-command)는 사용자가 자기 머신에서 직접 실행하므로 건드리지 않는다.
+        if (buildCommand !== undefined) {
+          if (process.env["KARAX_MCP_ALLOW_BUILD_COMMAND"] !== "1") {
+            return errorContent(
+              "buildCommand는 MCP에서 기본 비활성화. " +
+              "KARAX_MCP_ALLOW_BUILD_COMMAND=1로 서버를 실행하면 허용됨."
+            );
+          }
+          // shell 메타문자 포함 시 거부 — 허용된 경우에도 인젝션 방지
+          const SHELL_META_RE = /[;&|`$<>\n\r]|\$\(|\$\{/;
+          if (SHELL_META_RE.test(buildCommand)) {
+            return errorContent(
+              "buildCommand에 shell 메타문자(; & | ` $ < > 개행 등)가 포함돼 있어 거부됐습니다."
+            );
+          }
+        }
 
-        const result = await runE2eTest({
+        // scenarioPath가 디렉토리이면 runE2eSuite, 아니면 runE2eTest
+        const scenarioIsDir =
+          scenarioPath !== undefined &&
+          (() => {
+            try {
+              return fs.statSync(scenarioPath).isDirectory();
+            } catch {
+              return false;
+            }
+          })();
+
+        const sdk = await import("@karax/sdk");
+
+        // ── MCP progress notification 헬퍼 ──────────────────────────
+        const progressToken = extra._meta?.progressToken;
+        // progressToken sanity 가드: string(≤1024) 또는 number만 허용
+        const isValidProgressToken =
+          progressToken !== undefined &&
+          (typeof progressToken === "number" ||
+            (typeof progressToken === "string" && progressToken.length <= 1024));
+
+        let progressValue = 0;
+        const PHASE_TOTAL = 10;
+        const PHASE_ORDER: Record<string, number> = {
+          scenario: 1, detect: 2, device: 3, appmap: 4, build: 5,
+          install: 6, launch: 7, agent: 8, "crash-scan": 9, report: 10,
+        };
+
+        const sendMcpProgress = async (event: E2eProgressEvent): Promise<void> => {
+          const phaseNum = PHASE_ORDER[event.phase] ?? 0;
+
+          // suite 모드: stepIndex/totalSteps가 있으면 누적 계산으로 단조 증가 보장
+          let computed: number;
+          let total: number;
+          if (event.stepIndex !== undefined && event.totalSteps !== undefined && event.totalSteps > 0) {
+            // 각 시나리오의 phase 진행을 전체 범위로 누적
+            const stepBase = event.stepIndex * PHASE_TOTAL;
+            if (event.status === "start") computed = stepBase + phaseNum - 1;
+            else if (event.status === "done") computed = stepBase + phaseNum;
+            else computed = stepBase + phaseNum - 1; // error: 직전 값 유지
+            total = event.totalSteps * PHASE_TOTAL;
+          } else {
+            if (event.status === "start") computed = phaseNum - 1;
+            else if (event.status === "done") computed = phaseNum;
+            else computed = progressValue; // error: 직전 값 유지
+            total = PHASE_TOTAL;
+          }
+          // 단조 증가 보장: 이전보다 작아지면 이전 값 유지
+          progressValue = Math.max(progressValue, computed);
+
+          const messageText = `[${event.phase}] ${event.status}${event.detail ? ` — ${event.detail}` : ""}`;
+
+          // logging notification — progressToken 유무에 관계없이 항상 전송 (best-effort)
+          try {
+            await extra.sendNotification({
+              method: "notifications/message",
+              params: {
+                level: event.status === "error" ? "error" : "info",
+                logger: "karax/e2e",
+                data: messageText,
+              },
+            });
+          } catch {
+            // logging 실패 무시
+          }
+
+          // progress notification — 유효한 progressToken이 있을 때만
+          if (isValidProgressToken) {
+            try {
+              await extra.sendNotification({
+                method: "notifications/progress",
+                params: {
+                  progressToken,
+                  progress: progressValue,
+                  total,
+                  message: messageText,
+                },
+              });
+            } catch {
+              // progress 전송 실패 무시 — 테스트 진행에 영향 없음
+            }
+          }
+        };
+
+        const commonOpts = {
           projectPath,
           platform,
           agent,
-          scenarioPath,
           apiKey,
           deviceId,
           outDir,
           timeoutMs,
           maxSteps,
           keepBooted,
-        });
+          failOnCrash,
+          // M11
+          reuseBuild,
+          noBuild,
+          ...(grantPermissions !== undefined ? { grantPermissions } : {}),
+          recordVideo,
+          // Phase C: KARAX_DEBUG 환경변수 기반 debug 전파
+          debug: process.env["KARAX_DEBUG"] === "1",
+          // 사용자 정의 빌드 커맨드
+          ...(buildCommand !== undefined ? { buildCommand } : {}),
+          // progress 콜백
+          onProgress: sendMcpProgress,
+        };
+
+        if (scenarioIsDir && scenarioPath) {
+          // suite 실행 — 시나리오별 요약 응답
+          const suiteResult = await sdk.runE2eSuite({ ...commonOpts, scenarioPath });
+
+          const summaryLines = [
+            `E2E 스위트 결과: ${suiteResult.outcome}`,
+            `요약: ${suiteResult.summary}`,
+            "",
+            "시나리오별 결과:",
+            ...suiteResult.results.map((r) => {
+              const icon =
+                r.result.outcome === "pass" ? "✓" :
+                r.result.outcome === "fail" ? "✗" :
+                r.result.outcome === "partial" ? "~" : "!";
+              return `  ${icon} ${path.basename(r.scenarioPath)} — ${r.result.outcome}: ${r.result.summary}`;
+            }),
+          ].join("\n");
+
+          return { content: [{ type: "text" as const, text: summaryLines }] };
+        }
+
+        // 단일 파일 / 시나리오 없음 → 기존 runE2eTest
+        const result = await sdk.runE2eTest({ ...commonOpts, scenarioPath });
 
         // 응답: 요약 텍스트 + 리포트 경로 + 최종 스크린샷 소량 base64
-        const summaryText = [
+        const summaryLines = [
           `E2E 테스트 결과: ${result.outcome}`,
           `요약: ${result.summary}`,
           `리포트: ${result.reportJsonPath}`,
           `스크린샷 디렉토리: ${result.screenshotsDir}`,
           `스텝 수: ${result.steps.length}`,
-        ].join("\n");
+        ];
+
+        // M8: findings/coverage/crash 요약 추가
+        if (result.findings && result.findings.length > 0) {
+          summaryLines.push(`발견사항: ${result.findings.length}건 (critical: ${result.findings.filter((f) => f.severity === "critical").length}건)`);
+        }
+        if (result.coverage) {
+          const pct = (result.coverage.coverageRatio * 100).toFixed(0);
+          summaryLines.push(`커버리지: ${result.coverage.visitedScreens}/${result.coverage.totalScreens} (${pct}%)`);
+        }
+        if (result.crashes && result.crashes.length > 0) {
+          summaryLines.push(`크래시: ${result.crashes.length}건 감지`);
+        }
+
+        const summaryText = summaryLines.join("\n");
 
         // 마지막 스크린샷 1개만 base64로 포함 (응답 크기 제한)
         const lastScreenshot = result.steps

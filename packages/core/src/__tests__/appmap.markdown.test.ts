@@ -4,7 +4,7 @@ import type { AppMap } from "../appmap/schema.js";
 
 function makeAppMap(overrides: Partial<AppMap> = {}): AppMap {
   return {
-    schemaVersion: "appmap/1",
+    schemaVersion: "appmap/2",
     appName: "TestApp",
     framework: "flutter",
     entryScreenId: "HomeScreen",
@@ -407,14 +407,14 @@ describe("renderAppMapMarkdown", () => {
     const docs = renderAppMapMarkdown(makeAppMap());
     const content = docs[0]!.content;
     // 기본 AppMap fixture의 Button에는 bounds/style 없음 → -
-    // 헤더 컬럼 확인
-    expect(content).toContain("| 타입 | 라벨 | 위치 | 크기 | 스타일 |");
+    // 헤더 컬럼 확인 (역할 컬럼 포함)
+    expect(content).toContain("| 타입 | 라벨 | 역할 | 위치 | 크기 | 스타일 |");
     // 데이터 행에 - 값 존재
     const tableLines = content.split("\n").filter((l) => l.includes("Button"));
     expect(tableLines.length).toBeGreaterThan(0);
     for (const line of tableLines) {
-      // 위치/크기/스타일 컬럼이 - 로 표시
-      expect(line).toContain("| - | - | - |");
+      // 역할/위치/크기/스타일 컬럼이 - 로 표시 (role 없으면 역할도 -)
+      expect(line).toContain("| - | - | - | - |");
     }
   });
 
@@ -741,5 +741,215 @@ describe("renderAppMapMarkdown — fromRef 경로 이스케이핑 (마크다운 
     // 파이프가 이스케이프되어야 함
     expect(all).toContain("evil\\|path");
     expect(all).not.toContain("| `lib/evil|path.dart:1` |");
+  });
+});
+
+// ── M2: 역할 컬럼 렌더 테스트 ────────────────────────────────────────
+
+describe("renderAppMapMarkdown — 역할 컬럼 (M2)", () => {
+  it("role:ad인 요소가 테이블에 ⚠ ad 표기된다", () => {
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          title: "Home",
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [
+            {
+              type: "Unknown" as const,
+              role: "ad",
+              dynamic: true,
+              dynamicSource: "GADBannerView",
+            },
+          ],
+          outgoing: [],
+        },
+      ],
+      edges: [],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs.map((d) => d.content).join("\n");
+    // 역할 컬럼 헤더 존재
+    expect(content).toContain("역할");
+    // 광고 표기 포함
+    expect(content).toContain("⚠ ad");
+    expect(content).toContain("GADBannerView");
+    // 탭 회피 안내
+    expect(content).toContain("탭 회피");
+  });
+
+  it("role:dynamic-content인 요소가 테이블에 표기된다", () => {
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          title: "Home",
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [
+            {
+              type: "Unknown" as const,
+              role: "dynamic-content",
+              dynamic: true,
+              dynamicSource: "FutureBuilder",
+            },
+          ],
+          outgoing: [],
+        },
+      ],
+      edges: [],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs.map((d) => d.content).join("\n");
+    expect(content).toContain("dynamic-content");
+    expect(content).toContain("FutureBuilder");
+  });
+
+  it("role:webview인 요소가 테이블에 표기된다", () => {
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          title: "Home",
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [
+            {
+              type: "Unknown" as const,
+              role: "webview",
+              dynamic: true,
+              dynamicSource: "WebView",
+            },
+          ],
+          outgoing: [],
+        },
+      ],
+      edges: [],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs.map((d) => d.content).join("\n");
+    expect(content).toContain("webview");
+    expect(content).toContain("WebView");
+  });
+
+  it("role 없는 일반 Button은 역할 컬럼이 -이다", () => {
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          title: "Home",
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [
+            { type: "Button" as const, label: "Login" },
+          ],
+          outgoing: [],
+        },
+      ],
+      edges: [],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs.map((d) => d.content).join("\n");
+    // 역할 헤더 있음
+    expect(content).toContain("| 타입 | 라벨 | 역할 | 위치 | 크기 | 스타일 |");
+    // 역할 컬럼이 -
+    const buttonRow = content.split("\n").find((l) => l.includes("Button") && l.includes("Login"));
+    expect(buttonRow).toBeDefined();
+    expect(buttonRow).toContain("| - |");
+  });
+
+  it("광고 dynamicSource에 특수문자가 있어도 테이블이 깨지지 않는다", () => {
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          title: "Home",
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [
+            {
+              type: "Unknown" as const,
+              role: "ad",
+              dynamic: true,
+              dynamicSource: "Ad|Widget|Unsafe",
+            },
+          ],
+          outgoing: [],
+        },
+      ],
+      edges: [],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const tableRows = docs.map((d) => d.content).join("\n").split("\n").filter((l) => l.startsWith("|"));
+    for (const row of tableRows) {
+      expect(row.endsWith("|")).toBe(true);
+    }
+  });
+
+  // ── [수정 1] formatElementRole 이중 이스케이프 버그 회귀 테스트 ──────
+
+  it("dynamicSource='Ad|Widget' → 역할 셀에 이스케이프가 1회만 적용된다 (백슬래시 1개)", () => {
+    // 이중 이스케이프 버그: escapeMarkdownCell(dynamicSource) 후 전체 문자열에 다시 escape →
+    // "Ad|Widget" → 1차: "Ad\\|Widget", 2차: "Ad\\\\\\|Widget" (잘못된 이중)
+    // 수정 후: raw 값을 한 번만 escape → "Ad\\|Widget" (백슬래시 1개)
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          title: "Home",
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [
+            {
+              type: "Unknown" as const,
+              role: "ad",
+              dynamic: true,
+              dynamicSource: "Ad|Widget",
+            },
+          ],
+          outgoing: [],
+        },
+      ],
+      edges: [],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs.map((d) => d.content).join("\n");
+    // 셀 안에 "Ad\|Widget" (백슬래시 정확히 1개)가 있어야 한다
+    expect(content).toContain("Ad\\|Widget");
+    // 이중 이스케이프된 "Ad\\\\|" 또는 "Ad\\\\\\|" 형태가 없어야 한다
+    expect(content).not.toContain("Ad\\\\");
+  });
+
+  // ── [수정 4] Icon 타입이 displayElements 필터에 포함되는지 ─────────────
+
+  it("Icon 타입 요소가 UI 요소 테이블에 렌더된다", () => {
+    const appMap = makeAppMap({
+      screens: [
+        {
+          id: "HomeScreen",
+          title: "Home",
+          discovery: "route",
+          isEntry: true,
+          confidence: 1.0,
+          elements: [
+            { type: "Icon" as const, label: "settings_icon" },
+          ],
+          outgoing: [],
+        },
+      ],
+      edges: [],
+    });
+    const docs = renderAppMapMarkdown(appMap);
+    const content = docs.map((d) => d.content).join("\n");
+    // Icon 행이 테이블에 나타나야 한다
+    expect(content).toContain("Icon");
+    expect(content).toContain("settings_icon");
   });
 });

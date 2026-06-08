@@ -123,6 +123,41 @@ function indexToLine(source: string, index: number): number {
 }
 
 /**
+ * @Composable 함수 시그니처에서 람다 타입 파라미터명을 추출한다.
+ * 예: fun HomeScreen(onNavigate: () -> Unit = {}) → ["onNavigate"]
+ *
+ * 네비게이션 관련 오탐 방지: 파라미터로 전달받은 콜백만 대상
+ * (로컬 val lambda = {...} 은 extractButtonClickLabels에서 처리)
+ */
+function extractLambdaParamNames(source: string, screenName: string): Set<string> {
+  const params = new Set<string>();
+  // fun ScreenName( ... ) 시그니처 추출
+  const funRe = new RegExp(`fun\\s+${screenName}\\s*\\(`, "g");
+  const m = funRe.exec(source);
+  if (!m) return params;
+
+  // 파라미터 목록 범위 추출
+  const parenOpen = m.index + m[0].length - 1;
+  let depth = 1;
+  let pos = parenOpen + 1;
+  while (pos < source.length && depth > 0) {
+    const ch = source[pos];
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    pos++;
+  }
+  const paramsText = source.slice(parenOpen + 1, pos - 1);
+
+  // 람다 타입 파라미터 패턴: `paramName: (...) -> ...` 또는 `paramName: () -> ...`
+  const lambdaParamRe = /(\w+)\s*:\s*\([^)]*\)\s*->/g;
+  let pm: RegExpExecArray | null;
+  while ((pm = lambdaParamRe.exec(paramsText)) !== null) {
+    params.add(pm[1]!);
+  }
+  return params;
+}
+
+/**
  * 화면 함수 소스에서 Button/OutlinedButton의 onClick 파라미터명, Text 라벨, 1-based 라인을 추출한다.
  */
 function extractButtonClickLabels(
@@ -331,6 +366,51 @@ export async function discoverAndroidNavGraph(
         });
       }
     }
+  }
+
+  // ── 3단계+ 간접 전달 콜백 감지 ────────────────────────────────────────────
+  // NavHost에 등록된 화면인데 screenCallbackMap에 없는 경우 = NavHost가 콜백을 직접 주입하지 않음.
+  // 해당 화면의 함수 시그니처에서 람다 파라미터를 추출하고,
+  // 그 파라미터가 Button onClick에 연결됐으면 DYNAMIC_NAV diagnostic emit.
+  const navHostScreenNames = new Set(routeToScreen.values());
+  let dynamicNavCount = 0;
+
+  for (const screenName of navHostScreenNames) {
+    // screenCallbackMap에 있으면 이미 정상 처리됨 → 스킵
+    if (screenCallbackMap.has(screenName)) continue;
+
+    // 화면 소스 탐색
+    let screenSource: string | undefined;
+    for (const [, parsedFile] of symbolTable.files) {
+      if (
+        parsedFile.source.includes(`fun ${screenName}(`) &&
+        parsedFile.composables.some((c) => c.name === screenName)
+      ) {
+        screenSource = parsedFile.source;
+        break;
+      }
+    }
+    if (!screenSource) continue;
+
+    // 람다 파라미터 추출
+    const lambdaParams = extractLambdaParamNames(screenSource, screenName);
+    if (lambdaParams.size === 0) continue;
+
+    // Button onClick에서 파라미터로 받은 콜백 사용 여부 확인
+    const buttonLabels = extractButtonClickLabels(screenSource, resources.strings);
+    for (const { callbackParamName } of buttonLabels) {
+      if (lambdaParams.has(callbackParamName)) {
+        dynamicNavCount++;
+        break; // 화면 당 한 번만 카운트
+      }
+    }
+  }
+
+  if (dynamicNavCount > 0) {
+    diagnostics.push({
+      code: "DYNAMIC_NAV",
+      message: `콜백 간접 전달 깊이 한계로 추적 포기 (${dynamicNavCount}개 화면)`,
+    });
   }
 
   return { entryScreenId, edges, diagnostics };

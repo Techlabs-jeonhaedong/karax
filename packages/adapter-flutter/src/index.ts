@@ -67,14 +67,19 @@ export const flutterAdapter: FrameworkAdapter = {
   },
 
   async discoverScreens(ctx: AdapterContext): Promise<ScreenSummary[]> {
-    const { projectPath, includeCandidates = true } = ctx;
+    const { projectPath, includeCandidates = true, onDebug } = ctx;
 
     // 패키지명 읽기
     let packageName: string;
     try {
       packageName = await readPackageName(projectPath);
-    } catch {
+    } catch (e) {
       packageName = "";
+      onDebug?.({
+        tag: "flutter-pubspec-read-failed",
+        message: "pubspec.yaml에서 패키지명을 읽지 못했습니다. 빈 문자열로 계속 진행합니다.",
+        detail: e instanceof Error ? e.stack : String(e),
+      });
     }
 
     // 심볼 테이블 구축
@@ -134,12 +139,17 @@ export const flutterAdapter: FrameworkAdapter = {
   },
 
   async discoverNavigation(ctx: AdapterContext): Promise<NavigationGraph> {
-    const { projectPath } = ctx;
+    const { projectPath, onDebug } = ctx;
     let packageName: string;
     try {
       packageName = await readPackageName(projectPath);
-    } catch {
+    } catch (e) {
       packageName = "";
+      onDebug?.({
+        tag: "flutter-navgraph-pubspec-failed",
+        message: "discoverNavigation: pubspec.yaml 읽기 실패, 빈 패키지명으로 계속 진행합니다.",
+        detail: e instanceof Error ? e.stack : String(e),
+      });
     }
     const symbolTable = await buildSymbolTable(projectPath, packageName);
     try {
