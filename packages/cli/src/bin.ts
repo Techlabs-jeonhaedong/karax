@@ -681,6 +681,16 @@ program
             seenPhases.clear();
           }
 
+          // heartbeat: 단계 전환 없이 진행 중임을 알리는 keepalive — 타이머/카운터 갱신 없음
+          if (event.heartbeat === true) {
+            const startTime = stepStartTimes.get(key);
+            const elapsedStr = startTime !== undefined
+              ? ` (${((Date.now() - startTime) / 1000).toFixed(1)}s 경과)`
+              : "";
+            process.stderr.write(`${label} 진행 중${elapsedStr}\n`);
+            return;
+          }
+
           if (event.status === "start") {
             if (!seenPhases.has(event.phase)) {
               phaseIndex++;
