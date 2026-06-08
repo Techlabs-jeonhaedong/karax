@@ -6,12 +6,49 @@
  *
  * 구성:
  *   - 순수 함수: renderBar / formatDuration / applyEvent / renderDashboard / stripAnsi
+ *              lerpColor / gradientText / supportsTrueColor / renderBanner
  *   - 부수효과 클래스: LiveDashboard (stderr 렌더, setInterval 관리)
  *
  * stdout은 절대 건드리지 않는다 (--json 결과 전용).
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { join, dirname } from "node:path";
 import type { E2eProgressEvent, E2eProgressPhase } from "@karax/e2e";
+
+// ─── CLI 버전 읽기 ────────────────────────────────────────────────
+
+/**
+ * cli package.json에서 버전을 읽는다.
+ * 실패 시 "dev" 반환.
+ */
+function readCliVersion(): string {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const pkgPath = join(dirname(__filename), "..", "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version?: string };
+    return typeof pkg.version === "string" && pkg.version.length > 0
+      ? pkg.version
+      : "dev";
+  } catch {
+    return "dev";
+  }
+}
+
+// ─── 이모지 아이콘 상수 (VS16 부착으로 이모지 프레젠테이션 강제) ─────
+//
+// VS16(U+FE0F): Variation Selector-16 — 이모지 프레젠테이션 강제 마커.
+// 일부 터미널에서 ✅/❌/⚡를 텍스트 프레젠테이션(폭1)으로 렌더할 수 있으므로
+// VS16을 뒤에 붙여 이모지 프레젠테이션(폭2)을 강제한다.
+// VS16(0xFE0F)은 codePointWidth 함수에서 폭0 처리되므로 displayWidth 계산에 영향 없음.
+
+/** ✅ CHECK MARK BUTTON + VS16 (displayWidth=2) */
+const ICON_OK = "✅️";
+/** ❌ CROSS MARK + VS16 (displayWidth=2) */
+const ICON_ERR = "❌️";
+/** ⚡ HIGH VOLTAGE SIGN + VS16 (displayWidth=2) */
+const ICON_RUNNING = "⚡️";
 
 // ─── 파이프라인 단계 정의 ───────────────────────────────────────────
 
@@ -144,6 +181,29 @@ export function displayWidth(str: string): number {
   return width;
 }
 
+/**
+ * 이모지 표시 폭이 2인 코드포인트들을 명시적으로 열거한다.
+ *
+ * 배경: ✅(U+2705), ❌(U+274C), ⚡(U+26A1)은 0x1F300~0x1FAFF 범위 밖(Misc Symbols/Dingbats)이라
+ * 기존 범위 기반 처리만으로는 1로 잘못 계산됨 → 불변식 파괴.
+ *
+ * 해결: 대시보드에서 사용하는 이모지를 명시적으로 폭2 처리.
+ * 박스 드로잉(─│┃ 등), 기하학적 도형(▶◉) 등 폭1 문자는 그대로 유지.
+ */
+const EXPLICIT_WIDTH2_CODEPOINTS = new Set<number>([
+  0x2705, // ✅ CHECK MARK BUTTON
+  0x274c, // ❌ CROSS MARK
+  0x26a1, // ⚡ HIGH VOLTAGE SIGN
+  0x2728, // ✨ SPARKLES
+  0x2764, // ❤  HEAVY BLACK HEART
+  0x26a0, // ⚠  WARNING SIGN
+  0x2b50, // ⭐ WHITE MEDIUM STAR
+  0x2b55, // ⭕ HEAVY LARGE CIRCLE
+  0x274e, // ❎ NEGATIVE SQUARED CROSS MARK
+  0x2753, // ❓ BLACK QUESTION MARK ORNAMENT
+  0x2757, // ❗ HEAVY EXCLAMATION MARK ORNAMENT
+]);
+
 function codePointWidth(cp: number): number {
   // NUL
   if (cp === 0x0000) return 0;
@@ -164,6 +224,9 @@ function codePointWidth(cp: number): number {
   // Unicode variation selectors (폭 0으로 처리)
   if ((cp >= 0xfe00 && cp <= 0xfe0f) || (cp >= 0xe0100 && cp <= 0xe01ef)) return 0;
 
+  // 명시적 폭2 이모지 (Misc Symbols/Dingbats 범위 이모지로, 범위 기반 처리 전에 체크)
+  if (EXPLICIT_WIDTH2_CODEPOINTS.has(cp)) return 2;
+
   // 전각 2칸 범위
   if (
     (cp >= 0x1100 && cp <= 0x115f) ||  // Hangul Jamo
@@ -177,7 +240,7 @@ function codePointWidth(cp: number): number {
     (cp >= 0xfe30 && cp <= 0xfe4f) ||  // CJK Compat Forms
     (cp >= 0xff00 && cp <= 0xff60) ||  // Fullwidth Forms
     (cp >= 0xffe0 && cp <= 0xffe6) ||  // Fullwidth Signs
-    (cp >= 0x1f300 && cp <= 0x1faff) || // Emoji
+    (cp >= 0x1f300 && cp <= 0x1faff) || // Emoji (BMP 이상 이모지)
     (cp >= 0x20000 && cp <= 0x3fffd)   // CJK Ext-B+
   ) return 2;
 
@@ -272,6 +335,175 @@ export function sanitizeForTerminal(s: string): string {
   const noAnsi = stripAnsi(truncated);
   // eslint-disable-next-line no-control-regex
   return noAnsi.replace(/[\n\r\t\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, " ");
+}
+
+// ─── 트루컬러 그라데이션 헬퍼 (순수 함수) ────────────────────────
+
+/**
+ * 트루컬러(24bit) 지원 여부를 반환한다.
+ *
+ * - NO_COLOR 환경변수가 있으면 항상 false
+ * - COLORTERM이 "truecolor" 또는 "24bit"이면 true
+ * - 그 외엔 false
+ */
+export function supportsTrueColor(): boolean {
+  if (process.env.NO_COLOR) return false;
+  const ct = process.env.COLORTERM;
+  return ct === "truecolor" || ct === "24bit";
+}
+
+/**
+ * 두 RGB 색 사이를 선형 보간한다.
+ *
+ * @param from [r, g, b] (0~255)
+ * @param to   [r, g, b] (0~255)
+ * @param t    보간 계수 (0~1, 클램프 처리됨)
+ * @returns    보간된 [r, g, b]
+ */
+export function lerpColor(
+  from: [number, number, number],
+  to: [number, number, number],
+  t: number,
+): [number, number, number] {
+  const clamped = Math.max(0, Math.min(1, t));
+  return [
+    Math.round(from[0] + (to[0] - from[0]) * clamped),
+    Math.round(from[1] + (to[1] - from[1]) * clamped),
+    Math.round(from[2] + (to[2] - from[2]) * clamped),
+  ];
+}
+
+/**
+ * 텍스트에 가로 그라데이션을 적용한다.
+ *
+ * - 트루컬러 지원 + NO_COLOR 없을 때만 24bit ANSI 적용
+ * - NO_COLOR 또는 트루컬러 미지원 시 원문 그대로 반환 (단색 ANSI 없음)
+ * - stripAnsi 후 항상 원문과 동일 (폭 불변)
+ *
+ * @param text  출력할 텍스트 (코드포인트 단위로 순회)
+ * @param from  시작 RGB 색
+ * @param to    끝 RGB 색
+ *
+ * @warning 정적 UI 텍스트(로고/라벨)에만 사용할 것.
+ *   buildCommand·detail 같은 외부 입력에는 절대 적용 금지.
+ *   외부 입력에 적용하면 ANSI 인젝션 및 출력 팽창 위험이 있음.
+ *   외부 입력은 반드시 sanitizeForTerminal()로 정화한 뒤 colorize()만 사용할 것.
+ */
+export function gradientText(
+  text: string,
+  from: [number, number, number],
+  to: [number, number, number],
+): string {
+  if (!isColorEnabled() || !supportsTrueColor()) return text;
+  if (text.length === 0) return text;
+
+  // 코드포인트 배열로 분리 (서로게이트 쌍 처리)
+  const chars = [...text];
+  const total = chars.length;
+  if (total === 1) {
+    const [r, g, b] = from;
+    return `\x1b[38;2;${r};${g};${b}m${chars[0]}${ANSI_RESET}`;
+  }
+
+  let result = "";
+  for (let i = 0; i < total; i++) {
+    const t = i / (total - 1);
+    const [r, g, b] = lerpColor(from, to, t);
+    result += `\x1b[38;2;${r};${g};${b}m${chars[i]}`;
+  }
+  result += ANSI_RESET;
+  return result;
+}
+
+// ─── KARAX ASCII 아트 로고 (ANSI Shadow 스타일) ───────────────────
+
+/**
+ * KARAX ANSI Shadow 스타일 로고 라인 배열.
+ * 각 라인의 displayWidth = 41 (5글자 × 8 + 공백).
+ * 반드시 termWidth ≥ LOGO_WIDTH일 때만 사용할 것.
+ */
+const LOGO_LINES = [
+  "██╗  ██╗ █████╗ ██████╗  █████╗ ██╗  ██╗",
+  "██║ ██╔╝██╔══██╗██╔══██╗██╔══██╗╚██╗██╔╝",
+  "█████╔╝ ███████║██████╔╝███████║ ╚███╔╝ ",
+  "██╔═██╗ ██╔══██║██╔══██╗██╔══██║ ██╔██╗ ",
+  "██║  ██╗██║  ██║██║  ██║██║  ██║██╔╝ ██╗",
+  "╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝",
+];
+
+/** 로고 표시에 필요한 최소 폭 */
+const LOGO_WIDTH = 42;
+
+/** 그라데이션 색상 팔레트 (로고 세로 / 진행바 가로 공유) */
+const GRAD_CYAN: [number, number, number] = [0, 200, 220];    // 시안
+const GRAD_MAGENTA: [number, number, number] = [180, 60, 220]; // 마젠타
+
+/** 세로 그라데이션 색상: 위(시안) → 아래(마젠타) */
+const LOGO_COLOR_TOP = GRAD_CYAN;
+const LOGO_COLOR_BOTTOM = GRAD_MAGENTA;
+
+/** 가로 그라데이션 색상: 왼쪽(시안) → 오른쪽(마젠타) */
+const BAR_COLOR_LEFT = GRAD_CYAN;
+const BAR_COLOR_RIGHT = GRAD_MAGENTA;
+
+/**
+ * 배너를 렌더링한다 (순수 함수).
+ *
+ * - termWidth >= LOGO_WIDTH: ASCII 아트 로고 + 서브타이틀
+ * - termWidth < LOGO_WIDTH: 텍스트 폴백 ("KARAX · E2E 테스트 자동화 vX.Y")
+ * - 트루컬러 지원 시 세로 그라데이션(로고) 또는 단색(폴백) 적용
+ * - NO_COLOR 시 색 없음
+ * - 모든 반환 라인의 displayWidth(stripAnsi(line)) ≤ termWidth
+ *
+ * @param opts.version  표시할 버전 문자열 (cli package.json에서 읽거나 "dev")
+ * @param opts.termWidth 터미널 폭
+ */
+export function renderBanner(opts: {
+  version: string;
+  termWidth: number;
+}): string[] {
+  const { termWidth } = opts;
+  // 외부에서 읽은 version에 ANSI 인젝션 방어 — sanitize 후 사용
+  const version = sanitizeForTerminal(opts.version);
+  const lines: string[] = [];
+
+  if (termWidth >= LOGO_WIDTH) {
+    // ─── 풀 로고 모드 ────────────────────────────────────────────
+    const totalRows = LOGO_LINES.length;
+    for (let i = 0; i < totalRows; i++) {
+      const logoLine = LOGO_LINES[i];
+      const t = totalRows <= 1 ? 0 : i / (totalRows - 1);
+
+      let coloredLine: string;
+      if (isColorEnabled() && supportsTrueColor()) {
+        // 세로 그라데이션: 행별로 단색(그 행의 보간색) 적용
+        const [r, g, b] = lerpColor(LOGO_COLOR_TOP, LOGO_COLOR_BOTTOM, t);
+        coloredLine = `\x1b[1m\x1b[38;2;${r};${g};${b}m${logoLine}${ANSI_RESET}`;
+      } else if (isColorEnabled()) {
+        // 단색 폴백: 시안
+        coloredLine = colorize(logoLine, ANSI_BOLD, ANSI_CYAN);
+      } else {
+        coloredLine = logoLine;
+      }
+      lines.push(coloredLine);
+    }
+
+    // 서브타이틀: "╰─ E2E 테스트 자동화 · vX.Y ─╯"
+    const subtitleText = `╰─ E2E 테스트 자동화 · v${version} ─╯`;
+    const subtitleWidth = displayWidth(subtitleText);
+    const subtitleLine =
+      subtitleWidth <= termWidth
+        ? colorize(subtitleText, ANSI_DIM)
+        : colorize(truncateToWidth(subtitleText, termWidth), ANSI_DIM);
+    lines.push(subtitleLine);
+  } else {
+    // ─── 텍스트 폴백 모드 ─────────────────────────────────────────
+    const fallbackText = `KARAX · E2E 테스트 자동화 v${version}`;
+    const truncated = truncateToWidth(fallbackText, termWidth);
+    lines.push(colorize(truncated, ANSI_BOLD, ANSI_CYAN));
+  }
+
+  return lines;
 }
 
 // ─── 순수 함수: renderBar ─────────────────────────────────────────
@@ -443,17 +675,36 @@ export function renderDashboard(
   lines.push(topBorder);
 
   // 전체 진행바 라인 (phaseIndex 기반 — "현재 단계까지 포함한 진행 위치")
+  // 새 스타일: ⏺(채움, displayWidth=1) / ·(빈칸, displayWidth=1) + 가로 그라데이션
   const progressCount = state.phaseIndex;
   const progressRatio = PHASE_TOTAL > 0 ? progressCount / PHASE_TOTAL : 0;
   const progressPct = Math.round(progressRatio * 100);
-  const barWidth = Math.max(4, innerWidth - 12); // "X/10  100%" 부분 제외 (모두 ASCII → 자 단위)
-  const bar = renderBar(progressRatio, barWidth);
+  // progressLabel: " 5/10  50%" — 모두 ASCII → displayWidth == length
   const progressLabel = ` ${progressCount}/${PHASE_TOTAL}  ${String(progressPct).padStart(3)}%`;
+  const progressLabelWidth = progressLabel.length;
+  const barWidth = Math.max(4, innerWidth - progressLabelWidth);
   const filledCount = Math.round(progressRatio * barWidth);
-  const barColored = isColorEnabled()
-    ? colorize(bar.slice(0, filledCount), ANSI_CYAN) +
-      colorize(bar.slice(filledCount), ANSI_GRAY)
-    : bar;
+
+  let barColored: string;
+  if (!isColorEnabled()) {
+    barColored = "⏺".repeat(filledCount) + "·".repeat(barWidth - filledCount);
+  } else if (supportsTrueColor()) {
+    // 가로 그라데이션: 채워진 구간만 그라데이션, 빈 구간은 단색 dim
+    let barStr = "";
+    for (let i = 0; i < filledCount; i++) {
+      const t = barWidth <= 1 ? 0 : i / (barWidth - 1);
+      const [r, g, b] = lerpColor(BAR_COLOR_LEFT, BAR_COLOR_RIGHT, t);
+      barStr += `\x1b[38;2;${r};${g};${b}m⏺`;
+    }
+    if (filledCount > 0) barStr += ANSI_RESET;
+    barStr += colorize("·".repeat(barWidth - filledCount), ANSI_GRAY);
+    barColored = barStr;
+  } else {
+    // 단색 폴백
+    barColored =
+      colorize("⏺".repeat(filledCount), ANSI_CYAN) +
+      colorize("·".repeat(barWidth - filledCount), ANSI_GRAY);
+  }
   lines.push(boxLine(barColored + colorize(progressLabel, ANSI_WHITE)));
 
   // 헤더 라인: projectPath · platform · agent · 총 경과시간
@@ -487,14 +738,17 @@ export function renderDashboard(
   lines.push(bottomBorder);
 
   // ─── 2. 완료된 단계들 — 한 줄에 모아 표시 ─────────────────────
+  // 완료 아이콘: ICON_OK (✅️, displayWidth=2) → displayWidth 계산에 반영됨
 
   if (state.completedPhases.length > 0) {
     const completedParts = state.completedPhases.map((phase) => {
       const label = PHASE_LABELS[phase] ?? phase;
-      return colorize(`✓ ${label}`, ANSI_GREEN);
+      // "ICON_OK label" — 아이콘 폭2이므로 뒤 공백 없이 붙여도 됨
+      return colorize(`${ICON_OK} ${label}`, ANSI_GREEN);
     });
+    const completedStrippedParts = completedParts.map(stripAnsi);
     const completedText = completedParts.join("  ");
-    const completedStripped = completedParts.map(stripAnsi).join("  ");
+    const completedStripped = completedStrippedParts.join("  ");
     // displayWidth 기준으로 truncate
     const truncated = isColorEnabled()
       ? truncateAnsi(completedText, innerWidth)
@@ -503,16 +757,21 @@ export function renderDashboard(
   }
 
   // ─── 3. 에러 단계 ─────────────────────────────────────────────
+  // 에러 아이콘: ICON_ERR (❌️, displayWidth=2)
 
   if (state.errorPhase !== null) {
     const label = PHASE_LABELS[state.errorPhase] ?? state.errorPhase;
-    // "✗ <label>": label에 한글 있을 수 있으므로 전체 폭 체크
-    const errorText = `✗ ${label}`;
-    const truncated = truncateToWidth(errorText, termWidth - 1);
-    lines.push(" " + colorize(truncated, ANSI_RED));
+    // "ICON_ERR <label>": 아이콘=폭2, 공백=폭1, label 폭 → 합산 후 termWidth-1 이하로 truncate
+    const prefix = `${ICON_ERR} `;
+    const prefixWidth = displayWidth(prefix);
+    const labelBudget = Math.max(1, termWidth - 1 - prefixWidth);
+    const labelTruncated = truncateToWidth(label, labelBudget);
+    const errorText = prefix + labelTruncated;
+    lines.push(" " + colorize(errorText, ANSI_RED));
   }
 
   // ─── 4. 현재 진행 단계 ────────────────────────────────────────
+  // 진행 아이콘: ICON_RUNNING (⚡️, displayWidth=2)
 
   if (state.currentPhase !== null) {
     const label = PHASE_LABELS[state.currentPhase] ?? state.currentPhase;
@@ -520,21 +779,15 @@ export function renderDashboard(
       ? formatDuration(now - state.phaseStartTime)
       : "0.0s";
     const spinner = SPINNER_FRAMES[state.spinnerFrame % SPINNER_FRAMES.length];
-    // "▶ <label> <spinner> <elapsed>" — label에 한글 있을 수 있음
-    const currentRaw = `▶ ${label} ${spinner} ${phaseElapsed}`;
-    const currentLine = `▶ ${label} ${colorize(spinner, ANSI_YELLOW)} ${phaseElapsed}`;
-    // displayWidth 기준 전체 폭 확인: 초과 시 label을 줄임
-    const currentWidth = displayWidth(currentRaw);
+    // "ICON_RUNNING <label>  <spinner> <elapsed>" — 아이콘=폭2, label에 한글 있을 수 있음
+    // overhead: " ICON_RUNNING " + "  " + spinner(폭1) + " " + elapsed
+    const overheadRaw = `${ICON_RUNNING} ` + `  ${spinner} ${phaseElapsed}`;
+    const overhead = displayWidth(overheadRaw) + 1; // 앞 " " 여유
     const maxCurrentWidth = termWidth - 1; // 앞 " " 1자 여유
-    if (currentWidth <= maxCurrentWidth) {
-      lines.push(" " + currentLine);
-    } else {
-      // label을 줄여서 fit
-      const overhead = displayWidth(`▶  ${spinner} ${phaseElapsed}`) + 2; // " ▶ " + " " + spinner + " " + elapsed
-      const labelBudget = Math.max(2, maxCurrentWidth - overhead);
-      const labelTruncated = truncateToWidth(label, labelBudget);
-      lines.push(" " + `▶ ${labelTruncated} ${colorize(spinner, ANSI_YELLOW)} ${phaseElapsed}`);
-    }
+    const labelBudget = Math.max(2, maxCurrentWidth - overhead);
+    const labelTruncated = truncateToWidth(label, labelBudget);
+    const currentLine = `${ICON_RUNNING} ${labelTruncated}  ${colorize(spinner, ANSI_YELLOW)} ${phaseElapsed}`;
+    lines.push(" " + currentLine);
 
     // 빌드 커맨드 요약 (build 단계일 때) — sanitize 후 출력
     if (state.currentPhase === "build" && state.buildCommand !== undefined) {
@@ -546,8 +799,9 @@ export function renderDashboard(
   }
 
   // ─── 5. 구분선 ────────────────────────────────────────────────
-  // "─" 은 박스 드로잉 → displayWidth 1, termWidth - 2 개 (앞 " " 포함 termWidth-1 이하)
-  lines.push(" " + colorize("─".repeat(Math.max(1, termWidth - 2)), ANSI_GRAY));
+  // 박스 폭(boxWidth)에 맞춰 정렬: " " + "─".repeat(boxWidth - 2) → 앞 " " 포함 boxWidth-1 폭
+  // boxWidth = termWidth - 2이므로 구분선 전체 폭 = 1 + (boxWidth - 2) = boxWidth - 1 ≤ termWidth
+  lines.push(" " + colorize("─".repeat(Math.max(1, boxWidth - 2)), ANSI_GRAY));
 
   // ─── 6. 최근 detail — sanitize 후 출력 ───────────────────────
 
@@ -611,6 +865,12 @@ export class LiveDashboard {
   /** 대시보드 시작 (타이머 등록, 커서 숨김) */
   start(): void {
     if (!this.isLive) return;
+
+    // 배너 출력 (1회, 스크롤백에 고정 — lastLines에 포함하지 않음)
+    const termWidth = process.stderr.columns || 80;
+    const version = readCliVersion();
+    const bannerLines = renderBanner({ version, termWidth });
+    process.stderr.write(bannerLines.join("\n") + "\n");
 
     // 커서 숨김
     process.stderr.write("\x1b[?25l");

@@ -26,6 +26,10 @@ import {
   displayWidth,
   truncateToWidth,
   physicalRows,
+  lerpColor,
+  gradientText,
+  supportsTrueColor,
+  renderBanner,
   type DashboardState,
 } from "../dashboard.js";
 import type { E2eProgressEvent } from "@karax/e2e";
@@ -339,15 +343,15 @@ describe("renderDashboard (NO_COLOR)", () => {
   it("완료 단계 4개가 체크 표시로 표현된다", () => {
     const lines = renderDashboard(makeRenderState(), 80, 60000);
     const text = lines.map(stripAnsi).join("\n");
-    // ✓ 표시가 4개 있어야 한다 (완료 단계 수)
-    const checkCount = (text.match(/✓/g) ?? []).length;
+    // ✅ 표시가 4개 있어야 한다 (완료 단계 수)
+    const checkCount = (text.match(/✅/g) ?? []).length;
     expect(checkCount).toBe(4);
   });
 
-  it("현재 단계(build)가 ▶ 표시로 포함된다", () => {
+  it("현재 단계(build)가 ⚡ 표시로 포함된다", () => {
     const lines = renderDashboard(makeRenderState(), 80, 60000);
     const text = lines.map(stripAnsi).join("\n");
-    expect(text).toContain("▶");
+    expect(text).toContain("⚡");
     expect(text).toContain("앱 빌드");
   });
 
@@ -379,7 +383,7 @@ describe("renderDashboard (NO_COLOR)", () => {
     expect(text).toMatch(/2\/5|시나리오/);
   });
 
-  it("에러 상태: errorPhase가 있으면 ✗ 표시가 포함된다", () => {
+  it("에러 상태: errorPhase가 있으면 ❌ 표시가 포함된다", () => {
     const state = makeRenderState({
       currentPhase: null,
       errorPhase: "build",
@@ -387,7 +391,7 @@ describe("renderDashboard (NO_COLOR)", () => {
     });
     const lines = renderDashboard(state, 80, 60000);
     const text = lines.map(stripAnsi).join("\n");
-    expect(text).toContain("✗");
+    expect(text).toContain("❌");
   });
 
   it("좁은 터미널(30열)에서도 크래시하지 않고 라인 배열을 반환한다", () => {
@@ -412,7 +416,7 @@ describe("renderDashboard (NO_COLOR)", () => {
     expect(raw).not.toMatch(/\x1b\[/);
   });
 
-  it("completedPhases가 빈 배열이면 ✓가 없다", () => {
+  it("completedPhases가 빈 배열이면 ✅가 없다", () => {
     const state = makeRenderState({
       completedPhases: [],
       currentPhase: "scenario",
@@ -420,10 +424,10 @@ describe("renderDashboard (NO_COLOR)", () => {
     });
     const lines = renderDashboard(state, 80, 60000);
     const text = lines.map(stripAnsi).join("\n");
-    expect(text).not.toContain("✓");
+    expect(text).not.toContain("✅");
   });
 
-  it("currentPhase가 null이면 ▶가 없다", () => {
+  it("currentPhase가 null이면 ⚡가 없다", () => {
     const state = makeRenderState({
       completedPhases: ["scenario", "detect", "device", "appmap", "build", "install", "launch", "agent", "crash-scan", "report"],
       currentPhase: null,
@@ -432,7 +436,7 @@ describe("renderDashboard (NO_COLOR)", () => {
     });
     const lines = renderDashboard(state, 80, 60000);
     const text = lines.map(stripAnsi).join("\n");
-    expect(text).not.toContain("▶");
+    expect(text).not.toContain("⚡");
   });
 
   it("lastDetail에 ANSI 이스케이프가 섞여도 출력 라인에 제어문자가 없다", () => {
@@ -964,6 +968,654 @@ describe("LiveDashboard resize debounce", () => {
     expect(stderrSpy.mock.calls.length).toBeGreaterThan(writeCountAfterStart);
 
     dashboard.stop();
+  });
+});
+
+// ─── displayWidth 이모지 폭 보강: 새 아이콘들 ──────────────────────
+
+describe("displayWidth — 새 아이콘 폭 명시 검증", () => {
+  // renderDashboard/renderBanner에서 실제로 사용하는 아이콘들
+  // 불변식: displayWidth 계산 == 실제 터미널 표시 폭
+
+  it("✅ (U+2705 CHECK MARK BUTTON) = 2칸", () => {
+    // 이모지 체크마크: 터미널에서 전각(2칸) 표시
+    expect(displayWidth("✅")).toBe(2);
+  });
+
+  it("❌ (U+274C CROSS MARK) = 2칸", () => {
+    // 이모지 X 마크: 터미널에서 전각(2칸) 표시
+    expect(displayWidth("❌")).toBe(2);
+  });
+
+  it("⚡ (U+26A1 HIGH VOLTAGE SIGN) = 2칸", () => {
+    // 번개 이모지: 터미널에서 전각(2칸) 표시
+    expect(displayWidth("⚡")).toBe(2);
+  });
+
+  it("◉ (U+25C9 FISHEYE) = 1칸 (Geometric Shapes, 박스드로잉 류)", () => {
+    // 박스 드로잉 계열 단색 기호: 1칸 유지
+    expect(displayWidth("◉")).toBe(1);
+  });
+
+  it("⏺ (U+23FA BLACK CIRCLE FOR RECORD) = 1칸 (Misc Technical)", () => {
+    // 기록 버튼 기호: 1칸
+    expect(displayWidth("⏺")).toBe(1);
+  });
+
+  it("기존 ✓ (U+2713 CHECK MARK) = 1칸 유지 (회귀 없음)", () => {
+    expect(displayWidth("✓")).toBe(1);
+  });
+
+  it("기존 ▶ (U+25B6) = 1칸 유지 (회귀 없음)", () => {
+    expect(displayWidth("▶")).toBe(1);
+  });
+
+  it("기존 █ ░ = 1칸 유지 (회귀 없음)", () => {
+    expect(displayWidth("█")).toBe(1);
+    expect(displayWidth("░")).toBe(1);
+  });
+
+  it("기존 ┃ ─ ┏ ┓ = 1칸 유지 (회귀 없음)", () => {
+    expect(displayWidth("┃")).toBe(1);
+    expect(displayWidth("─")).toBe(1);
+    expect(displayWidth("┏")).toBe(1);
+    expect(displayWidth("┓")).toBe(1);
+  });
+});
+
+// ─── lerpColor ─────────────────────────────────────────────────────
+
+describe("lerpColor", () => {
+  it("t=0이면 from 색을 반환한다", () => {
+    expect(lerpColor([255, 0, 0], [0, 0, 255], 0)).toEqual([255, 0, 0]);
+  });
+
+  it("t=1이면 to 색을 반환한다", () => {
+    expect(lerpColor([255, 0, 0], [0, 0, 255], 1)).toEqual([0, 0, 255]);
+  });
+
+  it("t=0.5이면 중간값을 반환한다", () => {
+    const result = lerpColor([0, 0, 0], [100, 200, 100], 0.5);
+    expect(result[0]).toBe(50);
+    expect(result[1]).toBe(100);
+    expect(result[2]).toBe(50);
+  });
+
+  it("t 음수는 0으로 클램프된다", () => {
+    expect(lerpColor([255, 0, 0], [0, 0, 255], -0.5)).toEqual([255, 0, 0]);
+  });
+
+  it("t 1 초과는 1로 클램프된다", () => {
+    expect(lerpColor([255, 0, 0], [0, 0, 255], 2)).toEqual([0, 0, 255]);
+  });
+
+  it("from==to이면 항상 같은 색을 반환한다", () => {
+    expect(lerpColor([128, 64, 32], [128, 64, 32], 0.7)).toEqual([128, 64, 32]);
+  });
+
+  it("결과 RGB 값이 0~255 범위 내에 있다", () => {
+    const result = lerpColor([0, 100, 200], [255, 50, 10], 0.3);
+    for (const v of result) {
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(255);
+    }
+  });
+});
+
+// ─── supportsTrueColor ─────────────────────────────────────────────
+
+describe("supportsTrueColor", () => {
+  let origColorterm: string | undefined;
+  let origNoColor: string | undefined;
+
+  beforeEach(() => {
+    origColorterm = process.env.COLORTERM;
+    origNoColor = process.env.NO_COLOR;
+  });
+
+  afterEach(() => {
+    if (origColorterm === undefined) delete process.env.COLORTERM;
+    else process.env.COLORTERM = origColorterm;
+    if (origNoColor === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = origNoColor;
+  });
+
+  it("COLORTERM=truecolor → true", () => {
+    process.env.COLORTERM = "truecolor";
+    delete process.env.NO_COLOR;
+    expect(supportsTrueColor()).toBe(true);
+  });
+
+  it("COLORTERM=24bit → true", () => {
+    process.env.COLORTERM = "24bit";
+    delete process.env.NO_COLOR;
+    expect(supportsTrueColor()).toBe(true);
+  });
+
+  it("COLORTERM 미설정 → false", () => {
+    delete process.env.COLORTERM;
+    delete process.env.NO_COLOR;
+    expect(supportsTrueColor()).toBe(false);
+  });
+
+  it("COLORTERM=256colors → false (트루컬러 아님)", () => {
+    process.env.COLORTERM = "256colors";
+    delete process.env.NO_COLOR;
+    expect(supportsTrueColor()).toBe(false);
+  });
+
+  it("NO_COLOR 설정 시 COLORTERM=truecolor여도 false", () => {
+    process.env.COLORTERM = "truecolor";
+    process.env.NO_COLOR = "1";
+    expect(supportsTrueColor()).toBe(false);
+  });
+});
+
+// ─── gradientText ──────────────────────────────────────────────────
+
+describe("gradientText", () => {
+  let origColorterm: string | undefined;
+  let origNoColor: string | undefined;
+
+  beforeEach(() => {
+    origColorterm = process.env.COLORTERM;
+    origNoColor = process.env.NO_COLOR;
+  });
+
+  afterEach(() => {
+    if (origColorterm === undefined) delete process.env.COLORTERM;
+    else process.env.COLORTERM = origColorterm;
+    if (origNoColor === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = origNoColor;
+  });
+
+  it("stripAnsi 후 원문과 동일 (폭 불변 — 트루컬러 ON)", () => {
+    process.env.COLORTERM = "truecolor";
+    delete process.env.NO_COLOR;
+    const text = "KARAX";
+    const result = gradientText(text, [0, 255, 255], [255, 0, 255]);
+    expect(stripAnsi(result)).toBe(text);
+  });
+
+  it("NO_COLOR면 ANSI 코드 없이 원문만 반환", () => {
+    process.env.NO_COLOR = "1";
+    const text = "KARAX";
+    const result = gradientText(text, [0, 255, 255], [255, 0, 255]);
+    expect(result).toBe(text);
+    expect(result).not.toContain("\x1b");
+  });
+
+  it("트루컬러 미지원(COLORTERM 없음)이면 ANSI 코드 없이 원문만 반환", () => {
+    delete process.env.COLORTERM;
+    delete process.env.NO_COLOR;
+    const text = "KARAX";
+    const result = gradientText(text, [0, 255, 255], [255, 0, 255]);
+    // 트루컬러 폴백: 원문 반환 (또는 단색, 어떤 경우든 stripAnsi=원문)
+    expect(stripAnsi(result)).toBe(text);
+  });
+
+  it("트루컬러 ON이면 24bit ANSI 코드가 포함된다", () => {
+    process.env.COLORTERM = "truecolor";
+    delete process.env.NO_COLOR;
+    const result = gradientText("AB", [0, 255, 255], [255, 0, 255]);
+    // 트루컬러 ANSI: \x1b[38;2;R;G;Bm
+    expect(result).toMatch(/\x1b\[38;2;/);
+  });
+
+  it("한글 텍스트에도 stripAnsi 후 원문 동일", () => {
+    process.env.COLORTERM = "truecolor";
+    delete process.env.NO_COLOR;
+    const text = "카락스";
+    const result = gradientText(text, [0, 255, 255], [255, 0, 255]);
+    expect(stripAnsi(result)).toBe(text);
+  });
+
+  it("빈 문자열도 안전하게 처리", () => {
+    process.env.COLORTERM = "truecolor";
+    delete process.env.NO_COLOR;
+    expect(gradientText("", [0, 255, 255], [255, 0, 255])).toBe("");
+  });
+});
+
+// ─── renderBanner ──────────────────────────────────────────────────
+
+describe("renderBanner", () => {
+  let origNoColor: string | undefined;
+  let origColorterm: string | undefined;
+
+  beforeEach(() => {
+    origNoColor = process.env.NO_COLOR;
+    origColorterm = process.env.COLORTERM;
+  });
+
+  afterEach(() => {
+    if (origNoColor === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = origNoColor;
+    if (origColorterm === undefined) delete process.env.COLORTERM;
+    else process.env.COLORTERM = origColorterm;
+  });
+
+  it("충분한 폭(120)에서 라인 배열을 반환한다 (비어있지 않음)", () => {
+    process.env.NO_COLOR = "1";
+    const lines = renderBanner({ version: "0.1.0", termWidth: 120 });
+    expect(Array.isArray(lines)).toBe(true);
+    expect(lines.length).toBeGreaterThan(0);
+  });
+
+  it("충분한 폭(120)에서 로고 라인이 포함된다 (ASCII 아트)", () => {
+    process.env.NO_COLOR = "1";
+    const lines = renderBanner({ version: "0.1.0", termWidth: 120 });
+    const text = lines.join("\n");
+    // 박스 드로잉 블록 문자 확인 (ANSI Shadow 스타일)
+    expect(text).toMatch(/[█╗║╚╝═╔]/);
+  });
+
+  it("충분한 폭에서 버전 문자열이 포함된다", () => {
+    process.env.NO_COLOR = "1";
+    const lines = renderBanner({ version: "1.2.3", termWidth: 120 });
+    const text = lines.join("\n");
+    expect(text).toContain("1.2.3");
+  });
+
+  it("모든 라인의 displayWidth ≤ termWidth (충분한 폭)", () => {
+    process.env.NO_COLOR = "1";
+    const termWidth = 120;
+    const lines = renderBanner({ version: "0.1.0", termWidth });
+    for (const line of lines) {
+      const w = displayWidth(stripAnsi(line));
+      expect(w).toBeLessThanOrEqual(termWidth);
+    }
+  });
+
+  it("좁은 폭(30)에서 텍스트 폴백으로 전환 (로고 생략)", () => {
+    process.env.NO_COLOR = "1";
+    // ASCII 아트 로고 폭 ~41칸 > 30 → 폴백
+    const lines = renderBanner({ version: "0.1.0", termWidth: 30 });
+    const text = lines.join("\n");
+    // 박스 드로잉 블록 문자(로고 전용)는 없어야 함
+    expect(text).not.toMatch(/[╗║╚╝╔]/);
+    // "KARAX" 텍스트는 여전히 있어야 함
+    expect(text.toUpperCase()).toContain("KARAX");
+  });
+
+  it("좁은 폭(30)에서도 모든 라인의 displayWidth ≤ termWidth", () => {
+    process.env.NO_COLOR = "1";
+    const termWidth = 30;
+    const lines = renderBanner({ version: "0.1.0", termWidth });
+    for (const line of lines) {
+      const w = displayWidth(stripAnsi(line));
+      expect(w).toBeLessThanOrEqual(termWidth);
+    }
+  });
+
+  it("NO_COLOR일 때 ANSI 이스케이프 코드가 없다", () => {
+    process.env.NO_COLOR = "1";
+    const lines = renderBanner({ version: "0.1.0", termWidth: 120 });
+    for (const line of lines) {
+      expect(line).not.toMatch(/\x1b\[/);
+    }
+  });
+
+  it("트루컬러 환경에서 24bit ANSI 코드가 포함된다", () => {
+    delete process.env.NO_COLOR;
+    process.env.COLORTERM = "truecolor";
+    const lines = renderBanner({ version: "0.1.0", termWidth: 120 });
+    const text = lines.join("\n");
+    // 그라데이션 적용 → 24bit ANSI
+    expect(text).toMatch(/\x1b\[38;2;/);
+  });
+
+  it("termWidth=80에서 모든 라인 displayWidth ≤ 80", () => {
+    process.env.NO_COLOR = "1";
+    const termWidth = 80;
+    const lines = renderBanner({ version: "0.1.0", termWidth });
+    for (const line of lines) {
+      const w = displayWidth(stripAnsi(line));
+      expect(w).toBeLessThanOrEqual(termWidth);
+    }
+  });
+
+  it("termWidth=40에서 모든 라인 displayWidth ≤ 40", () => {
+    process.env.NO_COLOR = "1";
+    const termWidth = 40;
+    const lines = renderBanner({ version: "0.1.0", termWidth });
+    for (const line of lines) {
+      const w = displayWidth(stripAnsi(line));
+      expect(w).toBeLessThanOrEqual(termWidth);
+    }
+  });
+
+  it("버전 읽기 실패 시 'dev'로 표시", () => {
+    process.env.NO_COLOR = "1";
+    const lines = renderBanner({ version: "dev", termWidth: 120 });
+    const text = lines.join("\n");
+    expect(text).toContain("dev");
+  });
+});
+
+// ─── renderDashboard 새 아이콘 폭 불변식 ──────────────────────────
+
+describe("renderDashboard — 새 아이콘이 포함된 불변식 (displayWidth ≤ termWidth)", () => {
+  const termWidths = [20, 40, 80, 120];
+
+  beforeEach(() => {
+    process.env.NO_COLOR = "1";
+  });
+
+  afterEach(() => {
+    delete process.env.NO_COLOR;
+  });
+
+  function assertInvariantNew(state: DashboardState, termWidth: number): void {
+    const lines = renderDashboard(state, termWidth, 60000);
+    for (const line of lines) {
+      const w = displayWidth(stripAnsi(line));
+      if (w > termWidth) {
+        throw new Error(
+          `라인 폭(${w}) > termWidth(${termWidth}): "${stripAnsi(line).slice(0, 60)}"`
+        );
+      }
+    }
+  }
+
+  for (const tw of termWidths) {
+    it(`termWidth=${tw}: 완료/에러/진행 단계가 모두 있을 때 불변식 유지`, () => {
+      const state: DashboardState = {
+        phaseIndex: 5,
+        completedPhases: ["scenario", "detect", "device", "appmap"],
+        currentPhase: "build",
+        errorPhase: null,
+        sessionStartTime: 0,
+        phaseStartTime: 0,
+        lastDetail: "gradle assembleKrDevDebug…",
+        lastStepIndex: undefined,
+        totalSteps: undefined,
+        projectPath: "/home/user/MyApp",
+        platform: "android",
+        agent: "claude",
+        buildCommand: "gradle assembleKrDevDebug",
+        spinnerFrame: 0,
+        seenPhases: new Set(["scenario", "detect", "device", "appmap", "build"]),
+      };
+      assertInvariantNew(state, tw);
+    });
+
+    it(`termWidth=${tw}: 에러 단계에서 불변식 유지`, () => {
+      const state: DashboardState = {
+        phaseIndex: 3,
+        completedPhases: ["scenario", "detect"],
+        currentPhase: null,
+        errorPhase: "build",
+        sessionStartTime: 0,
+        phaseStartTime: null,
+        lastDetail: "빌드 실패",
+        lastStepIndex: undefined,
+        totalSteps: undefined,
+        projectPath: "/home/user/MyApp",
+        platform: "android",
+        agent: "claude",
+        buildCommand: undefined,
+        spinnerFrame: 0,
+        seenPhases: new Set(["scenario", "detect", "build"]),
+      };
+      assertInvariantNew(state, tw);
+    });
+  }
+});
+
+// ─── renderBanner 불변식: termWidth 20/40/80/120 ──────────────────
+
+describe("renderBanner 불변식: displayWidth ≤ termWidth", () => {
+  const termWidths = [20, 40, 80, 120];
+
+  beforeEach(() => {
+    process.env.NO_COLOR = "1";
+  });
+
+  afterEach(() => {
+    delete process.env.NO_COLOR;
+  });
+
+  for (const tw of termWidths) {
+    it(`termWidth=${tw}: 모든 라인 displayWidth ≤ termWidth`, () => {
+      const lines = renderBanner({ version: "0.1.0", termWidth: tw });
+      for (const line of lines) {
+        const w = displayWidth(stripAnsi(line));
+        if (w > tw) {
+          throw new Error(
+            `배너 라인 폭(${w}) > termWidth(${tw}): "${stripAnsi(line).slice(0, 60)}"`
+          );
+        }
+      }
+    });
+  }
+});
+
+// ─── [수정항목 1] 진행바 퍼센트 복원 ────────────────────────────────
+
+describe("renderDashboard — 진행바 퍼센트(%) 복원", () => {
+  let origNoColor: string | undefined;
+
+  beforeEach(() => {
+    origNoColor = process.env.NO_COLOR;
+    process.env.NO_COLOR = "1";
+  });
+
+  afterEach(() => {
+    if (origNoColor === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = origNoColor;
+  });
+
+  it("termWidth=80: 진행바 라인에 '50%' 문자열이 포함된다 (5/10)", () => {
+    const state = makeRenderState({ phaseIndex: 5 }); // 5/10 = 50%
+    const lines = renderDashboard(state, 80, 60000);
+    const text = lines.map(stripAnsi).join("\n");
+    expect(text).toContain("50%");
+  });
+
+  it("termWidth=40: 진행바 라인에 '50%' 문자열이 포함된다 (5/10)", () => {
+    const state = makeRenderState({ phaseIndex: 5 });
+    const lines = renderDashboard(state, 40, 60000);
+    const text = lines.map(stripAnsi).join("\n");
+    expect(text).toContain("50%");
+  });
+
+  it("termWidth=120: 진행바 라인에 '50%' 문자열이 포함된다 (5/10)", () => {
+    const state = makeRenderState({ phaseIndex: 5 });
+    const lines = renderDashboard(state, 120, 60000);
+    const text = lines.map(stripAnsi).join("\n");
+    expect(text).toContain("50%");
+  });
+
+  it("termWidth=80, phaseIndex=0: '  0%' 포함", () => {
+    const state = makeRenderState({ phaseIndex: 0, completedPhases: [], currentPhase: null });
+    const lines = renderDashboard(state, 80, 60000);
+    const text = lines.map(stripAnsi).join("\n");
+    expect(text).toMatch(/\s0%/);
+  });
+
+  it("termWidth=80, phaseIndex=10: '100%' 포함", () => {
+    const state = makeRenderState({
+      phaseIndex: 10,
+      completedPhases: ["scenario", "detect", "device", "appmap", "build", "install", "launch", "agent", "crash-scan", "report"],
+      currentPhase: null,
+    });
+    const lines = renderDashboard(state, 80, 60000);
+    const text = lines.map(stripAnsi).join("\n");
+    expect(text).toContain("100%");
+  });
+
+  it("termWidth=80: 퍼센트 복원 후에도 진행바 라인 displayWidth ≤ termWidth (불변식 유지)", () => {
+    const termWidth = 80;
+    const state = makeRenderState({ phaseIndex: 5 });
+    const lines = renderDashboard(state, termWidth, 60000);
+    for (const line of lines) {
+      const w = displayWidth(stripAnsi(line));
+      expect(w).toBeLessThanOrEqual(termWidth);
+    }
+  });
+
+  it("termWidth=40: 퍼센트 복원 후에도 진행바 라인 displayWidth ≤ termWidth (불변식 유지)", () => {
+    const termWidth = 40;
+    const state = makeRenderState({ phaseIndex: 5 });
+    const lines = renderDashboard(state, termWidth, 60000);
+    for (const line of lines) {
+      const w = displayWidth(stripAnsi(line));
+      expect(w).toBeLessThanOrEqual(termWidth);
+    }
+  });
+
+  it("termWidth=120: 퍼센트 복원 후에도 진행바 라인 displayWidth ≤ termWidth (불변식 유지)", () => {
+    const termWidth = 120;
+    const state = makeRenderState({ phaseIndex: 5 });
+    const lines = renderDashboard(state, termWidth, 60000);
+    for (const line of lines) {
+      const w = displayWidth(stripAnsi(line));
+      expect(w).toBeLessThanOrEqual(termWidth);
+    }
+  });
+});
+
+// ─── [수정항목 2] VS16(U+FE0F) 부착 — displayWidth 폭0 처리 확인 ──
+
+describe("displayWidth — VS16(U+FE0F) 폭0 처리 및 이모지 결합", () => {
+  it("VS16(U+FE0F) 단독: displayWidth === 0", () => {
+    expect(displayWidth("️")).toBe(0);
+  });
+
+  it("✅ + VS16: displayWidth === 2 (이모지 폭2 + VS16 폭0 = 2)", () => {
+    expect(displayWidth("✅️")).toBe(2);
+  });
+
+  it("❌ + VS16: displayWidth === 2", () => {
+    expect(displayWidth("❌️")).toBe(2);
+  });
+
+  it("⚡ + VS16: displayWidth === 2", () => {
+    expect(displayWidth("⚡️")).toBe(2);
+  });
+});
+
+// ─── [수정항목 2] renderDashboard 아이콘 VS16 부착 불변식 ──────────
+
+describe("renderDashboard — VS16 부착 후 아이콘 라인 불변식", () => {
+  const termWidths = [40, 80, 120];
+
+  beforeEach(() => {
+    process.env.NO_COLOR = "1";
+  });
+
+  afterEach(() => {
+    delete process.env.NO_COLOR;
+  });
+
+  for (const tw of termWidths) {
+    it(`termWidth=${tw}: VS16 부착 아이콘 포함 라인 displayWidth ≤ termWidth`, () => {
+      const state = makeRenderState({
+        completedPhases: ["scenario", "detect"],
+        currentPhase: "build",
+        errorPhase: null,
+      });
+      const lines = renderDashboard(state, tw, 60000);
+      for (const line of lines) {
+        const w = displayWidth(stripAnsi(line));
+        expect(w).toBeLessThanOrEqual(tw);
+      }
+    });
+
+    it(`termWidth=${tw}: 에러 아이콘(❌+VS16) 포함 라인 displayWidth ≤ termWidth`, () => {
+      const state = makeRenderState({
+        currentPhase: null,
+        errorPhase: "build",
+        completedPhases: ["scenario"],
+      });
+      const lines = renderDashboard(state, tw, 60000);
+      for (const line of lines) {
+        const w = displayWidth(stripAnsi(line));
+        expect(w).toBeLessThanOrEqual(tw);
+      }
+    });
+  }
+});
+
+// ─── [수정항목 3] 구분선 폭이 박스와 일관되게 ───────────────────────
+
+describe("renderDashboard — 구분선 폭 일관성", () => {
+  const termWidths = [40, 80, 120];
+
+  beforeEach(() => {
+    process.env.NO_COLOR = "1";
+  });
+
+  afterEach(() => {
+    delete process.env.NO_COLOR;
+  });
+
+  for (const tw of termWidths) {
+    it(`termWidth=${tw}: 구분선 라인 displayWidth ≤ termWidth`, () => {
+      const state = makeRenderState();
+      const lines = renderDashboard(state, tw, 60000);
+      for (const line of lines) {
+        const w = displayWidth(stripAnsi(line));
+        expect(w).toBeLessThanOrEqual(tw);
+      }
+    });
+
+    it(`termWidth=${tw}: 구분선 폭이 박스 상단 테두리 폭과 ±1 이내로 일관됨`, () => {
+      const state = makeRenderState();
+      const lines = renderDashboard(state, tw, 60000);
+      const stripped = lines.map(stripAnsi);
+      // 상단 테두리: "┏" 포함 라인
+      const topBorderLine = stripped.find(l => l.includes("┏"));
+      // 구분선: "─"만 포함(박스 드로잉)하고 "┃"가 없는 라인 (앞에 " " 1자 포함)
+      const dividerLine = stripped.find(l => /^ *─+$/.test(l.trim()) || /^ ─+$/.test(l));
+      if (topBorderLine !== undefined && dividerLine !== undefined) {
+        const topW = displayWidth(topBorderLine);
+        const divW = displayWidth(dividerLine);
+        // 구분선 폭이 박스 폭과 ±1 이내여야 함
+        expect(Math.abs(topW - divW)).toBeLessThanOrEqual(1);
+      }
+    });
+  }
+});
+
+// ─── [수정항목 4] renderBanner version sanitize ──────────────────────
+
+describe("renderBanner — version ANSI 인젝션 방어", () => {
+  let origNoColor: string | undefined;
+
+  beforeEach(() => {
+    origNoColor = process.env.NO_COLOR;
+    process.env.NO_COLOR = "1";
+  });
+
+  afterEach(() => {
+    if (origNoColor === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = origNoColor;
+  });
+
+  it("version에 ANSI 코드가 포함되어도 renderBanner 결과에 raw ESC가 없다", () => {
+    const maliciousVersion = "1.0\x1b[31m";
+    const lines = renderBanner({ version: maliciousVersion, termWidth: 120 });
+    const raw = lines.join("\n");
+    // sanitize 되었으므로 raw ESC(\x1b[31m)가 그대로 있으면 안 됨
+    expect(raw).not.toContain("\x1b[31m");
+  });
+
+  it("version에 ANSI 인젝션 포함 시 모든 라인 displayWidth ≤ termWidth (폭 불변)", () => {
+    const maliciousVersion = "1.0\x1b[31m";
+    const termWidth = 120;
+    const lines = renderBanner({ version: maliciousVersion, termWidth });
+    for (const line of lines) {
+      const w = displayWidth(stripAnsi(line));
+      expect(w).toBeLessThanOrEqual(termWidth);
+    }
+  });
+
+  it("정상 version은 그대로 표시된다", () => {
+    const lines = renderBanner({ version: "2.3.4", termWidth: 120 });
+    const text = lines.join("\n");
+    expect(text).toContain("2.3.4");
   });
 });
 
