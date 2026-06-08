@@ -41,7 +41,7 @@ import {
 import { startAndroidRecording, startIosRecording } from "./recorder.js";
 import type { Recorder } from "./recorder.js";
 import { isDebug, debugLog, createDebugArtifacts } from "./debug.js";
-import { emitProgress } from "./progress.js";
+import { emitProgress, withHeartbeat } from "./progress.js";
 import type { E2eProgressPhase } from "./progress.js";
 export type { E2eProgressEvent, E2eProgressPhase, E2eProgressStatus, E2eProgressCallback } from "./progress.js";
 
@@ -244,10 +244,17 @@ export async function runE2eTest(opts: RunE2eTestOptions): Promise<E2eTestResult
       });
     }
 
-    const [buildResult, sessionAppMap] = await Promise.all([
-      buildResultPromise,
-      appMapPromise,
-    ]);
+    const [buildResult, sessionAppMap] = await withHeartbeat(
+      Promise.all([buildResultPromise, appMapPromise]),
+      onProgress,
+      () => ({
+        phase: "build",
+        status: "start",
+        timestamp: Date.now(),
+        heartbeat: true,
+        detail: "진행 중…",
+      }),
+    );
     // artifactPath는 절대 경로일 수 있으므로 basename만 노출
     await emitProgress(onProgress, { phase: "build", status: "done", timestamp: Date.now(), detail: path.basename(buildResult.artifactPath) });
     await emitProgress(onProgress, { phase: "appmap", status: "done", timestamp: Date.now(), detail: sessionAppMap ? `화면 ${sessionAppMap.appMap.screens.length}개` : "AppMap 없음" });
