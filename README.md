@@ -6,7 +6,7 @@
 
 - **Zero-config**: works without touching the target project
 - **Read-only**: never modifies the target project's source
-- **Auto-installs dependencies**: Chromium and other required runtimes are installed automatically
+- **Auto-installs dependencies**: Chromium is installed automatically on first capture/E2E run (or upfront with `pnpm bootstrap`)
 - **Honest about limitations**: every result ships with a confidence score + diagnostics codes
 
 Supported frameworks: **Flutter / React Native / Android (Compose·XML) / iOS (SwiftUI·UIKit)**
@@ -19,9 +19,9 @@ Screenshot extraction and App Map generation are foundational features for test 
 ## Quick Start
 
 ```bash
-# 1. Clone and warm up (install + build + Chromium)
+# 1. Clone and set up (install + build + register karax CLI globally)
 git clone <repo-url> karax && cd karax
-pnpm bootstrap
+./setup.sh          # install → build → karax CLI global registration (one shot)
 
 # 2. Diagnose your environment (auto-install what's missing)
 node packages/cli/dist/bin.js doctor --fix
@@ -53,6 +53,7 @@ Open the project and the root `.mcp.json` is picked up automatically. **The firs
 
 ```bash
 # Optional pre-warm — install + build + Chromium install, all upfront
+# (setup.sh only registers the CLI; it does NOT pre-install Chromium)
 pnpm bootstrap
 ```
 
@@ -81,7 +82,7 @@ Option 2 prints:
 
 Paste this JSON into your client's configuration file.
 
-> **First-run delay**: if `node_modules` or `dist` is missing, the launcher installs + builds automatically (progress logs go to stderr only — the MCP stdout protocol channel stays clean). If your MCP client has a short connection timeout, run `pnpm bootstrap` first.
+> **First-run delay**: if `node_modules` or `dist` is missing, the launcher installs + builds automatically (progress logs go to stderr only — the MCP stdout protocol channel stays clean). If your MCP client has a short connection timeout, run `pnpm bootstrap` first (install + build + Chromium pre-warm). `./setup.sh` also installs and builds, but additionally registers the `karax` CLI globally — it does **not** pre-install Chromium.
 
 > **Security**: the launcher runs `pnpm install` on first start, which executes dependency postinstall scripts. Only use it when cloned from a trusted source (the official repository).
 
