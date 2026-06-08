@@ -14,7 +14,7 @@ import type {
   DebugEvent,
 } from "@karax/adapter-api";
 import { detectFramework as coreDetectFramework } from "@karax/core";
-import { assembleAppMap, sanitizeAppName, renderAppMapMarkdown, matchElement, AppMapSchema } from "@karax/core";
+import { assembleAppMap, sanitizeAppName, renderAppMapMarkdown, matchElement, AppMapSchema, mapConcurrent } from "@karax/core";
 import type { AppMap, AppMapDocument, AppMapRenderOptions, IRDocument } from "@karax/core";
 
 export { renderAppMapMarkdown };
@@ -161,11 +161,17 @@ export async function generateAppMap(
 
   // 각 화면의 IR을 빌드해 elements를 채운다.
   // 화면 하나의 실패가 전체를 중단시키지 않도록 try/catch로 건너뜀.
-  const irDocs: IRDocument[] = [];
-  for (const screen of screens) {
+  // 최대 4개 동시성 제한으로 병렬화 (결과 순서 보존).
+  //
+  // Android 동시성 클램프 (항목 8):
+  // android buildScreenIR는 화면마다 buildSymbolTable로 Kotlin 전체를 파싱한다.
+  // 동시성 4 × 대형 프로젝트 = 메모리 스파이크 위험이 있으므로 2로 제한한다.
+  // (심볼테이블 공유로 근본 해결 가능하나 어댑터 인터페이스 큰 변경이 필요해
+  //  이번 방어적 클램프로 대체한다.)
+  const IR_BUILD_CONCURRENCY = frameworkId === "android" ? 2 : 4;
+  const irResults = await mapConcurrent(screens, IR_BUILD_CONCURRENCY, async (screen) => {
     try {
-      const irDoc = await adapter.buildScreenIR(ctx, screen.id);
-      irDocs.push(irDoc);
+      return await adapter.buildScreenIR(ctx, screen.id);
     } catch (e) {
       // IR 빌드 실패 — 해당 화면은 elements=[]로 처리 (계속 진행)
       opts.onDebug?.({
@@ -173,8 +179,10 @@ export async function generateAppMap(
         message: `${screen.id}: IR 빌드 실패, elements=[]로 처리`,
         detail: e instanceof Error ? e.stack : String(e),
       });
+      return null;
     }
-  }
+  });
+  const irDocs: IRDocument[] = irResults.filter((doc): doc is IRDocument => doc !== null);
 
   const appMap = assembleAppMap({
     appName,

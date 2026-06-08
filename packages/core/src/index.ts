@@ -90,3 +90,5 @@ export type { ScreenIdentification } from "./runtime/whichScreen.js";
 export { parseIdbDescribeAll } from "./runtime/idbParser.js";
 
 export { redactSecrets, redactInvocation, formatRespawnCrash } from "./debug/redact.js";
+
+export { mapConcurrent } from "./concurrency.js";

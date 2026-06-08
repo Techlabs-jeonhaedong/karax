@@ -120,6 +120,13 @@ export interface RunE2eTestOptions {
    */
   buildCommand?: string;
   /**
+   * AppMap 세션 간 캐시 재사용 여부. 기본값 false (opt-in, reuseBuild와 일관).
+   * true이면 소스 핑거프린트가 같은 경우 AppMap을 재생성하지 않고 캐시에서 로드한다.
+   * false이면 항상 새로 생성한다.
+   * 캐시 히트 시에도 마크다운 파일은 현재 세션 디렉토리에 새로 기록된다.
+   */
+  reuseAppMap?: boolean;
+  /**
    * 파이프라인 진행 상황 콜백.
    * 각 파이프라인 단계의 시작/완료/오류 시점에 호출된다.
    *
