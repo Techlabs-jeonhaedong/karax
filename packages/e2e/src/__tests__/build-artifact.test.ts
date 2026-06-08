@@ -163,6 +163,51 @@ describe("findFlutterApk", () => {
   it("APK가 없으면 null 반환", () => {
     expect(findFlutterApk(tmpDir)).toBeNull();
   });
+
+  it("projectPath가 상대경로('.')여도 반환 경로는 절대경로다", () => {
+    // 실제 CWD 기준으로 파일을 만들어야 하므로, CWD를 tmpDir로 바꾸고 '.'로 호출
+    const originalCwd = process.cwd();
+    process.chdir(tmpDir);
+    try {
+      const apkDir = path.join(tmpDir, "build", "app", "outputs", "flutter-apk");
+      fs.mkdirSync(apkDir, { recursive: true });
+      fs.writeFileSync(path.join(apkDir, "app-krdev-debug.apk"), "fake");
+
+      const result = findFlutterApk(".");
+      expect(result).not.toBeNull();
+      expect(path.isAbsolute(result!)).toBe(true);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  it("projectPath가 상대경로('.')이고 flavor APK만 존재해도 절대경로를 반환한다", () => {
+    const originalCwd = process.cwd();
+    process.chdir(tmpDir);
+    try {
+      const apkDir = path.join(tmpDir, "build", "app", "outputs", "flutter-apk");
+      fs.mkdirSync(apkDir, { recursive: true });
+      // flavor 빌드 — app-debug.apk 없이 app-krdev-debug.apk만 존재
+      fs.writeFileSync(path.join(apkDir, "app-krdev-debug.apk"), "fake");
+
+      const result = findFlutterApk(".");
+      expect(result).not.toBeNull();
+      expect(path.isAbsolute(result!)).toBe(true);
+      expect(result!.endsWith("app-krdev-debug.apk")).toBe(true);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  it("이미 절대경로로 주어지면 그대로 절대경로를 반환한다 (idempotent)", () => {
+    const apkDir = path.join(tmpDir, "build", "app", "outputs", "flutter-apk");
+    fs.mkdirSync(apkDir, { recursive: true });
+    fs.writeFileSync(path.join(apkDir, "app-debug.apk"), "fake");
+
+    const result = findFlutterApk(tmpDir);
+    expect(result).not.toBeNull();
+    expect(path.isAbsolute(result!)).toBe(true);
+  });
 });
 
 describe("findFlutterIosApp", () => {

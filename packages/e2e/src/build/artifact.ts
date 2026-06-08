@@ -44,9 +44,10 @@ export function extractIosBundleId(plistContent: string): string | null {
  * 우선순위 경로를 순서대로 탐색, 없으면 재귀 fallback.
  */
 export function findApk(projectPath: string, appModule: string = "app"): string | null {
+  const absProjectPath = path.resolve(projectPath);
   const priorityPaths = [
-    path.join(projectPath, appModule, "build", "outputs", "apk", "debug"),
-    path.join(projectPath, "build", "outputs", "apk", "debug"),
+    path.join(absProjectPath, appModule, "build", "outputs", "apk", "debug"),
+    path.join(absProjectPath, "build", "outputs", "apk", "debug"),
   ];
 
   for (const dir of priorityPaths) {
@@ -57,7 +58,7 @@ export function findApk(projectPath: string, appModule: string = "app"): string 
   }
 
   // fallback: 전체 build 재귀 탐색 (최신 mtime)
-  const buildDir = path.join(projectPath, appModule, "build");
+  const buildDir = path.join(absProjectPath, appModule, "build");
   if (fs.existsSync(buildDir)) {
     return findNewestByExtension(buildDir, ".apk");
   }
@@ -74,7 +75,8 @@ export function findApk(projectPath: string, appModule: string = "app"): string 
  * 3. build/app/outputs 아래 최신 mtime APK (최종 fallback)
  */
 export function findFlutterApk(projectPath: string): string | null {
-  const flutterApkDir = path.join(projectPath, "build", "app", "outputs", "flutter-apk");
+  const absProjectPath = path.resolve(projectPath);
+  const flutterApkDir = path.join(absProjectPath, "build", "app", "outputs", "flutter-apk");
 
   // 1. 기본 경로 우선
   const defaultApk = path.join(flutterApkDir, "app-debug.apk");
@@ -87,14 +89,14 @@ export function findFlutterApk(projectPath: string): string | null {
   }
 
   // 3. fallback: build/app/outputs 아래 최신 mtime APK
-  return findNewestByExtension(path.join(projectPath, "build", "app", "outputs"), ".apk");
+  return findNewestByExtension(path.join(absProjectPath, "build", "app", "outputs"), ".apk");
 }
 
 /**
  * flutter/ios .app 경로 — 최신 mtime 기준.
  */
 export function findFlutterIosApp(projectPath: string): string | null {
-  const dir = path.join(projectPath, "build", "ios", "iphonesimulator");
+  const dir = path.join(path.resolve(projectPath), "build", "ios", "iphonesimulator");
   if (!fs.existsSync(dir)) return null;
   return findNewestByExtension(dir, ".app");
 }
@@ -103,7 +105,7 @@ export function findFlutterIosApp(projectPath: string): string | null {
  * derivedData 산하 .app 경로 탐색 — 최신 mtime 기준.
  */
 export function findDerivedDataApp(derivedDataPath: string): string | null {
-  const buildDir = path.join(derivedDataPath, "Build", "Products");
+  const buildDir = path.join(path.resolve(derivedDataPath), "Build", "Products");
   if (!fs.existsSync(buildDir)) return null;
   return findNewestByExtension(buildDir, ".app");
 }
@@ -117,9 +119,10 @@ export function findDerivedDataApp(derivedDataPath: string): string | null {
  * 2. ios/build/Build/Products (Xcode/RN iOS 표준 derivedData 위치)
  */
 export function findIosStandardApp(projectPath: string): string | null {
+  const absProjectPath = path.resolve(projectPath);
   const candidates = [
-    path.join(projectPath, "build", "ios", "iphonesimulator"),
-    path.join(projectPath, "ios", "build", "Build", "Products"),
+    path.join(absProjectPath, "build", "ios", "iphonesimulator"),
+    path.join(absProjectPath, "ios", "build", "Build", "Products"),
   ];
 
   for (const dir of candidates) {
